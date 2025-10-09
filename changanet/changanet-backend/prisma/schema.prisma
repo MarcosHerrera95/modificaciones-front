@@ -1,0 +1,163 @@
+// prisma/schema.prisma
+// FUNCIÓN: Define la estructura de la base de datos relacional de Changánet.
+// RELACIÓN PRD: Sección 6 (Entorno Operativo) y Sección 7 (Requerimientos Funcionales).
+// TARJETA BACKEND: N/A (Base de datos para todas las tarjetas).
+// SPRINT: Sprint 0 - Fase 2 (UX Research) - "Pruebas de concepto implementadas, garantizando que las tecnologías elegidas sean viables."
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// MODELO: usuarios
+// FUNCIÓN: Almacena todos los usuarios del sistema (clientes y profesionales).
+// RELACIÓN PRD: REQ-01 (Registro), REQ-02 (Login), REQ-03 (Verificación de email).
+// TARJETA BACKEND: Tarjeta 1: [Backend] Implementar API de Registro y Login.
+// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+model usuarios {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  hash_contrasena String
+  nombre          String
+  telefono        String?
+  rol             String    @default("cliente")
+  esta_verificado Boolean   @default(false)
+  creado_en       DateTime  @default(now())
+  actualizado_en  DateTime?
+
+  perfil_profesional perfiles_profesionales?
+  servicios_como_cliente servicios[] @relation("ServicioCliente")
+  servicios_como_profesional servicios[] @relation("ServicioProfesional")
+  resenas_escritas resenas[]
+  mensajes_enviados mensajes[] @relation("MensajeRemitente")
+  mensajes_recibidos mensajes[] @relation("MensajeDestinatario")
+  disponibilidad disponibilidad[]
+  notificaciones notificaciones[]
+  cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
+  cotizaciones_como_profesional cotizaciones[] @relation("CotizacionProfesional")
+}
+
+// MODELO: perfiles_profesionales
+// FUNCIÓN: Almacena la información específica de los profesionales.
+// RELACIÓN PRD: REQ-06 (Foto), REQ-07 (Especialidad), REQ-08 (Experiencia), REQ-09 (Zona), REQ-10 (Tarifas).
+// TARJETA BACKEND: Tarjeta 2: [Backend] Implementar API para Gestión de Perfiles Profesionales.
+// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+model perfiles_profesionales {
+  usuario_id       String   @id @default(uuid()) // PK y FK que enlaza con usuarios.id
+  usuario          usuarios @relation(fields: [usuario_id], references: [id])
+
+  especialidad     String
+  anos_experiencia Int?
+  zona_cobertura   String
+  tarifa_hora      Float
+  descripcion      String?
+  url_foto_perfil  String?
+  calificacion_promedio Float?
+  estado_verificacion String @default("pendiente")
+  verificado_en    DateTime?
+  url_documento_verificacion String?
+}
+
+// MODELO: servicios
+// FUNCIÓN: Representa un servicio contratado, conectando a un cliente con un profesional.
+// RELACIÓN PRD: REQ-29 (Agendamiento), RB-02 (Solo reseñas si el servicio está completado).
+// TARJETA BACKEND: Tarjeta 6: [Backend] Implementar API de Gestión de Disponibilidad (parte de agendamiento).
+// SPRINT: Sprint 2 (Segunda Entrega) - "Consolidar y mejorar el producto".
+model servicios {
+  id             String   @id @default(uuid())
+  cliente_id     String
+  cliente        usuarios @relation("ServicioCliente", fields: [cliente_id], references: [id])
+  profesional_id String
+  profesional    usuarios @relation("ServicioProfesional", fields: [profesional_id], references: [id])
+  descripcion    String
+  estado         String @default("pendiente")
+  fecha_agendada DateTime?
+  creado_en      DateTime @default(now())
+  completado_en  DateTime?
+  resena         resenas?
+}
+
+model resenas {
+  id            String   @id @default(uuid())
+  servicio_id   String   @unique
+  servicio      servicios @relation(fields: [servicio_id], references: [id])
+  cliente_id    String
+  cliente       usuarios @relation(fields: [cliente_id], references: [id])
+  calificacion  Int
+  comentario    String?
+  url_foto      String?
+  creado_en     DateTime @default(now())
+}
+
+// MODELO: mensajes
+// FUNCIÓN: Almacena el historial de comunicación entre usuarios (el chat).
+// RELACIÓN PRD: REQ-16 (Chat interno), REQ-17 (Mensajes de texto), REQ-18 (Imágenes), REQ-20 (Historial).
+// TARJETA BACKEND: Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real.
+// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+model mensajes {
+  id             String   @id @default(uuid()) // Identificador único del mensaje
+  remitente_id   String   // FK que enlaza con el usuario remitente
+  remitente      usuarios @relation("MensajeRemitente", fields: [remitente_id], references: [id])
+  destinatario_id String  // FK que enlaza con el usuario destinatario
+  destinatario   usuarios @relation("MensajeDestinatario", fields: [destinatario_id], references: [id])
+  contenido      String
+  url_imagen     String?
+  esta_leido     Boolean  @default(false)
+  creado_en      DateTime @default(now())
+}
+
+// MODELO: disponibilidad
+// FUNCIÓN: Gestiona los horarios en los que un profesional está disponible para trabajar.
+// RELACIÓN PRD: REQ-26 (Calendario), REQ-27 (Horarios), REQ-28 (Visibilidad).
+// TARJETA BACKEND: Tarjeta 6: [Backend] Implementar API de Gestión de Disponibilidad.
+// SPRINT: Sprint 2 (Segunda Entrega) - "Consolidar y mejorar el producto".
+model disponibilidad {
+  id            String   @id @default(uuid()) // Identificador único del bloque de disponibilidad
+  profesional_id String  // FK que enlaza con el profesional
+  profesional   usuarios @relation(fields: [profesional_id], references: [id])
+  fecha         DateTime // REQ-27: Fecha del bloque de disponibilidad
+  hora_inicio   DateTime // REQ-27: Hora de inicio del bloque
+  hora_fin      DateTime // REQ-27: Hora de fin del bloque
+  esta_disponible Boolean @default(true)
+}
+
+// MODELO: notificaciones
+// FUNCIÓN: Almacena las alertas automáticas que recibe el usuario.
+// RELACIÓN PRD: REQ-19 (Notificaciones automáticas).
+// TARJETA BACKEND: Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real (parte de notificaciones).
+// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+model notificaciones {
+  id         String   @id @default(uuid()) // Identificador único de la notificación
+  usuario_id String   // FK que enlaza con el usuario receptor
+  usuario    usuarios @relation(fields: [usuario_id], references: [id])
+  tipo       String
+  mensaje    String   // Contenido de la notificación
+  esta_leido Boolean  @default(false)
+  creado_en  DateTime @default(now()) // Fecha de creación de la notificación
+}
+model cotizaciones {
+  id             String   @id @default(uuid())
+  cliente_id     String
+  cliente        usuarios @relation("CotizacionCliente", fields: [cliente_id], references: [id])
+  profesional_id String
+  profesional    usuarios @relation("CotizacionProfesional", fields: [profesional_id], references: [id])
+  descripcion    String
+  estado         String @default("pendiente")
+  precio         Float
+  comentario     String?
+  creado_en      DateTime @default(now())
+  aceptado_en    DateTime?
+  rechazado_en   DateTime?
+}
+
+// Note: Enums converted to String types for SQLite compatibility
+// Valid values:
+// - rol: "cliente", "profesional"
+// - estado_verificacion: "pendiente", "verificado", "rechazado"
+// - estado (servicios): "pendiente", "agendado", "completado", "cancelado"
+// - tipo (notificaciones): "nuevo_mensaje", "nueva_cotizacion", "servicio_agendado", "resena_recibida", "pago_liberado"
+// - estado (cotizaciones): "pendiente", "aceptado", "rechazado"
