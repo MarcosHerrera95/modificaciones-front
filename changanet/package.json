@@ -1,0 +1,13 @@
+{
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix changanet-backend\" \"npm run dev --prefix changanet-frontend\"",
+    "dev:backend": "npm run dev --prefix changanet-backend",
+    "dev:frontend": "npm run dev --prefix changanet-frontend"
+  },
+  "dependencies": {
+    "nodemailer": "^7.0.6"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
