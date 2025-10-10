@@ -22,6 +22,7 @@ exports.authenticateToken = (req, res, next) => {
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.sendStatus(403); // Si el token es inválido, expirado o mal formado, devolver 403 (Prohibido)
     req.user = user; // Añadir el payload del token (userId, role) al objeto 'req' para usarlo en los controladores posteriores
+    console.log('req.user set to:', req.user);
     next(); // Pasar al siguiente middleware o controlador, permitiendo el acceso a la ruta solicitada
   });
 };

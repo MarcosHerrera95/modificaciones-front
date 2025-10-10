@@ -7,14 +7,14 @@ const prisma = new PrismaClient();
 
 describe('Auth Flow Integration', () => {
   const userData = {
-    email: 'integration@example.com',
+    email: `integration${Date.now()}@example.com`,
     password: '123456',
     name: 'Integration Test User',
     role: 'cliente'
   };
 
   beforeEach(async () => {
-    await prisma.usuarios.deleteMany({});
+    await prisma.usuarios.deleteMany({ where: { email: { startsWith: 'integration' } } });
   });
 
   afterAll(async () => {
@@ -45,10 +45,11 @@ describe('Auth Flow Integration', () => {
 
     // 4. Use token to access protected route
     const profileResponse = await request(app)
-      .get(`/api/profile/${loginResponse.body.user.id}`)
+      .get('/api/profile')
       .set('Authorization', `Bearer ${loginResponse.body.token}`)
       .expect(200);
 
-    expect(profileResponse.body.usuario_id).toBe(loginResponse.body.user.id);
+    expect(profileResponse.body.usuario).toBeDefined();
+    expect(profileResponse.body.usuario.id).toBe(loginResponse.body.user.id);
   });
 });

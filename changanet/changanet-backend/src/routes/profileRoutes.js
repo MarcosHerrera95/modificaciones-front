@@ -18,7 +18,7 @@ const router = express.Router();
 // Definir la ruta GET para obtener el perfil propio (autenticado).
 // Esta ruta está protegida y devuelve el perfil del usuario autenticado.
 router.get('/', authenticateToken, async (req, res) => {
-  const { id: userId } = req.user;
+  const { userId } = req.user;
 
   try {
     if (req.user.role === 'profesional') {
