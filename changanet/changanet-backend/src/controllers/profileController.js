@@ -27,7 +27,7 @@ exports.getProfile = async (req, res) => {
 };
 
 exports.updateProfile = async (req, res) => {
-  const { id: userId } = req.user;
+  const { userId } = req.user;
   const { especialidad, años_experiencia, zona_cobertura, tarifa_hora, descripción, url_foto_perfil } = req.body;
 
   try {

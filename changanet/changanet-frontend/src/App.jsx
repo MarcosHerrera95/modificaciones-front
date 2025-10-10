@@ -13,6 +13,8 @@ import AuthCallback from './pages/AuthCallback';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Cookies from './pages/Cookies';
+import Custody from './pages/Custody';
+import Ranking from './pages/Ranking';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import './index.css';
@@ -47,6 +49,8 @@ function App() {
               <Route path="/terminos" element={<Terms />} />
               <Route path="/privacidad" element={<Privacy />} />
               <Route path="/cookies" element={<Cookies />} />
+              <Route path="/custodia" element={<Custody />} />
+              <Route path="/ranking" element={<Ranking />} />
             </Routes>
           </main>
           <Footer />

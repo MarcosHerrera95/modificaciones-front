@@ -9,11 +9,11 @@ exports.searchProfessionals = async (req, res) => {
     const where = {};
 
     if (specialty) {
-      where.especialidad = { contains: specialty, mode: 'insensitive' };
+      where.especialidad = { contains: specialty };
     }
 
     if (location) {
-      where.zona_cobertura = { contains: location, mode: 'insensitive' };
+      where.zona_cobertura = { contains: location };
     }
 
     if (minPrice || maxPrice) {
