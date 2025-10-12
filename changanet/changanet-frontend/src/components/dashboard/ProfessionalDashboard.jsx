@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import useSmartNavigation from '../../hooks/useSmartNavigation';
+
 
 const ProfessionalDashboard = ({ user }) => {
   const navigate = useNavigate();
+  const smartNavigate = useSmartNavigation();
   const [stats, setStats] = useState({
     activeServices: 0,
     completedServices: 0,
@@ -175,38 +178,38 @@ const ProfessionalDashboard = ({ user }) => {
       <div className="bg-white p-6 rounded-2xl shadow-lg">
         <h2 className="text-xl font-bold text-gray-800 mb-4">Acciones Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            to="/mis-cotizaciones"
-            className="flex items-center p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors duration-200"
-          >
+        <button
+            onClick={() => smartNavigate('/mis-cotizaciones')}
+            type="button"
+            className="flex items-center p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors duration-200 w-full text-left">
             <span className="text-2xl mr-3">📋</span>
             <div>
               <h3 className="font-semibold text-gray-800">Mis Cotizaciones</h3>
               <p className="text-sm text-gray-600">Responde a solicitudes</p>
-            </div>
-          </Link>
+          </div>
+        </button>
 
-          <Link
-            to="/mi-perfil-profesional"
-            className="flex items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors duration-200"
-          >
+          <button
+            onClick={() => smartNavigate('/mi-perfil-profesional')}
+            type="button"
+            className="flex items-center p-4 bg-amber-50 rounded-lg hover:bg-amber-100 transition-colors duration-200 w-full text-left">
             <span className="text-2xl mr-3">👤</span>
             <div>
               <h3 className="font-semibold text-gray-800">Mi Perfil</h3>
               <p className="text-sm text-gray-600">Actualiza tu información</p>
-            </div>
-          </Link>
+          </div>
+        </button>
 
-          <Link
-            to="/disponibilidad"
-            className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200"
-          >
+          <button
+            onClick={() => smartNavigate('/disponibilidad')}
+            type="button"
+            className="flex items-center p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors duration-200 w-full text-left">
             <span className="text-2xl mr-3">📅</span>
             <div>
               <h3 className="font-semibold text-gray-800">Disponibilidad</h3>
               <p className="text-sm text-gray-600">Gestiona tu agenda</p>
-            </div>
-          </Link>
+          </div>
+        </button>
         </div>
       </div>
 
