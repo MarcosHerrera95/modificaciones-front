@@ -1,3 +1,4 @@
+import BackToAccountButton from '../components/ui/BackToAccountButton';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 
@@ -59,6 +60,8 @@ const Quotes = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50">
       <div className="container mx-auto px-4 py-8">
+        <BackToAccountButton />
+
         <h1 className="text-3xl font-bold mb-6 text-gray-800">
           {user.role === 'cliente' ? 'Mis Cotizaciones' : 'Cotizaciones Recibidas'}
         </h1>
@@ -74,17 +77,23 @@ const Quotes = () => {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      {user.role === 'cliente' ? `Profesional: ${quote.profesional.nombre}` : `Cliente: ${quote.cliente.nombre}`}
+                      {user.role === 'cliente'
+                        ? `Profesional: ${quote.profesional.nombre}`
+                        : `Cliente: ${quote.cliente.nombre}`}
                     </h3>
                     <p className="text-gray-600 mb-2">{quote.descripción}</p>
                     <p className="text-sm text-gray-500">Zona: {quote.zona_cobertura}</p>
                   </div>
                   <div className="text-right">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      quote.estado === 'pendiente' ? 'bg-amber-100 text-amber-800' :
-                      quote.estado === 'aceptado' ? 'bg-emerald-100 text-emerald-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        quote.estado === 'pendiente'
+                          ? 'bg-amber-100 text-amber-800'
+                          : quote.estado === 'aceptado'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}
+                    >
                       {quote.estado}
                     </span>
                     {quote.precio && (
@@ -123,3 +132,4 @@ const Quotes = () => {
 };
 
 export default Quotes;
+
