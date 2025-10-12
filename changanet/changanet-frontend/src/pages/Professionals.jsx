@@ -46,7 +46,7 @@ const Professionals = () => {
   });
 
   const filteredProfessionals = filterVerified
-    ? sortedProfessionals.filter(p => p.estado_verificación === 'verificado')
+    ? sortedProfessionals.filter(p => p.estado_verificacion === 'verificado')
     : sortedProfessionals;
 
   if (loading) {

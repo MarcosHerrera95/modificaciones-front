@@ -34,9 +34,9 @@ const ProfessionalProfile = () => {
       if (response.ok) {
         const data = await response.json();
         setProfile({
-          nombre: data.nombre || user.name || '',
-          email: data.email || user.email || '',
-          telefono: data.telefono || '',
+          nombre: data.usuario?.nombre || user.name || '',
+          email: data.usuario?.email || user.email || '',
+          telefono: data.usuario?.telefono || '',
           especialidad: data.especialidad || '',
           anos_experiencia: data.anos_experiencia || '',
           zona_cobertura: data.zona_cobertura || '',
@@ -74,9 +74,19 @@ const ProfessionalProfile = () => {
 
     try {
       // Simular subida de foto si hay archivo seleccionado
+      let urlFotoPerfil = profile.url_foto_perfil;
       if (selectedFile) {
-        profile.url_foto_perfil = preview;
+        urlFotoPerfil = preview;
       }
+
+      const profileData = {
+        especialidad: profile.especialidad,
+        anos_experiencia: profile.anos_experiencia,
+        zona_cobertura: profile.zona_cobertura,
+        tarifa_hora: profile.tarifa_hora,
+        descripcion: profile.descripcion,
+        url_foto_perfil: urlFotoPerfil
+      };
 
       const response = await fetch('/api/profile', {
         method: 'PUT',
@@ -84,7 +94,7 @@ const ProfessionalProfile = () => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
-        body: JSON.stringify(profile)
+        body: JSON.stringify(profileData)
       });
 
       if (response.ok) {

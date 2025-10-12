@@ -29,7 +29,7 @@ const ProfessionalCard = ({ professional }) => {
               alt={`Foto de perfil de ${professional.usuario.nombre}`}
               className="w-28 h-28 md:w-32 md:h-32 rounded-3xl object-cover shadow-xl group-hover:shadow-2xl transition-all duration-300 border-4 border-white/50"
             />
-            {professional.estado_verificación === 'verificado' && (
+            {professional.estado_verificacion === 'verificado' && (
               <div className="absolute -top-3 -right-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full p-2 shadow-xl animate-pulse">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -74,7 +74,7 @@ const ProfessionalCard = ({ professional }) => {
 
           {/* Badges */}
           <div className="flex flex-wrap gap-3 mb-6">
-            {professional.estado_verificación === 'verificado' && (
+            {professional.estado_verificacion === 'verificado' && (
               <span className="bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
                 <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
