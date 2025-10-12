@@ -28,7 +28,7 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { userId } = req.user;
-  const { especialidad, años_experiencia, zona_cobertura, tarifa_hora, descripción, url_foto_perfil } = req.body;
+  const { especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, url_foto_perfil } = req.body;
 
   try {
     const user = await prisma.usuarios.findUnique({ where: { id: userId } });
@@ -41,25 +41,25 @@ exports.updateProfile = async (req, res) => {
     if (profile) {
       profile = await prisma.perfiles_profesionales.update({
         where: { usuario_id: userId },
-        data: { 
-          especialidad, 
-          años_experiencia, 
-          zona_cobertura, 
-          tarifa_hora: parseFloat(tarifa_hora), 
-          descripción, 
-          url_foto_perfil 
+        data: {
+          especialidad,
+          anos_experiencia,
+          zona_cobertura,
+          tarifa_hora: parseFloat(tarifa_hora),
+          descripcion,
+          url_foto_perfil
         },
       });
     } else {
       profile = await prisma.perfiles_profesionales.create({
-        data: { 
-          usuario_id: userId, 
-          especialidad, 
-          años_experiencia, 
-          zona_cobertura, 
-          tarifa_hora: parseFloat(tarifa_hora), 
-          descripción, 
-          url_foto_perfil 
+        data: {
+          usuario_id: userId,
+          especialidad,
+          anos_experiencia,
+          zona_cobertura,
+          tarifa_hora: parseFloat(tarifa_hora),
+          descripcion,
+          url_foto_perfil
         },
       });
     }
