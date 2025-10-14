@@ -1,57 +1,53 @@
 // src/services/emailService.js
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// Configurar transporte (usando Gmail SMTP o servicio similar)
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+// Configurar SendGrid con la API Key
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-exports.sendEmail = async (to, subject, html) => {
+// Función para enviar email de verificación
+exports.sendVerificationEmail = async (to, token) => {
+  const msg = {
+    to,
+    from: 'noreply@changanet.com', // Debe ser un email verificado en SendGrid
+    subject: 'Verifica tu cuenta en Changánet',
+    text: `Hola! Por favor, verifica tu cuenta haciendo clic en este enlace: http://localhost:5173/verify?token=${token}`,
+    html: `
+      <h1>¡Hola!</h1>
+      <p>Gracias por registrarte en Changánet.</p>
+      <p>Por favor, verifica tu cuenta haciendo clic en el siguiente enlace:</p>
+      <a href="http://localhost:5173/verify?token=${token}" 
+         style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
+        Verificar Cuenta
+      </a>
+      <p>Si no puedes hacer clic en el enlace, copia y pega esta URL en tu navegador:</p>
+      <p>http://localhost:5173/verify?token=${token}</p>
+    `,
+  };
+
   try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to,
-      subject,
-      html
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('📧 Email enviado:', info.response);
-    return info;
+    await sgMail.send(msg);
+    console.log(`📧 Email de verificación enviado a: ${to}`);
   } catch (error) {
-    console.error('Error al enviar email:', error);
+    console.error('❌ Error al enviar email:', error);
     throw error;
   }
 };
 
-exports.sendWelcomeEmail = async (user) => {
-  const subject = '¡Bienvenido a Changánet!';
-  const html = `
-    <h1>¡Hola, ${user.nombre}!</h1>
-    <p>Gracias por unirte a Changánet. Estamos emocionados de tenerte con nosotros.</p>
-    <p>Para comenzar, verifica tu email haciendo clic en el siguiente enlace:</p>
-    <a href="${process.env.FRONTEND_URL}/verificar-email?token=TOKEN_DE_VERIFICACION">Verificar Email</a>
-    <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
-    <p>Saludos,<br>El equipo de Changánet</p>
-  `;
+// Función para enviar notificaciones
+exports.sendNotificationEmail = async (to, subject, message) => {
+  const msg = {
+    to,
+    from: 'noreply@changanet.com',
+    subject,
+    text: message,
+    html: `<p>${message}</p>`,
+  };
 
-  await exports.sendEmail(user.email, subject, html);
-};
-
-exports.sendQuoteRequestEmail = async (professional, client, quoteRequest) => {
-  const subject = `Nueva solicitud de presupuesto de ${client.nombre}`;
-  const html = `
-    <h1>Hola, ${professional.nombre}!</h1>
-    <p>Has recibido una nueva solicitud de presupuesto de ${client.nombre}.</p>
-    <p><strong>Descripción del trabajo:</strong> ${quoteRequest.descripción}</p>
-    <p><strong>Zona:</strong> ${quoteRequest.zona_cobertura}</p>
-    <a href="${process.env.FRONTEND_URL}/mi-cuenta/presupuestos">Ver detalles y responder</a>
-    <p>Saludos,<br>El equipo de Changánet</p>
-  `;
-
-  await exports.sendEmail(professional.email, subject, html);
+  try {
+    await sgMail.send(msg);
+    console.log(`📧 Notificación enviada a: ${to}`);
+  } catch (error) {
+    console.error('❌ Error al enviar notificación:', error);
+    throw error;
+  }
 };
