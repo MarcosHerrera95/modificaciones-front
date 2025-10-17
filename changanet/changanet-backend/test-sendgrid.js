@@ -5,7 +5,7 @@ require('dotenv').config();
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 const msg = {
-  to: 'tu-email-de-prueba@ejemplo.com', // Cambia esto por tu email real
+  to: 'Diegoeuler@gmail.com', // Cambia esto por tu email real
   from: 'noreply@changanet.com', // Debe ser un email verificado en SendGrid
   subject: '📧 Prueba de SendGrid - Changánet',
   text: '¡Hola! Este es un email de prueba para verificar que SendGrid funciona correctamente en Changánet.',
