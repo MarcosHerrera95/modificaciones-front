@@ -1,9 +1,12 @@
-// src/pages/ProfessionalDetail.jsx - Página "Mi Perfil" completamente regenerada
+// src/pages/ProfessionalDetail.jsx - Página de Detalle del Profesional con Chat en Tiempo Real
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ChatWidget from '../components/ChatWidget';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
+  const { id: professionalId } = useParams();
   const [activeTab, setActiveTab] = useState('about');
   const [profile, setProfile] = useState({
     nombre: '',
@@ -231,7 +234,12 @@ const ProfessionalDetail = () => {
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
           <div className="border-b border-gray-200">
             <nav className="flex flex-wrap">
-              {[
+              {user && user.rol === 'cliente' ? [
+                { id: 'about', label: 'Sobre Mí', icon: '👤' },
+                { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
+                { id: 'reviews', label: 'Reseñas', icon: '⭐' },
+                { id: 'chat', label: 'Chat', icon: '💬' }
+              ] : [
                 { id: 'about', label: 'Sobre Mí', icon: '👤' },
                 { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
                 { id: 'reviews', label: 'Reseñas', icon: '⭐' },
@@ -376,7 +384,16 @@ const ProfessionalDetail = () => {
               </div>
             )}
 
-            {activeTab === 'edit' && (
+            {activeTab === 'chat' && user && user.rol === 'cliente' && (
+              <div className="animate-fade-in">
+                <h2 className="text-3xl font-bold mb-6 text-gray-800">Chat con el Profesional</h2>
+                <div className="max-w-2xl mx-auto">
+                  <ChatWidget otherUserId={professionalId} />
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'edit' && user && user.rol === 'profesional' && (
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Editar Perfil</h2>
 
