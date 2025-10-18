@@ -8,7 +8,10 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 exports.sendVerificationEmail = async (to, token) => {
   const msg = {
     to,
-    from: process.env.FROM_EMAIL, // Debe ser un email verificado en SendGrid
+    from: {
+      email: process.env.FROM_EMAIL,
+      name: 'Changánet'
+    }, // Debe ser un email verificado en SendGrid
     subject: 'Verifica tu cuenta en Changánet',
     text: `Hola! Por favor, verifica tu cuenta haciendo clic en este enlace: http://localhost:5173/verify?token=${token}`,
     html: `
@@ -37,7 +40,10 @@ exports.sendVerificationEmail = async (to, token) => {
 exports.sendNotificationEmail = async (to, subject, message) => {
   const msg = {
     to,
-    from: process.env.FROM_EMAIL,
+    from: {
+      email: process.env.FROM_EMAIL,
+      name: 'Changánet'
+    },
     subject,
     text: message,
     html: `<p>${message}</p>`,
@@ -56,7 +62,10 @@ exports.sendNotificationEmail = async (to, subject, message) => {
 exports.sendQuoteRequestEmail = async (professional, client, quote) => {
   const msg = {
     to: professional.email,
-    from: process.env.FROM_EMAIL,
+    from: {
+      email: process.env.FROM_EMAIL,
+      name: 'Changánet'
+    },
     subject: 'Nueva solicitud de cotización en Changánet',
     text: `Hola ${professional.nombre}, tienes una nueva solicitud de cotización de ${client.nombre}. Descripción: ${quote.descripcion}`,
     html: `
@@ -85,7 +94,10 @@ exports.sendQuoteRequestEmail = async (professional, client, quote) => {
 exports.sendSupportEmail = async (to, subject, message) => {
   const msg = {
     to,
-    from: process.env.SUPPORT_EMAIL,
+    from: {
+      email: process.env.SUPPORT_EMAIL,
+      name: 'Soporte Changánet'
+    },
     subject,
     text: message,
     html: `<p>${message}</p>`,

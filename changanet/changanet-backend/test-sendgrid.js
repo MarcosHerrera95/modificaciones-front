@@ -8,7 +8,10 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 async function testTransactionalEmail() {
   const msg = {
     to: 'diegoeuler@gmail.com',
-    from: process.env.FROM_EMAIL,
+    from: {
+      email: process.env.FROM_EMAIL,
+      name: 'Changánet'
+    },
     subject: '📧 Prueba de Email Transaccional - Changánet',
     text: '¡Hola! Este es un email de prueba transaccional para verificar que SendGrid funciona correctamente en Changánet.',
     html: `
@@ -42,7 +45,10 @@ async function testTransactionalEmail() {
 async function testSupportEmail() {
   const msg = {
     to: 'diegoeuler@gmail.com',
-    from: process.env.SUPPORT_EMAIL,
+    from: {
+      email: process.env.SUPPORT_EMAIL,
+      name: 'Soporte Changánet'
+    },
     subject: '📧 Prueba de Email de Soporte - Changánet',
     text: '¡Hola! Este es un email de prueba de soporte para verificar que SendGrid funciona correctamente en Changánet.',
     html: `
