@@ -15,7 +15,7 @@ const Professionals = () => {
       setLoading(true);
       try {
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
-        const response = await fetch(`http://localhost:3002/api/professionals${location.search}`);
+        const response = await fetch(`/api/professionals${location.search}`);
         const data = await response.json();
         if (response.ok) {
           setProfessionals(data.professionals);

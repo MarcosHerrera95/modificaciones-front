@@ -159,7 +159,7 @@ const Cookies = () => {
               </p>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p><strong>Equipo de Soporte Técnico</strong></p>
-                <p>Email: soportechanganet@gmail.com</p>
+                <p>Email: soporte@changanet.com.ar</p>
                 <p>Teléfono: +54 11 1234-5678</p>
               </div>
             </section>

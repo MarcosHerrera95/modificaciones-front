@@ -1,113 +1,57 @@
 // src/services/emailService.js
-const sgMail = require('@sendgrid/mail');
+const nodemailer = require('nodemailer');
 
-// Configurar SendGrid con la API Key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Configurar transporte (usando Gmail SMTP o servicio similar)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
 
-// Función para enviar email de verificación
-exports.sendVerificationEmail = async (to, token) => {
-  const msg = {
-    to,
-    from: {
-      email: process.env.FROM_EMAIL,
-      name: 'Changánet'
-    }, // Debe ser un email verificado en SendGrid
-    subject: 'Verifica tu cuenta en Changánet',
-    text: `Hola! Por favor, verifica tu cuenta haciendo clic en este enlace: http://localhost:5173/verify?token=${token}`,
-    html: `
-      <h1>¡Hola!</h1>
-      <p>Gracias por registrarte en Changánet.</p>
-      <p>Por favor, verifica tu cuenta haciendo clic en el siguiente enlace:</p>
-      <a href="http://localhost:5173/verify?token=${token}" 
-         style="background-color: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">
-        Verificar Cuenta
-      </a>
-      <p>Si no puedes hacer clic en el enlace, copia y pega esta URL en tu navegador:</p>
-      <p>http://localhost:5173/verify?token=${token}</p>
-    `,
-  };
-
+exports.sendEmail = async (to, subject, html) => {
   try {
-    await sgMail.send(msg);
-    console.log(`📧 Email de verificación enviado a: ${to}`);
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to,
+      subject,
+      html
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('📧 Email enviado:', info.response);
+    return info;
   } catch (error) {
-    console.error('❌ Error al enviar email:', error);
+    console.error('Error al enviar email:', error);
     throw error;
   }
 };
 
-// Función para enviar notificaciones
-exports.sendNotificationEmail = async (to, subject, message) => {
-  const msg = {
-    to,
-    from: {
-      email: process.env.FROM_EMAIL,
-      name: 'Changánet'
-    },
-    subject,
-    text: message,
-    html: `<p>${message}</p>`,
-  };
+exports.sendWelcomeEmail = async (user) => {
+  const subject = '¡Bienvenido a Changánet!';
+  const html = `
+    <h1>¡Hola, ${user.nombre}!</h1>
+    <p>Gracias por unirte a Changánet. Estamos emocionados de tenerte con nosotros.</p>
+    <p>Para comenzar, verifica tu email haciendo clic en el siguiente enlace:</p>
+    <a href="${process.env.FRONTEND_URL}/verificar-email?token=TOKEN_DE_VERIFICACION">Verificar Email</a>
+    <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
+    <p>Saludos,<br>El equipo de Changánet</p>
+  `;
 
-  try {
-    await sgMail.send(msg);
-    console.log(`📧 Notificación enviada a: ${to}`);
-  } catch (error) {
-    console.error('❌ Error al enviar notificación:', error);
-    throw error;
-  }
+  await exports.sendEmail(user.email, subject, html);
 };
 
-// Función para enviar email de solicitud de cotización
-exports.sendQuoteRequestEmail = async (professional, client, quote) => {
-  const msg = {
-    to: professional.email,
-    from: {
-      email: process.env.FROM_EMAIL,
-      name: 'Changánet'
-    },
-    subject: 'Nueva solicitud de cotización en Changánet',
-    text: `Hola ${professional.nombre}, tienes una nueva solicitud de cotización de ${client.nombre}. Descripción: ${quote.descripcion}`,
-    html: `
-      <h1>¡Nueva solicitud de cotización!</h1>
-      <p>Hola <strong>${professional.nombre}</strong>,</p>
-      <p>Tienes una nueva solicitud de cotización de <strong>${client.nombre}</strong>.</p>
-      <div style="background-color: #F0FDF4; border: 1px solid #10B981; border-radius: 8px; padding: 16px; margin: 20px 0;">
-        <p><strong>Descripción del servicio:</strong></p>
-        <p>${quote.descripcion}</p>
-      </div>
-      <p>Por favor, revisa tu panel de profesional para responder a esta solicitud.</p>
-      <p>Saludos,<br>Equipo Changánet</p>
-    `,
-  };
+exports.sendQuoteRequestEmail = async (professional, client, quoteRequest) => {
+  const subject = `Nueva solicitud de presupuesto de ${client.nombre}`;
+  const html = `
+    <h1>Hola, ${professional.nombre}!</h1>
+    <p>Has recibido una nueva solicitud de presupuesto de ${client.nombre}.</p>
+    <p><strong>Descripción del trabajo:</strong> ${quoteRequest.descripción}</p>
+    <p><strong>Zona:</strong> ${quoteRequest.zona_cobertura}</p>
+    <a href="${process.env.FRONTEND_URL}/mi-cuenta/presupuestos">Ver detalles y responder</a>
+    <p>Saludos,<br>El equipo de Changánet</p>
+  `;
 
-  try {
-    await sgMail.send(msg);
-    console.log(`📧 Email de cotización enviado a: ${professional.email}`);
-  } catch (error) {
-    console.error('❌ Error al enviar email de cotización:', error);
-    throw error;
-  }
-};
-
-// Función para enviar email de soporte
-exports.sendSupportEmail = async (to, subject, message) => {
-  const msg = {
-    to,
-    from: {
-      email: process.env.SUPPORT_EMAIL,
-      name: 'Soporte Changánet'
-    },
-    subject,
-    text: message,
-    html: `<p>${message}</p>`,
-  };
-
-  try {
-    await sgMail.send(msg);
-    console.log(`📧 Email de soporte enviado a: ${to}`);
-  } catch (error) {
-    console.error('❌ Error al enviar email de soporte:', error);
-    throw error;
-  }
+  await exports.sendEmail(professional.email, subject, html);
 };
