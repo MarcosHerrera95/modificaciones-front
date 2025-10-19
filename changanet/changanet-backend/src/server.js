@@ -25,6 +25,7 @@ const verificationRoutes = require('./routes/verificationRoutes');
 const custodyRoutes = require('./routes/custodyRoutes');
 const rankingRoutes = require('./routes/rankingRoutes');
 const serviceRoutes = require('./routes/serviceRoutes');
+const galleryRoutes = require('./routes/galleryRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 
@@ -107,6 +108,7 @@ app.use('/api/verification', authenticateToken, verificationRoutes);
 app.use('/api/custody', authenticateToken, custodyRoutes);
 app.use('/api/ranking', rankingRoutes);
 app.use('/api/services', authenticateToken, serviceRoutes);
+app.use('/api/gallery', authenticateToken, galleryRoutes);
 
 // Socket.IO para chat en tiempo real
 io.on('connection', (socket) => {
