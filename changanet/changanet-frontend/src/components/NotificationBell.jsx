@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { requestNotificationPermission, getMessagingToken, onMessageListener } from '../services/notificationService';
 
 const NotificationBell = () => {
   const { user } = useAuth();
@@ -10,21 +11,55 @@ const NotificationBell = () => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+      setupPushNotifications();
     }
   }, [user]);
 
+  const setupPushNotifications = async () => {
+    // INTEGRACIÓN CON FIREBASE: Configurar notificaciones push
+    const permissionResult = await requestNotificationPermission();
+    if (permissionResult.success) {
+      const tokenResult = await getMessagingToken();
+      if (tokenResult.success) {
+        console.log('Token de notificaciones:', tokenResult.token);
+        // Aquí guardarías el token en tu base de datos
+      }
+    }
+
+    // Escuchar mensajes en primer plano
+    onMessageListener().then((payload) => {
+      console.log('Mensaje recibido en primer plano:', payload);
+      // Agregar notificación a la lista
+      const newNotification = {
+        id: Date.now().toString(),
+        mensaje: payload.notification?.body || 'Nueva notificación',
+        creado_en: new Date().toISOString(),
+        esta_leido: false
+      };
+      setNotifications(prev => [newNotification, ...prev]);
+      setUnreadCount(prev => prev + 1);
+    });
+  };
+
   const fetchNotifications = async () => {
     try {
-      const response = await fetch('/api/notifications', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+      // INTEGRACIÓN CON FIREBASE: Simular carga de notificaciones (en producción usarías Realtime Database)
+      const mockNotifications = [
+        {
+          id: '1',
+          mensaje: 'Bienvenido a Changánet! Completa tu perfil para comenzar.',
+          creado_en: new Date().toISOString(),
+          esta_leido: false
+        },
+        {
+          id: '2',
+          mensaje: 'Tienes una nueva cotización pendiente.',
+          creado_en: new Date(Date.now() - 86400000).toISOString(),
+          esta_leido: true
         }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-        setUnreadCount(data.filter(n => !n.esta_leido).length);
-      }
+      ];
+      setNotifications(mockNotifications);
+      setUnreadCount(mockNotifications.filter(n => !n.esta_leido).length);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }

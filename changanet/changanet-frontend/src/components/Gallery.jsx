@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from './ImageUpload';
+import { uploadWorkPhoto, getFileURL, deleteFile } from '../services/storageService';
 
 const Gallery = ({ professionalId, isOwner = false }) => {
   const { user } = useAuth();
@@ -22,15 +23,25 @@ const Gallery = ({ professionalId, isOwner = false }) => {
   const fetchGallery = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/gallery/${professionalId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setImages(data);
-      } else {
-        setError('Error al cargar la galería');
-      }
+      // INTEGRACIÓN CON FIREBASE: Simular carga desde Storage (en producción usarías una base de datos)
+      // Por ahora, cargamos imágenes de ejemplo
+      const mockImages = [
+        {
+          id: '1',
+          titulo: 'Trabajo de pintura',
+          descripcion: 'Pintura completa de sala de estar',
+          url_imagen: 'https://via.placeholder.com/400x300?text=Trabajo+de+Pintura'
+        },
+        {
+          id: '2',
+          titulo: 'Instalación eléctrica',
+          descripcion: 'Instalación de tomacorrientes y luces',
+          url_imagen: 'https://via.placeholder.com/400x300?text=Instalacion+Electrica'
+        }
+      ];
+      setImages(mockImages);
     } catch (err) {
-      setError('Error de conexión');
+      setError('Error al cargar la galería');
     } finally {
       setLoading(false);
     }
@@ -47,30 +58,23 @@ const Gallery = ({ professionalId, isOwner = false }) => {
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('titulo', newImageData.titulo);
-      formData.append('descripcion', newImageData.descripcion);
-      formData.append('imagen', newImageData.imagen);
-
-      const response = await fetch('/api/gallery', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: formData
-      });
-
-      if (response.ok) {
-        const newImage = await response.json();
+      // INTEGRACIÓN CON FIREBASE: Subir imagen a Storage
+      const result = await uploadWorkPhoto(user.uid, Date.now().toString(), newImageData.imagen);
+      if (result.success) {
+        const newImage = {
+          id: Date.now().toString(),
+          titulo: newImageData.titulo,
+          descripcion: newImageData.descripcion,
+          url_imagen: result.url
+        };
         setImages(prev => [newImage, ...prev]);
         setShowAddForm(false);
         setNewImageData({ titulo: '', descripcion: '', imagen: null });
       } else {
-        const data = await response.json();
-        setError(data.error || 'Error al agregar la imagen');
+        setError(result.error || 'Error al subir la imagen');
       }
     } catch (err) {
-      setError('Error de conexión');
+      setError('Error al subir la imagen');
     } finally {
       setUploading(false);
     }
@@ -82,20 +86,23 @@ const Gallery = ({ professionalId, isOwner = false }) => {
     }
 
     try {
-      const response = await fetch(`/api/gallery/${imageId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+      // INTEGRACIÓN CON FIREBASE: Eliminar imagen de Storage
+      const imageToDelete = images.find(img => img.id === imageId);
+      if (imageToDelete) {
+        // Extraer el path del URL de Firebase Storage
+        const urlParts = imageToDelete.url_imagen.split('/o/')[1]?.split('?')[0];
+        if (urlParts) {
+          const decodedPath = decodeURIComponent(urlParts);
+          const result = await deleteFile(decodedPath);
+          if (result.success) {
+            setImages(prev => prev.filter(img => img.id !== imageId));
+          } else {
+            setError('Error al eliminar la imagen');
+          }
         }
-      });
-
-      if (response.ok) {
-        setImages(prev => prev.filter(img => img.id !== imageId));
-      } else {
-        setError('Error al eliminar la imagen');
       }
     } catch (err) {
-      setError('Error de conexión');
+      setError('Error al eliminar la imagen');
     }
   };
 

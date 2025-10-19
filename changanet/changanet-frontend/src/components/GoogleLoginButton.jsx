@@ -2,76 +2,36 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loginWithGoogle } from '../services/authService';
 
 const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = "" }) => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
 
-    // Abrir ventana popup para Google OAuth
-    const width = 500;
-    const height = 600;
-    const left = window.innerWidth / 2 - width / 2;
-    const top = window.innerHeight / 2 - height / 2;
+    try {
+      // INTEGRACIÓN CON FIREBASE: Usar Firebase Authentication para Google
+      const result = await loginWithGoogle();
 
-    const popup = window.open(
-      `${window.location.origin}/api/auth/google`,
-      'google-login',
-      `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
-    );
-
-    // Escuchar mensajes desde la ventana popup
-    const handleMessage = (event) => {
-      // Verificar que el mensaje viene de nuestro dominio
-      if (event.origin !== window.location.origin) return;
-
-      if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-        const { token, user } = event.data.payload;
-
+      if (result.success) {
         // Guardar la autenticación
-        login(user, token);
-
-        // Cerrar popup
-        if (popup && !popup.closed) {
-          popup.close();
-        }
+        login(result.user, result.user.accessToken);
 
         // Redirigir al dashboard
         navigate('/');
-
-        // Limpiar event listener
-        window.removeEventListener('message', handleMessage);
-        setLoading(false);
-      } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-        console.error('Error en autenticación con Google:', event.data.error);
-
-        // Cerrar popup
-        if (popup && !popup.closed) {
-          popup.close();
-        }
-
-        // Mostrar error al usuario
+      } else {
+        console.error('Error en autenticación con Google:', result.error);
         alert('Error al iniciar sesión con Google. Inténtalo de nuevo.');
-
-        // Limpiar event listener
-        window.removeEventListener('message', handleMessage);
-        setLoading(false);
       }
-    };
-
-    window.addEventListener('message', handleMessage);
-
-    // Verificar si el popup se cerró manualmente
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        setLoading(false);
-        window.removeEventListener('message', handleMessage);
-      }
-    }, 1000);
+    } catch (error) {
+      console.error('Error en autenticación con Google:', error);
+      alert('Error al iniciar sesión con Google. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

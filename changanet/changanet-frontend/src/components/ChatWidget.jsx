@@ -1,15 +1,16 @@
 // src/components/ChatWidget.jsx
 import { useState, useEffect, useContext, useRef } from 'react';
-import io from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
+import { sendMessage, listenToMessages, createChat } from '../services/chatService';
+import { showLocalNotification } from '../services/notificationService';
 
 const ChatWidget = ({ otherUserId }) => {
   const { user } = useContext(AuthContext);
-  const [socket, setSocket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [chatId, setChatId] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -21,77 +22,55 @@ const ChatWidget = ({ otherUserId }) => {
   }, [messages]);
 
   useEffect(() => {
-    // CONECTAR A SOCKET.IO
-    const newSocket = io('http://localhost:3002', {
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-    });
-    setSocket(newSocket);
+    if (!user || !otherUserId) return;
 
-    newSocket.on('connect', () => {
-      setIsConnected(true);
-      console.log('Conectado al servidor Socket.IO');
-    });
-
-    newSocket.on('disconnect', () => {
-      setIsConnected(false);
-      console.log('Desconectado del servidor Socket.IO');
-    });
-
-    // ESCUCHAR MENSAJES EN TIEMPO REAL
-    newSocket.on('receiveMessage', (message) => {
-      setMessages(prev => [...prev, message]);
-      // Mostrar notificación visual
-      if (Notification.permission === 'granted') {
-        new Notification('Nuevo mensaje', {
-          body: message.contenido,
-          icon: '/vite.svg'
-        });
-      }
-    });
-
-    newSocket.on('messageSent', (message) => {
-      setMessages(prev => [...prev, message]);
-    });
-
-    return () => newSocket.close();
-  }, []);
-
-  useEffect(() => {
-    const fetchMessages = async () => {
-      if (!user || !otherUserId) return;
-
-      try {
-        // INTEGRACIÓN CON BACKEND: Obtener historial de mensajes
-        const response = await fetch(`/api/messages?with=${otherUserId}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-          }
-        });
-        const data = await response.json();
-        if (response.ok) {
-          setMessages(data);
-        }
-      } catch (error) {
-        console.error('Error al cargar mensajes:', error);
-      } finally {
-        setLoading(false);
+    // INTEGRACIÓN CON FIREBASE: Crear o obtener chat existente
+    const initializeChat = async () => {
+      const chatResult = await createChat({
+        participants: [user.uid, otherUserId],
+        createdBy: user.uid
+      });
+      if (chatResult.success) {
+        setChatId(chatResult.chatId);
+        setIsConnected(true);
       }
     };
 
-    fetchMessages();
+    initializeChat();
   }, [user, otherUserId]);
 
-  const sendMessage = () => {
-    if (newMessage.trim() && socket && isConnected) {
-      // ENVIAR MENSAJE A TRAVÉS DE SOCKET.IO
-      socket.emit('sendMessage', {
-        remitente_id: user.id,
-        destinatario_id: otherUserId,
-        contenido: newMessage.trim(),
-        url_imagen: null
-      });
-      setNewMessage('');
+  useEffect(() => {
+    if (!chatId) return;
+
+    // INTEGRACIÓN CON FIREBASE: Escuchar mensajes en tiempo real
+    const unsubscribe = listenToMessages(chatId, (messages) => {
+      setMessages(messages);
+      setLoading(false);
+
+      // Mostrar notificación para mensajes nuevos
+      const latestMessage = messages[messages.length - 1];
+      if (latestMessage && latestMessage.senderId !== user.uid) {
+        showLocalNotification('Nuevo mensaje', latestMessage.content);
+      }
+    });
+
+    return unsubscribe;
+  }, [chatId, user]);
+
+  const sendMessage = async () => {
+    if (newMessage.trim() && chatId && isConnected) {
+      // INTEGRACIÓN CON FIREBASE: Enviar mensaje a través de Realtime Database
+      const messageData = {
+        senderId: user.uid,
+        senderName: user.displayName || user.email,
+        content: newMessage.trim(),
+        timestamp: Date.now()
+      };
+
+      const result = await sendMessage(chatId, messageData);
+      if (result.success) {
+        setNewMessage('');
+      }
     }
   };
 
@@ -135,20 +114,20 @@ const ChatWidget = ({ otherUserId }) => {
           messages.map(message => (
             <div
               key={message.id}
-              className={`flex ${message.remitente_id === user.id ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.senderId === user.uid ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-sm ${
-                  message.remitente_id === user.id
+                  message.senderId === user.uid
                     ? 'bg-emerald-500 text-white rounded-br-sm'
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'
                 }`}
               >
-                <p className="break-words">{message.contenido}</p>
+                <p className="break-words">{message.content}</p>
                 <span className={`text-xs mt-1 block ${
-                  message.remitente_id === user.id ? 'text-emerald-100' : 'text-gray-500'
+                  message.senderId === user.uid ? 'text-emerald-100' : 'text-gray-500'
                 }`}>
-                  {new Date(message.creado_en).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                 </span>
               </div>
             </div>

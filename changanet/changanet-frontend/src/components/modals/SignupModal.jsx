@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { registerWithEmail } from '../../services/authService';
 
 const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
   const [name, setName] = useState('');
@@ -21,14 +22,21 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
       return;
     }
 
-    const result = await signup(name, email, password, role);
-    if (result.success) {
-      alert(result.message);
-      onSwitchToLogin();
-    } else {
-      setError(result.error);
+    try {
+      // INTEGRACIÓN CON FIREBASE: Usar Firebase Authentication para registro
+      const result = await registerWithEmail(email, password);
+
+      if (result.success) {
+        alert('Cuenta creada exitosamente. Revisa tu correo para verificar tu cuenta.');
+        onSwitchToLogin();
+      } else {
+        setError(result.error);
+      }
+    } catch (err) {
+      setError('Error al crear la cuenta. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   if (!isOpen) return null;
