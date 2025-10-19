@@ -12,6 +12,10 @@ const rateLimit = require('rate-limiter-flexible'); // Limitación de tasa
 const passport = require('./config/passport'); // Configuración de Passport
 const session = require('express-session'); // Sesiones para Passport
 
+// FCM Integration
+const admin = require('firebase-admin');
+const serviceAccount = require('../firebase-service-account.json'); // Añadir este archivo
+
 // Importar rutas y middlewares
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
@@ -34,6 +38,14 @@ const swaggerUi = require('swagger-ui-express');
 const yaml = require('js-yaml');
 const fs = require('fs');
 const swaggerDocument = yaml.load(fs.readFileSync('./src/docs/swagger.yaml', 'utf8'));
+
+// Inicializar Firebase Admin SDK para FCM
+if (admin.apps.length === 0) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    projectId: process.env.FIREBASE_PROJECT_ID || 'changanet-notifications'
+  });
+}
 
 const prisma = new PrismaClient();
 const app = express();

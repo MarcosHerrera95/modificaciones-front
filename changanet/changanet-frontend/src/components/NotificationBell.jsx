@@ -1,167 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { requestNotificationPermission, getMessagingToken, onMessageListener } from '../services/notificationService';
+import { NotificationContext } from '../context/NotificationContext';
+import NotificationCenter from './NotificationCenter';
 
 const NotificationBell = () => {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useContext(NotificationContext);
+  const [showNotificationCenter, setShowNotificationCenter] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      fetchNotifications();
-      setupPushNotifications();
-    }
-  }, [user]);
-
-  const setupPushNotifications = async () => {
-    // INTEGRACIÓN CON FIREBASE: Configurar notificaciones push
-    const permissionResult = await requestNotificationPermission();
-    if (permissionResult.success) {
-      const tokenResult = await getMessagingToken();
-      if (tokenResult.success) {
-        console.log('Token de notificaciones:', tokenResult.token);
-        // Aquí guardarías el token en tu base de datos
-      }
-    }
-
-    // Escuchar mensajes en primer plano
-    onMessageListener().then((payload) => {
-      console.log('Mensaje recibido en primer plano:', payload);
-      // Agregar notificación a la lista
-      const newNotification = {
-        id: Date.now().toString(),
-        mensaje: payload.notification?.body || 'Nueva notificación',
-        creado_en: new Date().toISOString(),
-        esta_leido: false
-      };
-      setNotifications(prev => [newNotification, ...prev]);
-      setUnreadCount(prev => prev + 1);
-    });
-  };
-
-  const fetchNotifications = async () => {
-    try {
-      // INTEGRACIÓN CON FIREBASE: Simular carga de notificaciones (en producción usarías Realtime Database)
-      const mockNotifications = [
-        {
-          id: '1',
-          mensaje: 'Bienvenido a Changánet! Completa tu perfil para comenzar.',
-          creado_en: new Date().toISOString(),
-          esta_leido: false
-        },
-        {
-          id: '2',
-          mensaje: 'Tienes una nueva cotización pendiente.',
-          creado_en: new Date(Date.now() - 86400000).toISOString(),
-          esta_leido: true
-        }
-      ];
-      setNotifications(mockNotifications);
-      setUnreadCount(mockNotifications.filter(n => !n.esta_leido).length);
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    }
-  };
-
-  const markAsRead = async (notificationId) => {
-    try {
-      await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-      setNotifications(prev =>
-        prev.map(n => n.id === notificationId ? { ...n, esta_leido: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      await fetch('/api/notifications/read-all', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-      setNotifications(prev => prev.map(n => ({ ...n, esta_leido: true })));
-      setUnreadCount(0);
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-    }
-  };
+  // El estado de notificaciones ahora se maneja en NotificationContext
 
   if (!user) return null;
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className="relative p-2 text-gray-700 hover:text-emerald-600 transition-colors duration-200"
-        aria-label="Notificaciones"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 7v5H9v-5h6z" />
-        </svg>
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
+    <>
+      <div className="relative">
+        <button
+          onClick={() => setShowNotificationCenter(!showNotificationCenter)}
+          className="relative p-2 text-gray-700 hover:text-emerald-600 transition-colors duration-200"
+          aria-label="Notificaciones"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM15 7v5H9v-5h6z" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+      </div>
 
-      {showDropdown && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
-          <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-            <h3 className="font-semibold text-gray-800">Notificaciones</h3>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-              >
-                Marcar todas como leídas
-              </button>
-            )}
-          </div>
-
-          <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                No tienes notificaciones
-              </div>
-            ) : (
-              notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                    !notification.esta_leido ? 'bg-emerald-50' : ''
-                  }`}
-                  onClick={() => !notification.esta_leido && markAsRead(notification.id)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <p className="text-sm text-gray-800">{notification.mensaje}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(notification.creado_en).toLocaleDateString()}
-                      </p>
-                    </div>
-                    {!notification.esta_leido && (
-                      <div className="w-2 h-2 bg-emerald-500 rounded-full ml-2 mt-1"></div>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      <NotificationCenter
+        isOpen={showNotificationCenter}
+        onClose={() => setShowNotificationCenter(false)}
+      />
+    </>
   );
 };
 
