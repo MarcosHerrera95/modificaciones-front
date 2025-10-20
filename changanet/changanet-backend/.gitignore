@@ -45,6 +45,10 @@ node_modules/
 # dotenv environment variables file
 .env
 
+# Firebase service account credentials - NEVER commit these!
+src/config/serviceAccountKey.json
+**/serviceAccountKey.json
+
 # IDE files
 .vscode/
 .idea/
