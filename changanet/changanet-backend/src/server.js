@@ -12,9 +12,22 @@ const rateLimit = require('rate-limiter-flexible'); // Limitación de tasa
 const passport = require('./config/passport'); // Configuración de Passport
 const session = require('express-session'); // Sesiones para Passport
 
-// FCM Integration
-const admin = require('firebase-admin');
-const serviceAccount = require('../firebase-service-account.json'); // Añadir este archivo
+// FCM Integration - Solo inicializar si existe el archivo de credenciales
+let admin;
+try {
+  admin = require('firebase-admin');
+  const serviceAccount = require('./config/serviceAccountKey.json');
+  if (admin.apps.length === 0) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: process.env.FIREBASE_PROJECT_ID || 'changanet-notifications'
+    });
+    console.log('✅ Firebase Admin inicializado correctamente');
+  }
+} catch (error) {
+  console.warn('⚠️ Firebase Admin no disponible - notificaciones push deshabilitadas');
+  admin = null;
+}
 
 // Importar rutas y middlewares
 const authRoutes = require('./routes/authRoutes');
@@ -38,14 +51,6 @@ const swaggerUi = require('swagger-ui-express');
 const yaml = require('js-yaml');
 const fs = require('fs');
 const swaggerDocument = yaml.load(fs.readFileSync('./src/docs/swagger.yaml', 'utf8'));
-
-// Inicializar Firebase Admin SDK para FCM
-if (admin.apps.length === 0) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    projectId: process.env.FIREBASE_PROJECT_ID || 'changanet-notifications'
-  });
-}
 
 const prisma = new PrismaClient();
 const app = express();
@@ -126,16 +131,29 @@ app.use('/api/gallery', authenticateToken, galleryRoutes);
 io.on('connection', (socket) => {
   console.log('🚀 Usuario conectado:', socket.id);
 
+  // Unir usuario a su sala personal para recibir mensajes
+  socket.on('join', (userId) => {
+    socket.join(userId);
+    console.log(`Usuario ${userId} se unió a su sala personal`);
+  });
+
   socket.on('sendMessage', async (data) => {
     const { remitente_id, destinatario_id, contenido, url_imagen } = data;
 
     try {
+      // Validar datos requeridos
+      if (!remitente_id || !destinatario_id || !contenido) {
+        socket.emit('error', { message: 'Datos incompletos para enviar mensaje.' });
+        return;
+      }
+
+      // Crear mensaje en la base de datos
       const message = await prisma.mensajes.create({
         data: {
           remitente_id,
           destinatario_id,
           contenido,
-          url_imagen,
+          url_imagen: url_imagen || null,
           esta_leido: false,
         },
       });
@@ -143,12 +161,36 @@ io.on('connection', (socket) => {
       // INTEGRACIÓN CON SERVICIO DE NOTIFICACIONES
       await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${remitente_id}`);
 
-      // EMITIR MENSAJE EN TIEMPO REAL
+      // EMITIR MENSAJE EN TIEMPO REAL usando salas
       io.to(destinatario_id).emit('receiveMessage', message);
       io.to(remitente_id).emit('messageSent', message);
+
+      console.log(`📨 Mensaje enviado de ${remitente_id} a ${destinatario_id}`);
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       socket.emit('error', { message: 'No se pudo enviar el mensaje.' });
+    }
+  });
+
+  // Marcar mensajes como leídos
+  socket.on('markAsRead', async (data) => {
+    const { senderId, recipientId } = data;
+
+    try {
+      await prisma.mensajes.updateMany({
+        where: {
+          remitente_id: senderId,
+          destinatario_id: recipientId,
+          esta_leido: false,
+        },
+        data: { esta_leido: true },
+      });
+
+      // Notificar al remitente que sus mensajes fueron leídos
+      io.to(senderId).emit('messagesRead', { by: recipientId });
+    } catch (error) {
+      console.error('Error al marcar mensajes como leídos:', error);
+      socket.emit('error', { message: 'No se pudieron marcar los mensajes como leídos.' });
     }
   });
 

@@ -1,16 +1,21 @@
 // src/components/ChatWidget.jsx
-import { useState, useEffect, useContext, useRef } from 'react';
-import { AuthContext } from '../context/AuthContext';
-import { sendMessage, listenToMessages, createChat } from '../services/chatService';
-import { showLocalNotification } from '../services/notificationService';
+import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useChatHook } from '../hooks/useChat';
 
 const ChatWidget = ({ otherUserId }) => {
-  const { user } = useContext(AuthContext);
-  const [messages, setMessages] = useState([]);
+  const { user } = useAuth();
+  const {
+    messages,
+    unreadCount,
+    isLoading,
+    error,
+    isConnected,
+    sendMessage,
+    markAsRead
+  } = useChatHook(otherUserId);
+
   const [newMessage, setNewMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [isConnected, setIsConnected] = useState(false);
-  const [chatId, setChatId] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -21,71 +26,47 @@ const ChatWidget = ({ otherUserId }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Marcar mensajes como leídos cuando se abre el chat
   useEffect(() => {
-    if (!user || !otherUserId) return;
+    if (otherUserId && unreadCount > 0) {
+      markAsRead();
+    }
+  }, [otherUserId, unreadCount, markAsRead]);
 
-    // INTEGRACIÓN CON FIREBASE: Crear o obtener chat existente
-    const initializeChat = async () => {
-      const chatResult = await createChat({
-        participants: [user.uid, otherUserId],
-        createdBy: user.uid
-      });
-      if (chatResult.success) {
-        setChatId(chatResult.chatId);
-        setIsConnected(true);
-      }
-    };
-
-    initializeChat();
-  }, [user, otherUserId]);
-
-  useEffect(() => {
-    if (!chatId) return;
-
-    // INTEGRACIÓN CON FIREBASE: Escuchar mensajes en tiempo real
-    const unsubscribe = listenToMessages(chatId, (messages) => {
-      setMessages(messages);
-      setLoading(false);
-
-      // Mostrar notificación para mensajes nuevos
-      const latestMessage = messages[messages.length - 1];
-      if (latestMessage && latestMessage.senderId !== user.uid) {
-        showLocalNotification('Nuevo mensaje', latestMessage.content);
-      }
-    });
-
-    return unsubscribe;
-  }, [chatId, user]);
-
-  const sendMessage = async () => {
-    if (newMessage.trim() && chatId && isConnected) {
-      // INTEGRACIÓN CON FIREBASE: Enviar mensaje a través de Realtime Database
-      const messageData = {
-        senderId: user.uid,
-        senderName: user.displayName || user.email,
-        content: newMessage.trim(),
-        timestamp: Date.now()
-      };
-
-      const result = await sendMessage(chatId, messageData);
-      if (result.success) {
-        setNewMessage('');
-      }
+  const handleSendMessage = () => {
+    if (sendMessage(newMessage)) {
+      setNewMessage('');
     }
   };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSendMessage();
     }
   };
 
-  if (loading) {
+  if (!user || !otherUserId) {
+    return (
+      <div className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm border">
+        <span className="text-gray-600">Selecciona un usuario para chatear</span>
+      </div>
+    );
+  }
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm border">
         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mr-2"></div>
         <span className="text-gray-600">Cargando chat...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm border">
+        <span className="text-red-600">{error}</span>
       </div>
     );
   }
@@ -114,20 +95,20 @@ const ChatWidget = ({ otherUserId }) => {
           messages.map(message => (
             <div
               key={message.id}
-              className={`flex ${message.senderId === user.uid ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.remitente_id === user.id ? 'justify-end' : 'justify-start'}`}
             >
               <div
                 className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl text-sm ${
-                  message.senderId === user.uid
+                  message.remitente_id === user.id
                     ? 'bg-emerald-500 text-white rounded-br-sm'
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'
                 }`}
               >
-                <p className="break-words">{message.content}</p>
+                <p className="break-words">{message.contenido}</p>
                 <span className={`text-xs mt-1 block ${
-                  message.senderId === user.uid ? 'text-emerald-100' : 'text-gray-500'
+                  message.remitente_id === user.id ? 'text-emerald-100' : 'text-gray-500'
                 }`}>
-                  {new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  {new Date(message.creado_en).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                 </span>
               </div>
             </div>
@@ -150,7 +131,7 @@ const ChatWidget = ({ otherUserId }) => {
             maxLength={500}
           />
           <button
-            onClick={sendMessage}
+            onClick={handleSendMessage}
             disabled={!newMessage.trim() || !isConnected}
             className="bg-emerald-500 text-white p-3 rounded-full hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center shadow-sm hover:shadow-md"
             aria-label="Enviar mensaje"

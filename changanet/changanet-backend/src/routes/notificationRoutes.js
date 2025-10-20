@@ -6,7 +6,8 @@ const {
   markAsRead,
   markAllAsRead,
   deleteNotification,
-  updateFCMToken
+  updateFCMToken,
+  testFCMNotification
 } = require('../controllers/notificationController');
 
 // Todas las rutas requieren autenticación
@@ -26,5 +27,10 @@ router.delete('/:id', deleteNotification);
 
 // Actualizar token FCM del usuario
 router.put('/fcm-token', updateFCMToken);
+
+// Endpoint de prueba para FCM (solo en desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/test-fcm', testFCMNotification);
+}
 
 module.exports = router;

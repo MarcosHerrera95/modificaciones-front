@@ -10,7 +10,7 @@ const getNotifications = async (req, res) => {
 
     const notifications = await prisma.notificaciones.findMany({
       where: { usuario_id: userId },
-      orderBy: { fecha_creacion: 'desc' },
+      orderBy: { creado_en: 'desc' },
       take: 50 // Limitar a las últimas 50 notificaciones
     });
 
@@ -32,7 +32,7 @@ const markAsRead = async (req, res) => {
         id: parseInt(id),
         usuario_id: userId
       },
-      data: { leida: true }
+      data: { esta_leido: true }
     });
 
     if (notification.count === 0) {
@@ -53,7 +53,7 @@ const markAllAsRead = async (req, res) => {
 
     await prisma.notificaciones.updateMany({
       where: { usuario_id: userId },
-      data: { leida: true }
+      data: { esta_leido: true }
     });
 
     res.json({ message: 'Todas las notificaciones marcadas como leídas' });
@@ -93,7 +93,7 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
     // Obtener el token FCM del usuario
     const user = await prisma.usuarios.findUnique({
       where: { id: userId },
-      select: { fcm_token: true }
+      select: { fcm_token: true, nombre: true }
     });
 
     if (!user || !user.fcm_token) {
@@ -127,11 +127,9 @@ const sendPushNotification = async (userId, title, body, data = {}) => {
     await prisma.notificaciones.create({
       data: {
         usuario_id: userId,
-        titulo: title,
-        mensaje: body,
         tipo: data.tipo || 'general',
-        datos: data,
-        leida: false
+        mensaje: body,
+        esta_leido: false
       }
     });
 
@@ -160,11 +158,34 @@ const updateFCMToken = async (req, res) => {
   }
 };
 
+// Endpoint de prueba para FCM (solo para desarrollo/testing)
+const testFCMNotification = async (req, res) => {
+  try {
+    const { userId, title, body } = req.body;
+
+    if (!userId || !title || !body) {
+      return res.status(400).json({ error: 'userId, title y body son requeridos' });
+    }
+
+    // Enviar notificación push de prueba
+    const result = await sendPushNotification(userId, title, body, { tipo: 'test' });
+
+    res.json({
+      message: 'Notificación FCM de prueba enviada',
+      result: result
+    });
+  } catch (error) {
+    console.error('Error en test FCM:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   getNotifications,
   markAsRead,
   markAllAsRead,
   deleteNotification,
   sendPushNotification,
-  updateFCMToken
+  updateFCMToken,
+  testFCMNotification
 };

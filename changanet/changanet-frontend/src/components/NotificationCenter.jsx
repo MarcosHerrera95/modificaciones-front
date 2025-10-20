@@ -17,8 +17,8 @@ const NotificationCenter = ({ isOpen, onClose }) => {
   }, [isOpen, onClose]);
 
   const filteredNotifications = notifications.filter(notification => {
-    if (filter === 'unread') return !notification.leida;
-    if (filter === 'read') return notification.leida;
+    if (filter === 'unread') return !notification.esta_leido;
+    if (filter === 'read') return notification.esta_leido;
     return true;
   });
 
@@ -105,17 +105,17 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                       {notification.mensaje}
                     </p>
                     <p className="text-xs text-gray-400 mt-2">
-                      {new Date(notification.fecha_creacion).toLocaleString()}
+                      {new Date(notification.creado_en).toLocaleString()}
                     </p>
                   </div>
 
                   <div className="flex items-center space-x-2 ml-3">
-                    {!notification.leida && (
+                    {!notification.esta_leido && (
                       <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                     )}
 
                     <div className="flex space-x-1">
-                      {!notification.leida && (
+                      {!notification.esta_leido && (
                         <button
                           onClick={() => markAsRead(notification.id)}
                           className="text-emerald-600 hover:text-emerald-700 p-1"
