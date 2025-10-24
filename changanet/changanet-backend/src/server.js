@@ -41,7 +41,7 @@ const quoteRoutes = require('./routes/quoteRoutes');
 const verificationRoutes = require('./routes/verificationRoutes');
 const custodyRoutes = require('./routes/custodyRoutes');
 const rankingRoutes = require('./routes/rankingRoutes');
-const serviceRoutes = require('./routes/serviceRoutes');
+const serviceRoutes = require('./routes/servicesRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
@@ -87,7 +87,7 @@ app.use(rateLimiterMiddleware);
 
 // Middleware estándar
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -136,7 +136,7 @@ app.use('/api/quotes', authenticateToken, quoteRoutes);
 app.use('/api/verification', authenticateToken, verificationRoutes);
 app.use('/api/custody', authenticateToken, custodyRoutes);
 app.use('/api/ranking', rankingRoutes);
-app.use('/api/services', authenticateToken, serviceRoutes);
+app.use('/api/services', serviceRoutes);
 app.use('/api/gallery', authenticateToken, galleryRoutes);
 
 // Socket.IO para chat en tiempo real

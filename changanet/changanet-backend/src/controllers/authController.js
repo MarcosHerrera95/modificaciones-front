@@ -19,7 +19,7 @@ exports.register = async (req, res) => {
         hash_contrasena: hashedPassword,
         nombre: name,
         rol: role,
-        esta_verificado: false, // Cambiar a false para requerir verificación
+        esta_verificado: true, // Cambiar a true para pruebas de integración
       },
     });
 

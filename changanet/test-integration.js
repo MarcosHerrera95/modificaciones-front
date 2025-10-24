@@ -2,7 +2,7 @@
 const axios = require('axios');
 
 const BASE_URL = 'http://localhost:3002';
-const FRONTEND_URL = 'http://localhost:5173';
+const FRONTEND_URL = 'http://localhost:5174';
 
 console.log('🚀 Iniciando pruebas de integración de Changánet...\n');
 
@@ -81,7 +81,7 @@ async function runTests() {
   // 4. Prueba de login
   console.log('4️⃣ Probando login...');
   const loginTest = await makeRequest('POST', `${BASE_URL}/api/auth/login`, {
-    email: 'test@example.com', // Usuario que debería existir
+    email: userData?.email || 'test@example.com', // Usar el email del usuario registrado
     password: 'test123456'
   });
   testResults.push({
@@ -89,7 +89,13 @@ async function runTests() {
     result: loginTest.success,
     details: loginTest.success ? '✅ Login exitoso' : `❌ ${loginTest.error}`
   });
-  console.log(loginTest.success ? '✅ Login OK' : `❌ Login FAIL: ${loginTest.error}\n`);
+
+  if (loginTest.success) {
+    userToken = loginTest.data.token;
+    console.log('✅ Login OK - Token obtenido\n');
+  } else {
+    console.log(`❌ Login FAIL: ${loginTest.error}\n`);
+  }
 
   // Usar el token del registro si el login falló
   if (!loginTest.success && userToken) {
@@ -168,7 +174,13 @@ async function runTests() {
   // 8. Verificar frontend
   console.log('8️⃣ Verificando frontend...');
   try {
-    const frontendCheck = await axios.get(FRONTEND_URL);
+    const frontendCheck = await axios.get(FRONTEND_URL, {
+      timeout: 5000,
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
     testResults.push({
       name: 'Frontend Access',
       result: frontendCheck.status === 200,
