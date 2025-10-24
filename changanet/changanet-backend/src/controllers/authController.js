@@ -19,14 +19,34 @@ exports.register = async (req, res) => {
         hash_contrasena: hashedPassword,
         nombre: name,
         rol: role,
-        esta_verificado: true, // Para MVP, auto-verificar
+        esta_verificado: false, // Cambiar a false para requerir verificación
       },
     });
 
-    const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '1h' });
-    res.status(201).json({ message: 'Usuario creado. Revisa tu email para verificar tu cuenta.' });
+    // Enviar email de bienvenida/verificación
+    try {
+      const { sendWelcomeEmail } = require('../services/emailService');
+      await sendWelcomeEmail(user);
+      console.log('📧 Email de bienvenida enviado a:', user.email);
+    } catch (emailError) {
+      console.error('Error al enviar email de bienvenida:', emailError);
+      // No fallar el registro por error de email
+    }
+
+    const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    res.status(201).json({
+      message: 'Usuario creado exitosamente. Revisa tu email para verificar tu cuenta.',
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.nombre,
+        role: user.rol,
+        verified: user.esta_verificado
+      }
+    });
   } catch (error) {
-    console.error(error);
+    console.error('Error al registrar usuario:', error);
     res.status(500).json({ error: 'Error al registrar el usuario.' });
   }
 };
@@ -66,6 +86,15 @@ exports.googleCallback = async (req, res) => {
     // Passport ya ha procesado la autenticación y ha agregado el usuario a req.user
     const { user, token } = req.user;
 
+    // Enviar email de bienvenida para usuarios nuevos de Google
+    try {
+      const { sendWelcomeEmail } = require('../services/emailService');
+      await sendWelcomeEmail(user);
+      console.log('📧 Email de bienvenida enviado a usuario Google:', user.email);
+    } catch (emailError) {
+      console.error('Error al enviar email de bienvenida a usuario Google:', emailError);
+    }
+
     // Para el flujo de popup, devolver HTML que comunica con la ventana padre
     const html = `
       <!DOCTYPE html>
@@ -85,7 +114,8 @@ exports.googleCallback = async (req, res) => {
                     id: user.id,
                     email: user.email,
                     name: user.nombre,
-                    role: user.rol
+                    role: user.rol,
+                    verified: user.esta_verificado
                   })}
                 }
               }, window.location.origin);

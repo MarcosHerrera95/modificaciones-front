@@ -38,9 +38,44 @@ export const loginWithEmail = async (email, password) => {
 // Inicio de sesión con Google
 export const loginWithGoogle = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return { success: true, user: result.user };
+    // Abrir popup de Google OAuth
+    const popup = window.open(
+      'http://localhost:3002/api/auth/google',
+      'google-auth',
+      'width=500,height=600,scrollbars=yes,resizable=yes'
+    );
+
+    return new Promise((resolve, reject) => {
+      const handleMessage = (event) => {
+        // Verificar origen por seguridad
+        if (event.origin !== window.location.origin) return;
+
+        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+          window.removeEventListener('message', handleMessage);
+          popup.close();
+          resolve({
+            success: true,
+            user: event.data.payload.user,
+            token: event.data.payload.token
+          });
+        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
+          window.removeEventListener('message', handleMessage);
+          popup.close();
+          reject(new Error(event.data.error));
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      // Timeout después de 5 minutos
+      setTimeout(() => {
+        window.removeEventListener('message', handleMessage);
+        popup.close();
+        reject(new Error('Timeout en autenticación con Google'));
+      }, 300000);
+    });
   } catch (error) {
+    console.error('Error en loginWithGoogle:', error);
     return { success: false, error: error.message };
   }
 };

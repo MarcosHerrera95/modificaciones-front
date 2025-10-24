@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password, role) => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('http://localhost:3002/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name, role })
@@ -46,11 +46,16 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (response.ok) {
-        return { success: true, message: 'Usuario creado exitosamente. Revisa tu email para verificar tu cuenta.' };
+        // Si el registro es exitoso, hacer login automático
+        if (data.token && data.user) {
+          login(data.user, data.token);
+        }
+        return { success: true, message: data.message || 'Usuario creado exitosamente.' };
       } else {
         return { success: false, error: data.error || 'Error al registrar usuario' };
       }
     } catch (error) {
+      console.error('Error en signup:', error);
       return { success: false, error: 'Error de conexión. Inténtalo de nuevo.' };
     }
   };

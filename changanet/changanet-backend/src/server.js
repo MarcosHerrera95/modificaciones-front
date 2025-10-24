@@ -87,10 +87,13 @@ app.use(rateLimiterMiddleware);
 
 // Middleware estándar
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:5173",
-  credentials: true
+  origin: ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 app.use(express.json({ limit: '10mb' })); // Limitar tamaño de payloads
+app.use(express.urlencoded({ extended: true })); // Para datos de formularios
 
 // Middleware de sesión para Passport
 app.use(session({
@@ -108,6 +111,15 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
+// Ruta raíz para compatibilidad con pruebas - ANTES de las rutas de API
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Changánet API funcionando correctamente',
+    version: '1.0.0',
+    status: 'OK',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Ruta de documentación API
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
@@ -205,9 +217,28 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Algo salió mal!' });
 });
 
+// Ruta raíz para compatibilidad con pruebas - ANTES de las rutas de API
+app.get('/', (req, res) => {
+  res.status(200).json({
+    message: 'Changánet API funcionando correctamente',
+    version: '1.0.0',
+    status: 'OK',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Ruta de salud para monitoreo
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Ruta de prueba para verificar CORS
+app.get('/test-cors', (req, res) => {
+  res.json({
+    message: 'CORS funcionando correctamente',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
 });
 
 const PORT = process.env.PORT || 3002;

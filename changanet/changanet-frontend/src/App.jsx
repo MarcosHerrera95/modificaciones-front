@@ -21,6 +21,18 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import './index.css';
 
+// Inicializar Firebase Messaging si está disponible
+import { onForegroundMessage, diagnoseFirebaseConfig } from './config/firebaseConfig';
+if (typeof window !== 'undefined') {
+  onForegroundMessage();
+  // Ejecutar diagnóstico en desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    setTimeout(() => {
+      diagnoseFirebaseConfig();
+    }, 1000);
+  }
+}
+
 // Componente temporal para registro de profesional
 const ProfessionalSignup = () => (
   <div className="container mx-auto px-4 py-8">
