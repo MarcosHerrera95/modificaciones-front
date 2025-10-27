@@ -34,6 +34,38 @@ exports.register = async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
+
+    // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY PARA REGISTRO
+    const { setUserContext, captureMessage } = require('../services/sentryService');
+    setUserContext({
+      id: user.id,
+      email: user.email,
+      nombre: user.nombre,
+      rol: user.rol
+    });
+
+    // REGISTRAR MÉTRICA DE NUEVO USUARIO EN SENTRY
+    captureMessage('Nuevo usuario registrado en Changánet', 'info', {
+      tags: {
+        event: 'user_registration',
+        user_role: user.rol,
+        source: 'email',
+        business_metric: 'user_acquisition'
+      },
+      extra: {
+        user_id: user.id,
+        email: user.email,
+        role: user.rol,
+        timestamp: new Date().toISOString(),
+        business_impact: 'social_economic_environmental'
+      }
+    });
+
+    // INCREMENTAR MÉTRICA DE PROMETHEUS PARA USUARIO REGISTRADO
+    const { incrementUserRegistered, incrementTripleImpactActivity } = require('../services/metricsService');
+    incrementUserRegistered(user.rol, 'email');
+    incrementTripleImpactActivity('social', 'registro_usuario');
+
     res.status(201).json({
       message: 'Usuario creado exitosamente. Revisa tu email para verificar tu cuenta.',
       token,
@@ -65,14 +97,24 @@ exports.login = async (req, res) => {
     }
 
     const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    res.status(200).json({ 
-      token, 
-      user: { 
-        id: user.id, 
-        email: user.email, 
-        name: user.nombre, 
-        role: user.rol 
-      } 
+
+    // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY
+    const { setUserContext } = require('../services/sentryService');
+    setUserContext({
+      id: user.id,
+      email: user.email,
+      nombre: user.nombre,
+      rol: user.rol
+    });
+
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.nombre,
+        role: user.rol
+      }
     });
   } catch (error) {
     console.error(error);

@@ -28,6 +28,15 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('changanet_token', token);
     localStorage.setItem('changanet_user', JSON.stringify(userData));
     setUser(userData);
+
+    // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY
+    const { setUserContext } = require('../config/sentryConfig');
+    setUserContext({
+      id: userData.id,
+      email: userData.email,
+      nombre: userData.name,
+      rol: userData.role
+    });
   };
 
   // Método para manejar login con Google (puede ser usado por el GoogleLoginButton)
@@ -49,6 +58,24 @@ export const AuthProvider = ({ children }) => {
         // Si el registro es exitoso, hacer login automático
         if (data.token && data.user) {
           login(data.user, data.token);
+
+          // REGISTRAR MÉTRICA DE REGISTRO EN FRONTEND
+          const { captureMessage } = require('../config/sentryConfig');
+          captureMessage('Usuario registrado desde frontend', 'info', {
+            tags: {
+              event: 'user_registration_frontend',
+              user_role: data.user.role,
+              source: 'frontend_signup',
+              business_metric: 'user_acquisition'
+            },
+            extra: {
+              user_id: data.user.id,
+              email: data.user.email,
+              role: data.user.role,
+              timestamp: new Date().toISOString(),
+              business_impact: 'social_economic_environmental'
+            }
+          });
         }
         return { success: true, message: data.message || 'Usuario creado exitosamente.' };
       } else {

@@ -1,5 +1,14 @@
 // src/server.js (fragmento actualizado) - restarted
 require('dotenv').config();
+
+// IMPORTANTE: Inicializar Sentry ANTES de cualquier otro import o middleware
+const { initializeSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } = require('./services/sentryService');
+initializeSentry();
+
+// Inicializar métricas de Prometheus
+const { initializeMetrics } = require('./services/metricsService');
+initializeMetrics();
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
@@ -62,6 +71,14 @@ const io = new Server(server, {
   }
 });
 
+// Middleware de Sentry (DEBE ir ANTES de otros middlewares)
+app.use(sentryRequestHandler());
+app.use(sentryTracingHandler());
+
+// Middleware de métricas HTTP (después de Sentry, antes de otros middlewares)
+const { createHttpMetricsMiddleware } = require('./services/metricsService');
+app.use(createHttpMetricsMiddleware());
+
 // Middleware de seguridad y optimización
 app.use(helmet()); // Protege cabeceras HTTP
 app.use(compression()); // Comprime respuestas para mejorar rendimiento
@@ -123,6 +140,10 @@ app.get('/', (req, res) => {
 
 // Ruta de documentación API
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+// Rutas de métricas (antes de otras rutas para evitar interferencias)
+const metricsRoutes = require('./routes/metricsRoutes');
+app.use('/api', metricsRoutes);
 
 // Rutas de la API
 app.use('/api/auth', authRoutes);
@@ -211,7 +232,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// Manejo de errores global
+// Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error)
+app.use(sentryErrorHandler());
+
+// Manejo de errores global (después de Sentry)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Algo salió mal!' });

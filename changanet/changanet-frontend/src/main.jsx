@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
 
+// IMPORTANTE: Inicializar Sentry lo más temprano posible
+import { initializeSentry } from './config/sentryConfig';
+initializeSentry();
+
 // FCM Integration: Inicializar Firebase y registrar service worker
 import { initializeFCM } from './services/fcmService';
 
