@@ -7,7 +7,7 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // Función para probar email transaccional
 async function testTransactionalEmail() {
   const msg = {
-    to: 'diegoeuler@gmail.com',
+    to: 'makitosriver@gmail.com',
     from: {
       email: process.env.FROM_EMAIL,
       name: 'Changánet'
@@ -44,7 +44,7 @@ async function testTransactionalEmail() {
 // Función para probar email de soporte
 async function testSupportEmail() {
   const msg = {
-    to: 'diegoeuler@gmail.com',
+    to: 'makitosriver@gmail.com',
     from: {
       email: process.env.SUPPORT_EMAIL,
       name: 'Soporte Changánet'
@@ -94,7 +94,7 @@ async function runTests() {
 
   if (transactionalSuccess && supportSuccess) {
     console.log('\n🎉 ¡Todas las pruebas pasaron! SendGrid está configurado correctamente.');
-    console.log('📧 Revisa tu buzón de correo diegoeuler@gmail.com (incluyendo Spam).');
+    console.log('📧 Revisa tu buzón de correo makitosriver@gmail.com (incluyendo Spam).');
   } else {
     console.log('\n⚠️  Algunas pruebas fallaron. Revisa la configuración de SendGrid.');
   }
