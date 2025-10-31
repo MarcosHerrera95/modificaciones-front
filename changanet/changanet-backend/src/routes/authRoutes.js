@@ -38,6 +38,10 @@ router.get('/google/callback',
 // Ruta para manejar el código de autorización desde el frontend (para popup flow)
 router.post('/google/callback', googleCallback);
 
+// Ruta temporal de prueba para métricas de Prometheus (solo desarrollo)
+router.get('/test', (req, res) => {
+  res.status(200).json({ message: 'Ruta de prueba para métricas de Prometheus' });
+});
 
 // Exportar el enrutador para que pueda ser usado por el servidor principal (server.js).
 module.exports = router;

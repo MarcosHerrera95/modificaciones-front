@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import ImageUpload from './ImageUpload';
 
 const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
   const { user } = useAuth();
@@ -49,22 +50,6 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
     }
   };
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file type and size
-      if (!file.type.startsWith('image/')) {
-        setError('Por favor selecciona una imagen válida');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
-        setError('La imagen debe ser menor a 5MB');
-        return;
-      }
-      setPhoto(file);
-      setError('');
-    }
-  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -122,36 +107,11 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
         <label className="block text-gray-700 font-medium mb-2">
           Foto (opcional)
         </label>
-        <div className="flex items-center space-x-4">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoChange}
-            className="hidden"
-            id="photo-upload"
-          />
-          <label
-            htmlFor="photo-upload"
-            className="flex items-center px-4 py-2 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer hover:border-emerald-500 transition-colors duration-200"
-          >
-            <span className="text-gray-600 mr-2">📷</span>
-            <span className="text-sm text-gray-600">
-              {photo ? photo.name : 'Seleccionar foto'}
-            </span>
-          </label>
-          {photo && (
-            <button
-              type="button"
-              onClick={() => setPhoto(null)}
-              className="text-red-500 hover:text-red-700 text-sm"
-            >
-              Remover
-            </button>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 mt-1">
-          Máximo 5MB. Formatos: JPG, PNG, GIF
-        </p>
+        <ImageUpload
+          onImageSelect={(file) => setPhoto(file)}
+          onImageRemove={() => setPhoto(null)}
+          placeholder="Seleccionar foto de la reseña"
+        />
       </div>
 
       {/* Submit Button */}

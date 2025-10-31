@@ -5,6 +5,7 @@
 // SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
 
 const { PrismaClient } = require('@prisma/client');
+const { sendPushNotification } = require('../config/firebaseAdmin');
 const prisma = new PrismaClient();
 
 // Función para enviar una notificación
@@ -20,6 +21,18 @@ exports.sendNotification = async (userId, type, message) => {
         esta_leido: false, // La notificación se marca como no leída por defecto
       },
     });
+
+    // VERIFICACIÓN: Enviar notificación push usando Firebase Cloud Messaging con VAPID key verificada
+    try {
+      const pushResult = await sendPushNotification(null, `Changánet - ${type}`, message);
+      if (pushResult) {
+        console.log(`📬 Notificación push enviada para ${userId}`);
+      }
+    } catch (pushError) {
+      console.error('Error al enviar notificación push:', pushError);
+      // No fallar la notificación general si falla el push
+    }
+
     console.log(`🔔 Notificación enviada a ${userId}: ${message}`);
   } catch (error) {
     console.error('Error al enviar notificación:', error);

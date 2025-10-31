@@ -35,6 +35,22 @@ const QuoteRequestForm = () => {
       const data = await response.json();
 
       if (response.ok) {
+        // REGISTRAR MÉTRICA DE SOLICITUD DE PRESUPUESTO
+        const { captureMessage } = require('../config/sentryConfig');
+        captureMessage('Solicitud de presupuesto enviada desde frontend', 'info', {
+          tags: {
+            event: 'quote_request_frontend',
+            business_metric: 'quote_request',
+            component: 'QuoteRequestForm'
+          },
+          extra: {
+            description: formData.descripción,
+            coverage_area: formData.zona_cobertura,
+            timestamp: new Date().toISOString(),
+            business_impact: 'economic_environmental'
+          }
+        });
+
         alert('Solicitud de cotización enviada. Recibirás respuestas pronto.');
         navigate('/mi-cuenta/presupuestos');
       } else {

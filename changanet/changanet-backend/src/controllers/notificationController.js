@@ -1,59 +1,191 @@
-// src/controllers/notificationController.js
 const { PrismaClient } = require('@prisma/client');
+const admin = require('firebase-admin');
+
 const prisma = new PrismaClient();
 
-exports.getNotifications = async (req, res) => {
-  const { id: userId } = req.user;
-
+// Obtener notificaciones del usuario
+const getNotifications = async (req, res) => {
   try {
+    const userId = req.user.id;
+
     const notifications = await prisma.notificaciones.findMany({
       where: { usuario_id: userId },
       orderBy: { creado_en: 'desc' },
-      take: 20 // Limitar a las últimas 20 notificaciones
+      take: 50 // Limitar a las últimas 50 notificaciones
     });
 
-    res.status(200).json(notifications);
+    res.json(notifications);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener notificaciones.' });
+    console.error('Error al obtener notificaciones:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
 
-exports.markAsRead = async (req, res) => {
-  const { id: userId } = req.user;
-  const { notificationId } = req.params;
-
+// Marcar notificación como leída
+const markAsRead = async (req, res) => {
   try {
-    const notification = await prisma.notificaciones.update({
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const notification = await prisma.notificaciones.updateMany({
       where: {
-        id: notificationId,
+        id: parseInt(id),
         usuario_id: userId
       },
       data: { esta_leido: true }
     });
 
-    res.status(200).json(notification);
+    if (notification.count === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
+    res.json({ message: 'Notificación marcada como leída' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al marcar notificación como leída.' });
+    console.error('Error al marcar notificación como leída:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
 
-exports.markAllAsRead = async (req, res) => {
-  const { id: userId } = req.user;
-
+// Marcar todas las notificaciones como leídas
+const markAllAsRead = async (req, res) => {
   try {
-    const result = await prisma.notificaciones.updateMany({
-      where: {
-        usuario_id: userId,
-        esta_leido: false
-      },
+    const userId = req.user.id;
+
+    await prisma.notificaciones.updateMany({
+      where: { usuario_id: userId },
       data: { esta_leido: true }
     });
 
-    res.status(200).json({ message: `${result.count} notificaciones marcadas como leídas.` });
+    res.json({ message: 'Todas las notificaciones marcadas como leídas' });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al marcar todas las notificaciones como leídas.' });
+    console.error('Error al marcar todas las notificaciones como leídas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
+};
+
+// Eliminar notificación
+const deleteNotification = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const notification = await prisma.notificaciones.deleteMany({
+      where: {
+        id: parseInt(id),
+        usuario_id: userId
+      }
+    });
+
+    if (notification.count === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
+    res.json({ message: 'Notificación eliminada' });
+  } catch (error) {
+    console.error('Error al eliminar notificación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// Enviar notificación push a un usuario específico
+const sendPushNotification = async (userId, title, body, data = {}) => {
+  try {
+    // Obtener el token FCM del usuario
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      select: { fcm_token: true, nombre: true }
+    });
+
+    if (!user || !user.fcm_token) {
+      console.log(`Usuario ${userId} no tiene token FCM registrado`);
+      return;
+    }
+
+    // Crear mensaje FCM
+    const message = {
+      token: user.fcm_token,
+      notification: {
+        title,
+        body
+      },
+      data: {
+        ...data,
+        userId: userId.toString()
+      },
+      webpush: {
+        fcmOptions: {
+          link: process.env.FRONTEND_URL || 'http://localhost:5173'
+        }
+      }
+    };
+
+    // Enviar notificación
+    const response = await admin.messaging().send(message);
+    console.log('Notificación FCM enviada:', response);
+
+    // Guardar notificación en la base de datos
+    await prisma.notificaciones.create({
+      data: {
+        usuario_id: userId,
+        tipo: data.tipo || 'general',
+        mensaje: body,
+        esta_leido: false
+      }
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error al enviar notificación FCM:', error);
+    throw error;
+  }
+};
+
+// Actualizar token FCM del usuario
+const updateFCMToken = async (req, res) => {
+  try {
+    const { fcmToken } = req.body;
+    const userId = req.user.id;
+
+    await prisma.usuarios.update({
+      where: { id: userId },
+      data: { fcm_token: fcmToken }
+    });
+
+    res.json({ message: 'Token FCM actualizado' });
+  } catch (error) {
+    console.error('Error al actualizar token FCM:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+// Endpoint de prueba para FCM (solo para desarrollo/testing)
+const testFCMNotification = async (req, res) => {
+  try {
+    const { userId, title, body } = req.body;
+
+    if (!userId || !title || !body) {
+      return res.status(400).json({ error: 'userId, title y body son requeridos' });
+    }
+
+    // Enviar notificación push de prueba
+    const result = await sendPushNotification(userId, title, body, { tipo: 'test' });
+
+    res.json({
+      message: 'Notificación FCM de prueba enviada',
+      result: result
+    });
+  } catch (error) {
+    console.error('Error en test FCM:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+module.exports = {
+  getNotifications,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification,
+  sendPushNotification,
+  updateFCMToken,
+  testFCMNotification
 };

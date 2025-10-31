@@ -1,6 +1,7 @@
 // src/controllers/serviceController.js
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('../services/notificationService');
+const { sendSMS } = require('../services/smsService');
 
 const prisma = new PrismaClient();
 
@@ -32,8 +33,48 @@ exports.scheduleService = async (req, res) => {
       }
     });
 
+    // REGISTRAR MÉTRICA DE SERVICIO AGENDADO EN SENTRY
+    const { captureMessage } = require('../services/sentryService');
+    captureMessage('Servicio agendado en Changánet', 'info', {
+      tags: {
+        event: 'service_scheduled',
+        business_metric: 'service_booking',
+        user_role: 'client'
+      },
+      extra: {
+        service_id: service.id,
+        client_id: clientId,
+        professional_id: profesional_id,
+        scheduled_date: fecha_agendada,
+        description: descripcion,
+        timestamp: new Date().toISOString(),
+        business_impact: 'economic_environmental'
+      }
+    });
+
+    // INCREMENTAR MÉTRICA DE PROMETHEUS PARA SERVICIO AGENDADO
+    const { incrementServiceScheduled, incrementTripleImpactActivity } = require('../services/metricsService');
+    incrementServiceScheduled('general', 'economic');
+    incrementTripleImpactActivity('economic', 'servicio_agendado');
+
     // Send notification to professional
     await sendNotification(profesional_id, 'servicio_agendado', `Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString()}`);
+
+    // Send SMS to professional if they have SMS enabled
+    try {
+      const professional = await prisma.usuarios.findUnique({
+        where: { id: profesional_id },
+        select: { telefono: true, sms_enabled: true }
+      });
+
+      if (professional && professional.telefono && professional.sms_enabled) {
+        const smsMessage = `Changánet: Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString('es-AR')}. Descripción: ${descripcion}`;
+        await sendSMS(professional.telefono, smsMessage);
+      }
+    } catch (smsError) {
+      console.error('Error sending SMS notification:', smsError);
+      // No fallar la operación principal por error en SMS
+    }
 
     res.status(201).json(service);
   } catch (error) {
@@ -108,8 +149,50 @@ exports.updateServiceStatus = async (req, res) => {
       }
     });
 
+    // REGISTRAR MÉTRICA DE SERVICIO COMPLETADO
+    if (estado === 'completado') {
+      const { captureMessage } = require('../services/sentryService');
+      captureMessage('Servicio completado en Changánet', 'info', {
+        tags: {
+          event: 'service_completed',
+          business_metric: 'service_completion',
+          user_role: 'professional'
+        },
+        extra: {
+          service_id: serviceId,
+          client_id: service.cliente_id,
+          professional_id: userId,
+          completed_at: new Date().toISOString(),
+          business_impact: 'economic_environmental'
+        }
+      });
+
+      // INCREMENTAR MÉTRICA DE PROMETHEUS PARA SERVICIO COMPLETADO
+      const { incrementServiceCompleted, incrementTripleImpactActivity } = require('../services/metricsService');
+      incrementServiceCompleted('general', 'economic');
+      incrementTripleImpactActivity('environmental', 'servicio_completado');
+    }
+
     // Send notification to client
     await sendNotification(service.cliente_id, 'servicio_agendado', `El estado de tu servicio ha cambiado a: ${estado}`);
+
+    // Send SMS to client if they have SMS enabled and service is completed
+    if (estado === 'completado') {
+      try {
+        const client = await prisma.usuarios.findUnique({
+          where: { id: service.cliente_id },
+          select: { telefono: true, sms_enabled: true }
+        });
+
+        if (client && client.telefono && client.sms_enabled) {
+          const smsMessage = `Changánet: Tu servicio ha sido completado. Gracias por usar nuestra plataforma.`;
+          await sendSMS(client.telefono, smsMessage);
+        }
+      } catch (smsError) {
+        console.error('Error sending SMS notification:', smsError);
+        // No fallar la operación principal por error en SMS
+      }
+    }
 
     res.status(200).json(updatedService);
   } catch (error) {

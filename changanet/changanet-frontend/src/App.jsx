@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ModalProvider } from './context/ModalContext.jsx';
+import { NotificationProvider } from './context/NotificationContext';
+import { ChatProvider } from './context/ChatContext';
 import Home from './pages/Home';
 import Professionals from './pages/Professionals';
 import ProfessionalDetail from './pages/ProfessionalDetail';
@@ -19,6 +21,18 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import './index.css';
 
+// Inicializar Firebase Messaging si está disponible
+import { onForegroundMessage, diagnoseFirebaseConfig } from './config/firebaseConfig';
+if (typeof window !== 'undefined') {
+  onForegroundMessage();
+  // Ejecutar diagnóstico en desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    setTimeout(() => {
+      diagnoseFirebaseConfig();
+    }, 1000);
+  }
+}
+
 // Componente temporal para registro de profesional
 const ProfessionalSignup = () => (
   <div className="container mx-auto px-4 py-8">
@@ -30,33 +44,37 @@ const ProfessionalSignup = () => (
 function App() {
   return (
     <AuthProvider>
-        <ModalProvider>
-      <Router>
-        <div className="flex flex-col min-h-screen">
-          <Header />
-          <main className="flex-grow">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/profesionales" element={<Professionals />} />
-              <Route path="/profesional/:id" element={<ProfessionalDetail />} />
-              <Route path="/mi-cuenta" element={<Dashboard />} />
-              <Route path="/mis-cotizaciones" element={<Quotes />} />
-              <Route path="/disponibilidad" element={<Availability />} />
-              <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
-              <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
-              <Route path="/registro-profesional" element={<ProfessionalSignup />} />
-              <Route path="/auth/callback" element={<AuthCallback />} />
-              <Route path="/terminos" element={<Terms />} />
-              <Route path="/privacidad" element={<Privacy />} />
-              <Route path="/cookies" element={<Cookies />} />
-              <Route path="/custodia" element={<Custody />} />
-              <Route path="/ranking" element={<Ranking />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </Router>
-        </ModalProvider>
+      <NotificationProvider>
+        <ChatProvider>
+          <ModalProvider>
+            <Router>
+              <div className="flex flex-col min-h-screen">
+                <Header />
+                <main className="flex-grow">
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/profesionales" element={<Professionals />} />
+                    <Route path="/profesional/:id" element={<ProfessionalDetail />} />
+                    <Route path="/mi-cuenta" element={<Dashboard />} />
+                    <Route path="/mis-cotizaciones" element={<Quotes />} />
+                    <Route path="/disponibilidad" element={<Availability />} />
+                    <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
+                    <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
+                    <Route path="/registro-profesional" element={<ProfessionalSignup />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/terminos" element={<Terms />} />
+                    <Route path="/privacidad" element={<Privacy />} />
+                    <Route path="/cookies" element={<Cookies />} />
+                    <Route path="/custodia" element={<Custody />} />
+                    <Route path="/ranking" element={<Ranking />} />
+                  </Routes>
+                </main>
+                <Footer />
+              </div>
+            </Router>
+          </ModalProvider>
+        </ChatProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

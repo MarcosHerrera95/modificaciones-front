@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import GoogleLoginButton from '../GoogleLoginButton';
+import { loginWithEmail, loginWithGoogle, resetPassword } from '../../services/authService';
 
 const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
   const [email, setEmail] = useState('');
@@ -16,20 +17,15 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
     setLoading(true);
 
     try {
-      // INTEGRACIÓN CON BACKEND: Enviar datos al endpoint de login
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      const data = await response.json();
+      // INTEGRACIÓN CON FIREBASE: Usar Firebase Authentication
+      const result = await loginWithEmail(email, password);
 
-      if (response.ok) {
-        // INTEGRACIÓN CON CONTEXT: Guardar token y usuario
-        login(data.user, data.token);
+      if (result.success) {
+        // INTEGRACIÓN CON CONTEXT: Guardar usuario de Firebase
+        login(result.user, result.user.accessToken);
         onClose();
       } else {
-        setError(data.error || 'Credenciales inválidas');
+        setError(result.error || 'Credenciales inválidas');
       }
     } catch (err) {
       setError('Error al iniciar sesión. Intenta nuevamente.');
@@ -113,6 +109,18 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
               </label>
               <button
                 type="button"
+                onClick={async () => {
+                  if (email) {
+                    const result = await resetPassword(email);
+                    if (result.success) {
+                      setError('Se ha enviado un enlace de recuperación a tu correo');
+                    } else {
+                      setError(result.error);
+                    }
+                  } else {
+                    setError('Ingresa tu correo electrónico primero');
+                  }
+                }}
                 className="text-sm text-emerald-600 hover:text-emerald-700 font-medium transition-colors duration-200"
               >
                 ¿Olvidaste tu contraseña?

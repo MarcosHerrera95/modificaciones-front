@@ -1,11 +1,11 @@
 // src/controllers/reviewController.js
 const { PrismaClient } = require('@prisma/client');
+const { uploadImage, deleteImage } = require('../services/storageService');
 const prisma = new PrismaClient();
 
 exports.createReview = async (req, res) => {
   const { id: userId } = req.user;
   const { servicio_id, calificacion, comentario } = req.body;
-  const url_foto = req.file ? req.file.path : req.body.url_foto; // Handle both file upload and URL
 
   try {
     const service = await prisma.servicios.findUnique({
@@ -21,6 +21,20 @@ exports.createReview = async (req, res) => {
     const existingReview = await prisma.resenas.findUnique({ where: { servicio_id } });
     if (existingReview) {
       return res.status(400).json({ error: 'Ya has dejado una reseña para este servicio.' });
+    }
+
+    let url_foto = null;
+
+    // Manejar subida de imagen si hay archivo
+    if (req.file) {
+      try {
+        // Subir imagen a Cloudinary
+        const result = await uploadImage(req.file.buffer, { folder: 'changanet/reviews' });
+        url_foto = result.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        return res.status(500).json({ error: 'Error al subir la imagen.' });
+      }
     }
 
     const review = await prisma.resenas.create({

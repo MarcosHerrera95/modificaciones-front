@@ -1,5 +1,6 @@
 // src/controllers/profileController.js
 const { PrismaClient } = require('@prisma/client');
+const { uploadImage, deleteImage } = require('../services/storageService');
 const prisma = new PrismaClient();
 
 exports.getProfile = async (req, res) => {
@@ -28,7 +29,7 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { userId } = req.user;
-  const { especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, url_foto_perfil } = req.body;
+  const { especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion } = req.body;
 
   try {
     const user = await prisma.usuarios.findUnique({ where: { id: userId } });
@@ -37,6 +38,26 @@ exports.updateProfile = async (req, res) => {
     }
 
     let profile = await prisma.perfiles_profesionales.findUnique({ where: { usuario_id: userId } });
+
+    let url_foto_perfil = profile ? profile.url_foto_perfil : null;
+
+    // Manejar subida de imagen si hay archivo
+    if (req.file) {
+      try {
+        // Eliminar imagen anterior si existe
+        if (url_foto_perfil) {
+          const publicId = url_foto_perfil.split('/').pop().split('.')[0];
+          await deleteImage(`changanet/${publicId}`);
+        }
+
+        // Subir nueva imagen a Cloudinary
+        const result = await uploadImage(req.file.buffer, { folder: 'changanet/profiles' });
+        url_foto_perfil = result.secure_url;
+      } catch (uploadError) {
+        console.error('Error uploading image:', uploadError);
+        return res.status(500).json({ error: 'Error al subir la imagen.' });
+      }
+    }
 
     if (profile) {
       profile = await prisma.perfiles_profesionales.update({
