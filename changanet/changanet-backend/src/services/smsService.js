@@ -1,3 +1,11 @@
+/**
+ * @archivo src/services/smsService.js - Servicio de envío de SMS
+ * @descripción Gestiona envío de mensajes SMS transaccionales usando Twilio (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real
+ * @impacto Social: Comunicación inmediata accesible para usuarios con dificultades visuales
+ */
+
 const twilio = require('twilio');
 
 // Configuración de Twilio desde variables de entorno
@@ -23,6 +31,16 @@ function isValidE164(phoneNumber) {
  * @param {string} to - Número de teléfono destino en formato E.164
  * @param {string} message - Mensaje a enviar
  * @returns {Promise<Object>} - Resultado del envío
+ */
+/**
+ * @función sendSMS - Envío de SMS transaccional
+ * @descripción Envía mensaje SMS usando Twilio con validación E.164 (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real
+ * @impacto Ambiental: Comunicación digital sin consumo de papel
+ * @param {string} to - Número de teléfono en formato E.164
+ * @param {string} message - Contenido del mensaje
+ * @returns {Promise<Object>} Resultado del envío
  */
 async function sendSMS(to, message) {
   try {

@@ -1,3 +1,9 @@
+# docker-compose.yml - Configuración de infraestructura de monitoreo para Changánet
+# @descripción Servicios Docker para Prometheus y Grafana (REQ-41)
+# @sprint Sprint 1 – Autenticación y Perfiles
+# @tarjeta Tarjeta 1: [Infra] Configurar Monitoreo con Prometheus y Grafana
+# @impacto Ambiental: Infraestructura de monitoreo eficiente para optimizar recursos
+
 version: '3.8'
 
 services:

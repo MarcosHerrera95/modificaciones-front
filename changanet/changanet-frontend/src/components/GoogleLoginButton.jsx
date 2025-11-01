@@ -1,9 +1,27 @@
 // src/components/GoogleLoginButton.jsx
+/**
+ * @component GoogleLoginButton - Botón de login con Google
+ * @descripción Componente UI para autenticación con Google OAuth (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
+ * @impacto Social: Interfaz accesible con navegación por teclado y estados claros
+ */
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { loginWithGoogle } from '../services/authService';
 
+/**
+ * @función GoogleLoginButton - Componente de botón Google OAuth
+ * @descripción Renderiza botón accesible con estados de carga y manejo de autenticación (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
+ * @impacto Social: Diseño accesible con navegación por teclado y feedback visual claro
+ * @param {string} text - Texto del botón (opcional)
+ * @param {string} className - Clases CSS adicionales (opcional)
+ * @returns {JSX.Element} Botón de login con Google
+ */
 const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = "" }) => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();

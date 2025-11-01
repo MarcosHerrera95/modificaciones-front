@@ -1,4 +1,12 @@
-// test-twilio.js - Script para probar la funcionalidad de SMS con Twilio
+// test-twilio.js - Script de prueba para Twilio SMS
+/**
+ * @archivo test-twilio.js - Pruebas de envío de SMS con Twilio
+ * @descripción Verifica funcionamiento de SMS transaccionales con validación E.164 (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real
+ * @impacto Social: Verificación de comunicaciones accesibles para usuarios con dificultades visuales
+ */
+
 require('dotenv').config({ path: './.env' });
 const { sendSMS, isValidE164 } = require('./src/services/smsService');
 

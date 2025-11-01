@@ -1,8 +1,10 @@
-// src/middleware/authenticate.js
-// FUNCIÓN: Verifica el token JWT en las rutas protegidas para garantizar que solo usuarios autenticados accedan a ciertas funcionalidades.
-// RELACIÓN PRD: REQ-03 (Verificación de email y login seguro), RB-01 (Autenticación obligatoria para acceder a funcionalidades de perfil, chat, reseñas y disponibilidad).
-// TARJETA BACKEND: Tarjeta 1: [Backend] Implementar API de Registro y Login.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+/**
+ * @archivo src/middleware/authenticate.js - Middleware de autenticación JWT
+ * @descripción Verifica tokens JWT en rutas protegidas y carga datos del usuario (REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Seguridad robusta para todas las transacciones de la plataforma
+ */
 
 const jwt = require('jsonwebtoken'); // Librería para verificar tokens JWT
 const { PrismaClient } = require('@prisma/client');
@@ -10,6 +12,16 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // Función middleware que se ejecuta antes de las rutas protegidas
+/**
+ * @función authenticateToken - Middleware de autenticación JWT
+ * @descripción Verifica token JWT y carga datos completos del usuario desde BD (REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Protección de datos personales y privacidad de usuarios
+ * @param {Object} req - Request con header Authorization
+ * @param {Object} res - Response
+ * @param {Function} next - Función para continuar al siguiente middleware
+ */
 exports.authenticateToken = (req, res, next) => {
   // Obtener el token del header 'Authorization' (formato: "Bearer TOKEN")
   // El header se espera en el formato estándar "Bearer <token>".

@@ -1,3 +1,11 @@
+/**
+ * @archivo src/services/authService.js - Servicio de autenticación frontend
+ * @descripción Gestiona autenticación de usuarios con Firebase Auth y backend (REQ-01, REQ-02, REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
+ * @impacto Social: Autenticación simplificada accesible para usuarios con dificultades técnicas
+ */
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -15,6 +23,16 @@ const googleProvider = new GoogleAuthProvider();
 const facebookProvider = new FacebookAuthProvider();
 
 // Registro con email y contraseña
+/**
+ * @función registerWithEmail - Registro con email y contraseña
+ * @descripción Crea cuenta de usuario en Firebase Auth y envía verificación (REQ-01)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Frontend] Implementar Registro de Usuario
+ * @impacto Social: Registro accesible sin barreras técnicas
+ * @param {string} email - Email del usuario
+ * @param {string} password - Contraseña del usuario
+ * @returns {Promise<Object>} Resultado del registro
+ */
 export const registerWithEmail = async (email, password) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -36,6 +54,14 @@ export const loginWithEmail = async (email, password) => {
 };
 
 // Inicio de sesión con Google
+/**
+ * @función loginWithGoogle - Autenticación con Google OAuth
+ * @descripción Abre popup de Google OAuth y maneja respuesta del backend (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
+ * @impacto Social: Autenticación simplificada para usuarios mayores con dificultades técnicas
+ * @returns {Promise<Object>} Resultado de autenticación con token y datos de usuario
+ */
 export const loginWithGoogle = async () => {
   try {
     // Abrir popup de Google OAuth

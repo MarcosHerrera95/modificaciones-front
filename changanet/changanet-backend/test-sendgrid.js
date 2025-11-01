@@ -1,4 +1,12 @@
-// test-sendgrid.js
+// test-sendgrid.js - Script de prueba para SendGrid
+/**
+ * @archivo test-sendgrid.js - Pruebas de envío de emails con SendGrid
+ * @descripción Verifica funcionamiento de emails transaccionales y de soporte (REQ-04)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
+ * @impacto Ambiental: Verificación de comunicaciones digitales sin papel
+ */
+
 const sgMail = require('@sendgrid/mail');
 require('dotenv').config();
 

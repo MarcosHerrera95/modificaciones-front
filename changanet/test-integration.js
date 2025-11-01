@@ -1,4 +1,12 @@
 // test-integration.js - Script de prueba integral para Changánet
+/**
+ * @archivo test-integration.js - Pruebas de integración completa
+ * @descripción Script automatizado para verificar funcionamiento completo de Changánet (REQ-01, REQ-02, REQ-03, REQ-40, REQ-41)
+ * @sprint Sprint 1-6 – Todos los sprints según funcionalidad probada
+ * @tarjeta Tarjetas múltiples: [Testing] Pruebas de integración completas
+ * @impacto Social: Verificación de accesibilidad y funcionamiento para todos los usuarios
+ */
+
 const axios = require('axios');
 
 const BASE_URL = 'http://localhost:3002';

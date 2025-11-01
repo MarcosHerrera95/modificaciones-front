@@ -1,8 +1,25 @@
+/**
+ * @archivo src/controllers/authController.js - Controlador de autenticación
+ * @descripción Maneja registro, login y autenticación OAuth de usuarios (REQ-01, REQ-02, REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Acceso seguro y verificado para todos los usuarios; Económico: Base sólida para transacciones
+ */
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+/**
+ * @función register - Registro de nuevos usuarios
+ * @descripción Crea cuenta de usuario con email, contraseña y perfil básico (REQ-01)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
+ * @impacto Social: Registro accesible para inclusión digital de adultos mayores
+ * @param {Object} req - Request con email, password, name, role
+ * @param {Object} res - Response con token JWT y datos de usuario
+ */
 exports.register = async (req, res) => {
   const { email, password, name, role } = req.body;
 
@@ -96,6 +113,15 @@ exports.register = async (req, res) => {
   }
 };
 
+/**
+ * @función login - Autenticación de usuarios existentes
+ * @descripción Valida credenciales y genera token JWT para acceso (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Autenticación segura para transacciones confiables
+ * @param {Object} req - Request con email y password
+ * @param {Object} res - Response con token JWT y datos de usuario
+ */
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -135,7 +161,15 @@ exports.login = async (req, res) => {
   }
 };
 
-// Controlador para manejar el callback de Google OAuth
+/**
+ * @función googleCallback - Callback de autenticación Google OAuth
+ * @descripción Procesa respuesta de Google y genera token JWT para usuario (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Autenticación simplificada para usuarios con dificultades técnicas
+ * @param {Object} req - Request con datos de usuario de Google
+ * @param {Object} res - Response que redirige al frontend con token
+ */
 exports.googleCallback = async (req, res) => {
   try {
     // Passport ya ha procesado la autenticación y ha agregado el usuario a req.user

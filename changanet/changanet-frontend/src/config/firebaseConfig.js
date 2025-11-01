@@ -1,3 +1,11 @@
+/**
+ * @archivo src/config/firebaseConfig.js - Configuración de Firebase
+ * @descripción Inicialización y configuración de servicios Firebase (Auth, Firestore, Messaging) (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Comunicación en tiempo real accesible para todos los usuarios
+ */
+
 // src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
@@ -24,6 +32,14 @@ export const db = getFirestore(app);
 export const messaging = getMessaging(app);
 
 // 📲 Función para solicitar token FCM
+/**
+ * @función requestFCMToken - Solicitud de token FCM para notificaciones push
+ * @descripción Solicita permiso y obtiene token FCM para notificaciones push (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Notificaciones accesibles que no requieren visión perfecta
+ * @returns {Promise<Object>} Resultado con token o error
+ */
 export const requestFCMToken = async () => {
   try {
     const permission = await Notification.requestPermission();

@@ -1,6 +1,12 @@
+# prometheus.yml - Configuración de Prometheus para monitoreo de Changánet
+# @descripción Configuración de recolección de métricas del backend (REQ-41)
+# @sprint Sprint 1 – Autenticación y Perfiles
+# @tarjeta Tarjeta 1: [Infra] Configurar Monitoreo con Prometheus y Grafana
+# @impacto Ambiental: Monitoreo eficiente que permite optimizar recursos del sistema
+
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 15s  # Intervalo de recolección de métricas
+  evaluation_interval: 15s  # Intervalo de evaluación de reglas
 
 rule_files:
   # - "first_rules.yml"

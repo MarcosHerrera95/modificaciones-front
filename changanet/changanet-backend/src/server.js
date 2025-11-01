@@ -1,7 +1,15 @@
+/**
+ * @archivo src/server.js - Servidor principal de Changánet
+ * @descripción Configuración y inicialización del servidor Express con middleware de seguridad, autenticación y servicios externos (REQ-01, REQ-40, REQ-41)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Infraestructura segura para transacciones; Ambiental: Optimización de recursos del servidor
+ */
+
 // src/server.js (fragmento actualizado) - restarted
 require('dotenv').config();
 
-// IMPORTANTE: Inicializar Sentry ANTES de cualquier otro import o middleware
+// IMPORTANTE: Inicializar Sentry ANTES de cualquier otro import o middleware (REQ-40)
 const { initializeSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } = require('./services/sentryService');
 initializeSentry();
 
@@ -20,6 +28,14 @@ const compression = require('compression'); // Compresión de respuestas
 const rateLimit = require('rate-limiter-flexible'); // Limitación de tasa
 const passport = require('./config/passport'); // Configuración de Passport
 const session = require('express-session'); // Sesiones para Passport
+
+/**
+ * @sección FCM Integration - Inicialización de Firebase Admin SDK
+ * @descripción Configura Firebase Admin para notificaciones push y autenticación (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real
+ * @impacto Social: Comunicación accesible para todos los usuarios
+ */
 
 // FCM Integration - Solo inicializar si existe el archivo de credenciales
 let admin;
@@ -71,18 +87,34 @@ const io = new Server(server, {
   }
 });
 
-// Middleware de Sentry (DEBE ir ANTES de otros middlewares)
+/**
+ * @sección Configuración de Middleware
+ * @descripción Middlewares de seguridad, monitoreo y optimización (REQ-40, REQ-41, REQ-42)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Ambiental: Optimización de recursos mediante compresión y monitoreo eficiente
+ */
+
+// Middleware de Sentry (DEBE ir ANTES de otros middlewares) - Monitoreo de errores (REQ-40)
 app.use(sentryRequestHandler());
 app.use(sentryTracingHandler());
 
-// Middleware de métricas HTTP (después de Sentry, antes de otros middlewares)
+// Middleware de métricas HTTP (después de Sentry, antes de otros middlewares) - Métricas de rendimiento (REQ-41)
 const { createHttpMetricsMiddleware } = require('./services/metricsService');
 app.use(createHttpMetricsMiddleware());
 
-// Middleware de seguridad y optimización
+// Middleware de seguridad y optimización - Seguridad y performance (REQ-42)
 app.use(helmet()); // Protege cabeceras HTTP
 app.use(compression()); // Comprime respuestas para mejorar rendimiento
 app.use(morgan('combined')); // Registra todas las solicitudes HTTP
+
+/**
+ * @sección Rate Limiting - Limitación de tasa de solicitudes
+ * @descripción Protección contra ataques DDoS y abuso de API (REQ-42)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Protección de recursos del servidor contra ataques
+ */
 
 // Configurar limitación de tasa (Rate Limiting) - Protección contra ataques DDoS
 const limiter = new rateLimit.RateLimiterMemory({
@@ -102,6 +134,14 @@ const rateLimiterMiddleware = (req, res, next) => {
 
 app.use(rateLimiterMiddleware);
 
+/**
+ * @sección Middleware CORS y Parsing
+ * @descripción Configuración de CORS y parsing de requests (REQ-01, REQ-42)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Acceso seguro desde diferentes orígenes para usuarios diversos
+ */
+
 // Middleware estándar
 app.use(cors({
   origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://localhost:5173", "http://localhost:5174"],
@@ -111,6 +151,14 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' })); // Limitar tamaño de payloads
 app.use(express.urlencoded({ extended: true })); // Para datos de formularios
+
+/**
+ * @sección Configuración de Sesiones y Passport
+ * @descripción Middleware de sesiones para autenticación OAuth (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Sesiones seguras para transacciones OAuth
+ */
 
 // Middleware de sesión para Passport
 app.use(session({
@@ -138,29 +186,37 @@ app.get('/', (req, res) => {
   });
 });
 
-// Ruta de documentación API
+// Ruta de documentación API - Documentación Swagger (REQ-40)
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Rutas de métricas (antes de otras rutas para evitar interferencias)
 const metricsRoutes = require('./routes/metricsRoutes');
 app.use('/api', metricsRoutes);
 
-// Rutas de la API
-app.use('/api/auth', authRoutes);
-app.use('/api/profile', profileRoutes); // Note: profileRoutes has both authenticated and public routes
-app.use('/api/professionals', searchRoutes);
-app.use('/api/messages', authenticateToken, messageRoutes);
-app.use('/api/reviews', authenticateToken, reviewRoutes);
-app.use('/api/availability', authenticateToken, availabilityRoutes);
-app.use('/api/notifications', authenticateToken, notificationRoutes);
-app.use('/api/quotes', authenticateToken, quoteRoutes);
-app.use('/api/verification', authenticateToken, verificationRoutes);
-app.use('/api/custody', authenticateToken, custodyRoutes);
-app.use('/api/ranking', rankingRoutes);
-app.use('/api/services', serviceRoutes);
-app.use('/api/gallery', authenticateToken, galleryRoutes);
+/**
+ * @sección Configuración de Rutas API
+ * @descripción Definición de endpoints REST de la aplicación (REQ-01, REQ-03, REQ-05, REQ-06, REQ-07, REQ-08, REQ-09, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20)
+ * @sprint Sprint 1-6 – Todos los sprints según funcionalidad
+ * @tarjeta Tarjetas 1-10: [Backend] Implementación completa de APIs
+ * @impacto Social: APIs accesibles para integración de servicios comunitarios
+ */
 
-// Socket.IO para chat en tiempo real
+// Rutas de la API
+app.use('/api/auth', authRoutes); // Autenticación (REQ-01, REQ-02, REQ-03)
+app.use('/api/profile', profileRoutes); // Perfiles de usuario (REQ-05)
+app.use('/api/professionals', searchRoutes); // Búsqueda de profesionales (REQ-06)
+app.use('/api/messages', authenticateToken, messageRoutes); // Chat en tiempo real (REQ-19)
+app.use('/api/reviews', authenticateToken, reviewRoutes); // Sistema de reseñas (REQ-16)
+app.use('/api/availability', authenticateToken, availabilityRoutes); // Disponibilidad (REQ-10)
+app.use('/api/notifications', authenticateToken, notificationRoutes); // Notificaciones (REQ-19, REQ-20)
+app.use('/api/quotes', authenticateToken, quoteRoutes); // Sistema de cotizaciones (REQ-11, REQ-12)
+app.use('/api/verification', authenticateToken, verificationRoutes); // Verificación de identidad (REQ-04)
+app.use('/api/custody', authenticateToken, custodyRoutes); // Custodia de pagos (REQ-17)
+app.use('/api/ranking', rankingRoutes); // Sistema de rankings (REQ-18)
+app.use('/api/services', serviceRoutes); // Gestión de servicios (REQ-07, REQ-08, REQ-09)
+app.use('/api/gallery', authenticateToken, galleryRoutes); // Galería de trabajos (REQ-15)
+
+// Socket.IO para chat en tiempo real (REQ-19)
 io.on('connection', (socket) => {
   console.log('🚀 Usuario conectado:', socket.id);
 
@@ -232,10 +288,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error)
+// Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error) - Monitoreo de errores (REQ-40)
 app.use(sentryErrorHandler());
 
-// Manejo de errores global (después de Sentry)
+// Manejo de errores global (después de Sentry) - Manejo de errores no capturados (REQ-40)
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Algo salió mal!' });
@@ -251,12 +307,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// Ruta de salud para monitoreo
+// Ruta de salud para monitoreo - Health check para load balancers (REQ-41)
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Ruta de prueba para verificar CORS
+// Ruta de prueba para verificar CORS - Testing de configuración CORS (REQ-42)
 app.get('/test-cors', (req, res) => {
   res.json({
     message: 'CORS funcionando correctamente',

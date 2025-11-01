@@ -1,10 +1,26 @@
-// src/controllers/serviceController.js
+/**
+ * @archivo src/controllers/serviceController.js - Controlador de servicios
+ * @descripción Gestiona agendamiento, seguimiento y finalización de servicios (REQ-07, REQ-08, REQ-09)
+ * @sprint Sprint 3 – Servicios y Transacciones
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Servicios y Agendamiento
+ * @impacto Económico: Transacciones seguras y formales entre usuarios
+ */
+
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('../services/notificationService');
 const { sendSMS } = require('../services/smsService');
 
 const prisma = new PrismaClient();
 
+/**
+ * @función scheduleService - Agendamiento de servicios
+ * @descripción Crea nuevo servicio validando cotización aceptada y envía notificaciones (REQ-07)
+ * @sprint Sprint 3 – Servicios y Transacciones
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Servicios y Agendamiento
+ * @impacto Económico: Formalización de acuerdos de servicio con seguimiento
+ * @param {Object} req - Request con datos del servicio (profesional_id, descripcion, fecha_agendada)
+ * @param {Object} res - Response con datos del servicio creado
+ */
 exports.scheduleService = async (req, res) => {
   const { id: clientId } = req.user;
   const { profesional_id, descripcion, fecha_agendada } = req.body;

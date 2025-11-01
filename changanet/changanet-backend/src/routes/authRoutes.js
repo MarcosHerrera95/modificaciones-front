@@ -1,8 +1,10 @@
-// src/routes/authRoutes.js
-// FUNCIÓN: Define los endpoints (URLs) públicos para el registro y login de usuarios.
-// RELACIÓN PRD: REQ-01 (Registro), REQ-02 (Login).
-// TARJETA BACKEND: Tarjeta 1: [Backend] Implementar API de Registro y Login.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+/**
+ * @archivo src/routes/authRoutes.js - Rutas de autenticación
+ * @descripción Define endpoints REST para registro, login y OAuth (REQ-01, REQ-02, REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Acceso seguro y accesible a la plataforma para todos los usuarios
+ */
 
 const express = require('express');
 const passport = require('../config/passport');

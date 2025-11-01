@@ -1,4 +1,13 @@
 // public/firebase-messaging-sw.js
+/**
+ * @archivo public/firebase-messaging-sw.js - Service Worker de Firebase Messaging
+ * @descripción Maneja notificaciones push en background y clics en notificaciones (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Notificaciones accesibles que funcionan sin que la app esté abierta
+ */
+
+// public/firebase-messaging-sw.js
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-compat.js');
 

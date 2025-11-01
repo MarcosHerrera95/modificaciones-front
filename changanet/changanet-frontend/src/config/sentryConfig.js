@@ -1,11 +1,22 @@
+/**
+ * @archivo src/config/sentryConfig.js - Configuración de Sentry para frontend
+ * @descripción Inicialización y configuración de monitoreo de errores y performance (REQ-40)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Frontend] Implementar Monitoreo con Sentry
+ * @impacto Ambiental: Optimización de recursos mediante identificación de errores
+ */
+
 // src/config/sentryConfig.js - Configuración de Sentry para frontend
 import * as Sentry from '@sentry/react';
 import { BrowserTracing } from '@sentry/tracing';
 import { Replay } from '@sentry/replay';
 
 /**
- * Inicializa Sentry para el frontend de Changánet
- * Debe ser llamado lo más temprano posible en la aplicación
+ * @función initializeSentry - Inicialización de Sentry para frontend
+ * @descripción Configura monitoreo de errores, performance y sesiones de usuario (REQ-40)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Frontend] Implementar Monitoreo con Sentry
+ * @impacto Ambiental: Reducción de recursos desperdiciados por errores no detectados
  */
 export function initializeSentry() {
   // Verificar que tenemos el DSN configurado

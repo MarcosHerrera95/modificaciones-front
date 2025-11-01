@@ -1,9 +1,27 @@
-// src/services/emailService.js
+/**
+ * @archivo src/services/emailService.js - Servicio de envío de emails
+ * @descripción Gestiona envío de emails transaccionales y de notificación (REQ-04, REQ-19)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
+ * @impacto Social: Comunicación accesible vía email para confirmaciones y notificaciones
+ */
+
 const sgMail = require('@sendgrid/mail');
 
 // Configurar SendGrid
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+/**
+ * @función sendEmail - Envío genérico de emails
+ * @descripción Envía email personalizado usando SendGrid (REQ-04)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
+ * @impacto Ambiental: Comunicación digital eficiente sin papel
+ * @param {string} to - Email destinatario
+ * @param {string} subject - Asunto del email
+ * @param {string} html - Contenido HTML del email
+ * @returns {Promise<Object>} Resultado del envío
+ */
 exports.sendEmail = async (to, subject, html) => {
   try {
     const msg = {
@@ -22,6 +40,15 @@ exports.sendEmail = async (to, subject, html) => {
   }
 };
 
+/**
+ * @función sendWelcomeEmail - Email de bienvenida
+ * @descripción Envía email de bienvenida personalizado al nuevo usuario (REQ-04)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
+ * @impacto Social: Bienvenida inclusiva que facilita la adopción de la plataforma
+ * @param {Object} user - Objeto usuario con email y nombre
+ * @returns {Promise<void>}
+ */
 exports.sendWelcomeEmail = async (user) => {
   const subject = '¡Bienvenido a Changánet!';
   const html = `
