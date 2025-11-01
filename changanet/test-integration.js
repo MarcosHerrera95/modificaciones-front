@@ -2,7 +2,7 @@
 const axios = require('axios');
 
 const BASE_URL = 'http://localhost:3002';
-const FRONTEND_URL = 'http://localhost:5174';
+const FRONTEND_URL = 'http://localhost:5173';
 
 console.log('🚀 Iniciando pruebas de integración de Changánet...\n');
 

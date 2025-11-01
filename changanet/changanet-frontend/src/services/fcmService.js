@@ -15,6 +15,17 @@ export const initializeFCM = async () => {
       vapidKey: 'BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo' // VAPID Key verificada y activa
     });
 
+    // Actualizar token en el backend si hay usuario autenticado
+    const userToken = localStorage.getItem('token');
+    if (userToken && token) {
+      try {
+        const { updateUserFCMToken } = await import('./authService');
+        await updateUserFCMToken(token, null); // El backend obtiene el userId del token JWT
+      } catch (updateError) {
+        console.error('Error updating FCM token in backend:', updateError);
+      }
+    }
+
     return { success: true, token };
   } catch (error) {
     console.error('Error inicializando FCM:', error);

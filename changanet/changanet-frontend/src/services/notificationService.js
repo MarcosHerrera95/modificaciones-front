@@ -19,7 +19,7 @@ export const requestNotificationPermission = async () => {
 export const getMessagingToken = async () => {
   try {
     const token = await getToken(messaging, {
-      vapidKey: 'TU_VAPID_KEY_AQUI' // Reemplaza con tu clave VAPID real
+      vapidKey: 'BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo' // VAPID Key verificada y activa
     });
     return { success: true, token };
   } catch (error) {

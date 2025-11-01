@@ -24,9 +24,19 @@ exports.sendNotification = async (userId, type, message) => {
 
     // VERIFICACIÓN: Enviar notificación push usando Firebase Cloud Messaging con VAPID key verificada
     try {
-      const pushResult = await sendPushNotification(null, `Changánet - ${type}`, message);
-      if (pushResult) {
-        console.log(`📬 Notificación push enviada para ${userId}`);
+      // Obtener token FCM del usuario desde la base de datos
+      const user = await prisma.usuarios.findUnique({
+        where: { id: userId },
+        select: { fcm_token: true }
+      });
+
+      if (user && user.fcm_token) {
+        const pushResult = await sendPushNotification(user.fcm_token, `Changánet - ${type}`, message);
+        if (pushResult) {
+          console.log(`📬 Notificación push enviada para ${userId}`);
+        }
+      } else {
+        console.log(`⚠️ Usuario ${userId} no tiene token FCM registrado`);
       }
     } catch (pushError) {
       console.error('Error al enviar notificación push:', pushError);

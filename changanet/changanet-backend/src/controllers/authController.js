@@ -33,6 +33,19 @@ exports.register = async (req, res) => {
       // No fallar el registro por error de email
     }
 
+    // Enviar SMS de bienvenida si el usuario tiene teléfono
+    try {
+      if (user.telefono && user.telefono.trim() !== '') {
+        const { sendSMS } = require('../services/smsService');
+        const smsMessage = `¡Bienvenido a Changánet, ${user.nombre}! Tu cuenta ha sido creada exitosamente.`;
+        await sendSMS(user.telefono, smsMessage);
+        console.log('📱 SMS de bienvenida enviado a:', user.telefono);
+      }
+    } catch (smsError) {
+      console.error('Error al enviar SMS de bienvenida:', smsError);
+      // No fallar el registro por error de SMS
+    }
+
     const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY PARA REGISTRO

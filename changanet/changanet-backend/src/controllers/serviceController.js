@@ -64,11 +64,11 @@ exports.scheduleService = async (req, res) => {
     try {
       const professional = await prisma.usuarios.findUnique({
         where: { id: profesional_id },
-        select: { telefono: true, sms_enabled: true }
+        select: { telefono: true, sms_enabled: true, nombre: true }
       });
 
       if (professional && professional.telefono && professional.sms_enabled) {
-        const smsMessage = `Changánet: Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString('es-AR')}. Descripción: ${descripcion}`;
+        const smsMessage = `Changánet: ¡Hola ${professional.nombre}! Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString('es-AR')}. Descripción: ${descripcion}`;
         await sendSMS(professional.telefono, smsMessage);
       }
     } catch (smsError) {
@@ -181,11 +181,11 @@ exports.updateServiceStatus = async (req, res) => {
       try {
         const client = await prisma.usuarios.findUnique({
           where: { id: service.cliente_id },
-          select: { telefono: true, sms_enabled: true }
+          select: { telefono: true, sms_enabled: true, nombre: true }
         });
 
         if (client && client.telefono && client.sms_enabled) {
-          const smsMessage = `Changánet: Tu servicio ha sido completado. Gracias por usar nuestra plataforma.`;
+          const smsMessage = `Changánet: ¡Hola ${client.nombre}! Tu servicio ha sido completado exitosamente. Gracias por usar nuestra plataforma.`;
           await sendSMS(client.telefono, smsMessage);
         }
       } catch (smsError) {

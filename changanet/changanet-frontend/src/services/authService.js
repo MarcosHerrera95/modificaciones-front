@@ -80,6 +80,29 @@ export const loginWithGoogle = async () => {
   }
 };
 
+// Función para actualizar token FCM del usuario
+export const updateUserFCMToken = async (token, userId) => {
+  try {
+    const response = await fetch('http://localhost:3002/api/profile/fcm-token', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify({ fcm_token: token })
+    });
+
+    if (!response.ok) {
+      throw new Error('Error al actualizar token FCM');
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating FCM token:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 // Inicio de sesión con Facebook
 export const loginWithFacebook = async () => {
   try {
