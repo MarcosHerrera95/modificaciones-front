@@ -137,10 +137,10 @@ app.use(rateLimiterMiddleware);
 
 // Configura CORS para permitir solicitudes desde el frontend
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://localhost:5173", "http://localhost:5174"],
+  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Middleware para parsear JSON con límite de tamaño
@@ -342,6 +342,9 @@ app.get('/', (req, res) => {
   });
 });
 
+// Ruta adicional para compatibilidad con pruebas de CORS
+app.options('*', cors());
+
 /**
  * Endpoint de health check para monitoreo y load balancers.
  */
@@ -356,6 +359,20 @@ app.get('/test-cors', (req, res) => {
   res.json({
     message: 'CORS funcionando correctamente',
     origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Ruta para verificar configuración de servicios externos
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'OK',
+    services: {
+      firebase: admin ? 'configured' : 'not configured',
+      sendgrid: process.env.SENDGRID_API_KEY ? 'configured' : 'not configured',
+      twilio: process.env.TWILIO_ACCOUNT_SID ? 'configured' : 'not configured',
+      sentry: process.env.SENTRY_DSN ? 'configured' : 'not configured'
+    },
     timestamp: new Date().toISOString()
   });
 });

@@ -47,10 +47,14 @@ function App() {
       <NotificationProvider>
         <ChatProvider>
           <ModalProvider>
-            <Router>
+            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <div className="flex flex-col min-h-screen">
+                {/* Skip link for accessibility */}
+                <a href="#main-content" className="skip-link">
+                  Saltar al contenido principal
+                </a>
                 <Header />
-                <main className="flex-grow">
+                <main id="main-content" className="flex-grow" role="main">
                   <Routes>
                     <Route path="/" element={<Home />} />
                     <Route path="/profesionales" element={<Professionals />} />

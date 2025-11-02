@@ -8,9 +8,7 @@
 
 // src/config/sentryConfig.js - Configuración de Sentry para frontend
 import * as Sentry from '@sentry/react';
-import { BrowserTracing } from '@sentry/tracing';
 import { Replay } from '@sentry/replay';
-import React from 'react';
 
 /**
  * @función initializeSentry - Inicialización de Sentry para frontend
@@ -32,28 +30,8 @@ export function initializeSentry() {
     environment: import.meta.env.MODE || 'development',
     release: import.meta.env.npm_package_version || '1.0.0',
 
-    // Integraciones para React
+    // Integraciones básicas para React
     integrations: [
-      // BrowserTracing para seguimiento de navegación y transacciones
-      new BrowserTracing({
-        routingInstrumentation: Sentry.reactRouterV6Instrumentation(
-          React.useEffect,
-          React.useLocation,
-          React.useNavigationType,
-          React.createRoutesFromChildren,
-          React.matchRoutes,
-        ),
-        tracePropagationTargets: [
-          'localhost',
-          'changanet.com',
-          /^\// // Rutas relativas
-        ],
-        shouldCreateTransactionForRequest: (url) => {
-          // Solo crear transacciones para rutas importantes
-          return !url.includes('/health') && !url.includes('/test');
-        }
-      }),
-
       // Replay para grabar sesiones de usuario
       new Replay({
         maskAllText: true, // Enmascarar texto sensible

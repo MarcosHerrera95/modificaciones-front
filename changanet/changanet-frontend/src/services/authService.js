@@ -1,31 +1,8 @@
 /**
  * Servicio de autenticación para el frontend de Changánet.
- * Maneja registro, login y gestión de sesiones de usuario usando Firebase Auth.
+ * Maneja registro, login y gestión de sesiones de usuario.
  * Incluye integración con backend para tokens JWT y comunicación postMessage.
  */
-
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  signOut,
-  onAuthStateChanged
-} from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
-
-/**
- * Instancia del proveedor de autenticación de Google.
- */
-const googleProvider = new GoogleAuthProvider();
-
-/**
- * Instancia del proveedor de autenticación de Facebook.
- */
-const facebookProvider = new FacebookAuthProvider();
 
 /**
  * Registra un nuevo usuario usando email y contraseña.
@@ -67,7 +44,7 @@ export const loginWithGoogle = async () => {
     // Abre una ventana popup para el flujo de autenticación OAuth
     // Usa el proxy configurado en Vite (/api -> http://localhost:3002)
     const popup = window.open(
-      '/api/auth/google',
+      `${window.location.origin}/api/auth/google`,
       'google-auth',
       'width=500,height=600,scrollbars=yes,resizable=yes'
     );
@@ -141,8 +118,8 @@ export const updateUserFCMToken = async (token, userId) => {
  */
 export const loginWithFacebook = async () => {
   try {
-    const result = await signInWithPopup(auth, facebookProvider);
-    return { success: true, user: result.user };
+    // Facebook login not implemented yet - placeholder
+    return { success: false, error: 'Facebook login no implementado aún' };
   } catch (error) {
     return { success: false, error: error.message };
   }

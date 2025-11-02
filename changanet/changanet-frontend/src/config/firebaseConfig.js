@@ -46,8 +46,21 @@ export const db = getFirestore(app);
 
 /**
  * Instancia de Firebase Cloud Messaging para notificaciones push.
+ * Solo se inicializa si es soportado por el navegador.
  */
-export const messaging = getMessaging(app);
+let messaging = null;
+try {
+  if ('serviceWorker' in navigator && 'PushManager' in window) {
+    messaging = getMessaging(app);
+    console.log('✅ Firebase Messaging inicializado');
+  } else {
+    console.warn('⚠️ Firebase Messaging no soportado en este navegador');
+  }
+} catch (error) {
+  console.warn('⚠️ Error inicializando Firebase Messaging:', error);
+}
+
+export { messaging };
 
 /**
  * Solicita permiso al usuario y obtiene un token FCM para notificaciones push.
@@ -55,41 +68,57 @@ export const messaging = getMessaging(app);
  * Retorna el token si el permiso es concedido, null en caso contrario.
  */
 export const requestFCMToken = async () => {
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      // Clave VAPID obtenida desde Firebase Console para autenticación de mensajes
-      const vapidKey = "BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo";
-      const fcmToken = await getToken(messaging, { vapidKey });
-      console.log("Token FCM obtenido:", fcmToken);
-      return fcmToken;
-    } else {
-      console.warn("Permiso de notificaciones denegado por el usuario");
-      return null;
-    }
-  } catch (error) {
-    console.error("Error al obtener token FCM:", error);
-    return null;
-  }
-};
+   try {
+     if (!messaging) {
+       console.warn("Firebase Messaging no disponible");
+       return null;
+     }
+
+     if (!('Notification' in window)) {
+       console.warn("Notificaciones no soportadas en este navegador");
+       return null;
+     }
+
+     const permission = await Notification.requestPermission();
+     if (permission === "granted") {
+       // Clave VAPID obtenida desde Firebase Console para autenticación de mensajes
+       const vapidKey = "BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo";
+       const fcmToken = await getToken(messaging, { vapidKey });
+       console.log("Token FCM obtenido:", fcmToken);
+       return fcmToken;
+     } else {
+       console.warn("Permiso de notificaciones denegado por el usuario");
+       return null;
+     }
+   } catch (error) {
+     console.error("Error al obtener token FCM:", error);
+     return null;
+   }
+ };
 
 /**
  * Configura un listener para mensajes FCM cuando la aplicación está en primer plano.
  * Muestra notificaciones nativas del navegador cuando llegan mensajes.
  */
 export const onForegroundMessage = () => {
-  if (!messaging) {
-    console.warn('Firebase Messaging no está disponible');
-    return;
-  }
+   if (!messaging) {
+     console.warn('Firebase Messaging no está disponible');
+     return;
+   }
 
-  onMessage(messaging, (payload) => {
-    console.log('Mensaje FCM recibido en primer plano:', payload);
-    // Crea una notificación nativa del navegador con el contenido del mensaje
-    const { title, body } = payload.notification;
-    new Notification(title, { body });
-  });
-};
+   try {
+     onMessage(messaging, (payload) => {
+       console.log('Mensaje FCM recibido en primer plano:', payload);
+       // Crea una notificación nativa del navegador con el contenido del mensaje
+       if (payload.notification) {
+         const { title, body } = payload.notification;
+         new Notification(title, { body, icon: '/vite.svg' });
+       }
+     });
+   } catch (error) {
+     console.error('Error configurando listener de mensajes FCM:', error);
+   }
+ };
 
 /**
  * Función de diagnóstico que verifica el estado de la configuración de Firebase.

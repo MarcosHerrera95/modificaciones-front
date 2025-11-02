@@ -18,19 +18,15 @@ if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
       console.log('Service Worker registrado:', registration);
 
-      // Inicializar FCM
-      const fcmResult = await initializeFCM();
-      if (fcmResult.success) {
-        console.log('FCM inicializado correctamente');
-
-        // Aquí puedes enviar el token al backend si es necesario
-        // await fetch('/api/notifications/fcm-token', {
-        //   method: 'PUT',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ fcmToken: fcmResult.token })
-        // });
-      } else {
-        console.error('Error inicializando FCM:', fcmResult.error);
+      // Inicializar FCM solo si el usuario está autenticado
+      const userToken = localStorage.getItem('token');
+      if (userToken) {
+        const fcmResult = await initializeFCM();
+        if (fcmResult.success) {
+          console.log('FCM inicializado correctamente');
+        } else {
+          console.error('Error inicializando FCM:', fcmResult.error);
+        }
       }
     } catch (error) {
       console.error('Error registrando Service Worker:', error);

@@ -13,8 +13,15 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
 
-// Inicializar cliente de Twilio
-const client = twilio(accountSid, authToken);
+// Inicializar cliente de Twilio con validación
+let client;
+if (!accountSid || !authToken || !twilioPhoneNumber) {
+  console.warn('⚠️ Credenciales de Twilio incompletas - SMS no se enviarán');
+  client = null;
+} else {
+  client = twilio(accountSid, authToken);
+  console.log('✅ Twilio configurado correctamente');
+}
 
 /**
  * Valida si un número de teléfono está en formato E.164
@@ -43,21 +50,26 @@ function isValidE164(phoneNumber) {
  * @returns {Promise<Object>} Resultado del envío
  */
 async function sendSMS(to, message) {
-  try {
-    // Validar formato E.164
-    if (!isValidE164(to)) {
-      throw new Error(`Número de teléfono inválido: ${to}. Debe estar en formato E.164 (ej: +5491112345678)`);
-    }
+   try {
+     if (!client) {
+       console.warn('⚠️ Twilio no configurado - SMS no enviado');
+       return { success: false, error: 'Twilio no configurado' };
+     }
 
-    // Agregar disclaimer legal al mensaje
-    const fullMessage = `${message}\n\nResponde STOP para no recibir más mensajes.`;
+     // Validar formato E.164
+     if (!isValidE164(to)) {
+       throw new Error(`Número de teléfono inválido: ${to}. Debe estar en formato E.164 (ej: +5491112345678)`);
+     }
 
-    // Enviar SMS
-    const result = await client.messages.create({
-      body: fullMessage,
-      from: twilioPhoneNumber,
-      to: to
-    });
+     // Agregar disclaimer legal al mensaje
+     const fullMessage = `${message}\n\nResponde STOP para no recibir más mensajes.`;
+
+     // Enviar SMS
+     const result = await client.messages.create({
+       body: fullMessage,
+       from: twilioPhoneNumber,
+       to: to
+     });
 
     console.log(`SMS enviado exitosamente a ${to}. SID: ${result.sid}`);
 

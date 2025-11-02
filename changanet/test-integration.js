@@ -56,7 +56,7 @@ async function runTests() {
 
   // 2. Prueba de CORS
   console.log('2️⃣ Probando CORS...');
-  const corsTest = await makeRequest('GET', `${BASE_URL}/`);
+  const corsTest = await makeRequest('GET', `${BASE_URL}/test-cors`);
   testResults.push({
     name: 'CORS Test',
     result: corsTest.success,
@@ -179,8 +179,27 @@ async function runTests() {
     console.log(`❌ Documentación FAIL: ${error.message}\n`);
   }
 
-  // 8. Verificar frontend
-  console.log('8️⃣ Verificando frontend...');
+  // 8. Verificar configuración de servicios externos
+  console.log('8️⃣ Verificando configuración de servicios externos...');
+  try {
+    const servicesCheck = await axios.get(`${BASE_URL}/api/status`);
+    testResults.push({
+      name: 'External Services Config',
+      result: servicesCheck.status === 200,
+      details: servicesCheck.status === 200 ? '✅ Servicios configurados' : '❌ Servicios no configurados'
+    });
+    console.log(servicesCheck.status === 200 ? '✅ Servicios externos OK' : '❌ Servicios externos FAIL\n');
+  } catch (error) {
+    testResults.push({
+      name: 'External Services Config',
+      result: false,
+      details: `❌ ${error.message}`
+    });
+    console.log(`❌ Servicios externos FAIL: ${error.message}\n`);
+  }
+
+  // 9. Verificar frontend
+  console.log('9️⃣ Verificando frontend...');
   try {
     const frontendCheck = await axios.get(FRONTEND_URL, {
       timeout: 5000,

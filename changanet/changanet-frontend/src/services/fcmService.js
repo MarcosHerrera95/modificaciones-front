@@ -19,10 +19,18 @@ import { messaging } from "../config/firebaseConfig";
  */
 export const initializeFCM = async () => {
   try {
-    // Solicitar permiso para notificaciones
-    const permission = await Notification.requestPermission();
+    // Verificar si ya tenemos permiso
+    if (Notification.permission === 'denied') {
+      return { success: false, error: 'Permiso de notificaciones denegado' };
+    }
+
+    // Solicitar permiso para notificaciones solo si no está concedido
+    let permission = Notification.permission;
     if (permission !== 'granted') {
-      throw new Error('Permiso de notificaciones denegado');
+      permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        return { success: false, error: 'Permiso de notificaciones denegado' };
+      }
     }
 
     // Obtener token FCM

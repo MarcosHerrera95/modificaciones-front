@@ -42,6 +42,16 @@ exports.register = async (req, res) => {
       // No fallar el registro por error de email
     }
 
+    // Intenta enviar notificación push de bienvenida (no bloqueante)
+    try {
+      const { sendPushNotification } = require('../config/firebaseAdmin');
+      await sendPushNotification(user.fcm_token, '¡Bienvenido a Changánet!', `Hola ${user.nombre}, tu cuenta ha sido creada exitosamente.`);
+      console.log('Notificación push de bienvenida enviada a:', user.id);
+    } catch (pushError) {
+      console.error('Error al enviar notificación push de bienvenida:', pushError);
+      // No fallar el registro por error de push
+    }
+
     // Intenta enviar SMS de bienvenida si el usuario tiene teléfono (no bloqueante)
     try {
       if (user.telefono && user.telefono.trim() !== '') {
@@ -164,6 +174,15 @@ exports.googleCallback = async (req, res) => {
       console.log('Email de bienvenida enviado a usuario Google:', user.email);
     } catch (emailError) {
       console.error('Error al enviar email de bienvenida a usuario Google:', emailError);
+    }
+
+    // Intenta enviar notificación push de bienvenida para usuarios de Google (no bloqueante)
+    try {
+      const { sendPushNotification } = require('../config/firebaseAdmin');
+      await sendPushNotification(user.fcm_token, '¡Bienvenido a Changánet!', `Hola ${user.nombre}, has iniciado sesión con Google exitosamente.`);
+      console.log('Notificación push de bienvenida enviada a usuario Google:', user.id);
+    } catch (pushError) {
+      console.error('Error al enviar notificación push de bienvenida a usuario Google:', pushError);
     }
 
     // Para el flujo de popup, devolver HTML que comunica con la ventana padre

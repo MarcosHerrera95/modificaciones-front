@@ -8,8 +8,14 @@
 
 const sgMail = require('@sendgrid/mail');
 
-// Configurar SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+// Configurar SendGrid con validación
+const sendgridApiKey = process.env.SENDGRID_API_KEY;
+if (!sendgridApiKey) {
+  console.warn('⚠️ SENDGRID_API_KEY no configurado - emails no se enviarán');
+} else {
+  sgMail.setApiKey(sendgridApiKey);
+  console.log('✅ SendGrid configurado correctamente');
+}
 
 /**
  * @función sendEmail - Envío genérico de emails
@@ -23,22 +29,27 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
  * @returns {Promise<Object>} Resultado del envío
  */
 exports.sendEmail = async (to, subject, html) => {
-  try {
-    const msg = {
-      to,
-      from: process.env.FROM_EMAIL || 'noreply@changanet.com',
-      subject,
-      html
-    };
+   try {
+     if (!sendgridApiKey) {
+       console.warn('⚠️ SendGrid no configurado - email no enviado');
+       return null;
+     }
 
-    const info = await sgMail.send(msg);
-    console.log('📧 Email enviado con SendGrid:', info[0].statusCode);
-    return info;
-  } catch (error) {
-    console.error('❌ Error al enviar email con SendGrid:', error);
-    throw error;
-  }
-};
+     const msg = {
+       to,
+       from: process.env.FROM_EMAIL || 'noreply@changanet.com',
+       subject,
+       html
+     };
+
+     const info = await sgMail.send(msg);
+     console.log('📧 Email enviado con SendGrid:', info[0].statusCode);
+     return info;
+   } catch (error) {
+     console.error('❌ Error al enviar email con SendGrid:', error);
+     throw error;
+   }
+ };
 
 /**
  * @función sendWelcomeEmail - Email de bienvenida

@@ -22,22 +22,33 @@ const prisma = new PrismaClient();
  * @param {Object} res - Response con datos del servicio creado
  */
 exports.scheduleService = async (req, res) => {
-  const { id: clientId } = req.user;
-  const { profesional_id, descripcion, fecha_agendada } = req.body;
+   const { id: clientId } = req.user;
+   const { profesional_id, descripcion, fecha_agendada } = req.body;
 
-  try {
-    // Check if there's an accepted quote between client and professional
-    const acceptedQuote = await prisma.cotizaciones.findFirst({
-      where: {
-        cliente_id: clientId,
-        profesional_id,
-        estado: 'aceptado'
-      }
-    });
+   try {
+     // Validar datos de entrada
+     if (!profesional_id || !descripcion || !fecha_agendada) {
+       return res.status(400).json({ error: 'Todos los campos son requeridos: profesional_id, descripcion, fecha_agendada.' });
+     }
 
-    if (!acceptedQuote) {
-      return res.status(400).json({ error: 'Debes tener una cotización aceptada para agendar un servicio.' });
-    }
+     // Validar que la fecha sea futura
+     const scheduledDate = new Date(fecha_agendada);
+     if (scheduledDate <= new Date()) {
+       return res.status(400).json({ error: 'La fecha agendada debe ser futura.' });
+     }
+
+     // Check if there's an accepted quote between client and professional
+     const acceptedQuote = await prisma.cotizaciones.findFirst({
+       where: {
+         cliente_id: clientId,
+         profesional_id,
+         estado: 'aceptado'
+       }
+     });
+
+     if (!acceptedQuote) {
+       return res.status(400).json({ error: 'Debes tener una cotización aceptada para agendar un servicio.' });
+     }
 
     const service = await prisma.servicios.create({
       data: {
@@ -138,24 +149,30 @@ exports.getProfessionalServices = async (req, res) => {
 };
 
 exports.updateServiceStatus = async (req, res) => {
-  const { id: userId } = req.user;
-  const { serviceId } = req.params;
-  const { estado } = req.body;
+   const { id: userId } = req.user;
+   const { serviceId } = req.params;
+   const { estado } = req.body;
 
-  try {
-    const service = await prisma.servicios.findUnique({
-      where: { id: serviceId },
-      include: { cliente: true, profesional: true }
-    });
+   try {
+     // Validar estado permitido
+     const estadosPermitidos = ['agendado', 'en_progreso', 'completado', 'cancelado'];
+     if (!estadosPermitidos.includes(estado)) {
+       return res.status(400).json({ error: 'Estado no válido. Estados permitidos: agendado, en_progreso, completado, cancelado.' });
+     }
 
-    if (!service) {
-      return res.status(404).json({ error: 'Servicio no encontrado.' });
-    }
+     const service = await prisma.servicios.findUnique({
+       where: { id: serviceId },
+       include: { cliente: true, profesional: true }
+     });
 
-    // Check permissions
-    if (service.profesional_id !== userId) {
-      return res.status(403).json({ error: 'No tienes permiso para actualizar este servicio.' });
-    }
+     if (!service) {
+       return res.status(404).json({ error: 'Servicio no encontrado.' });
+     }
+
+     // Check permissions
+     if (service.profesional_id !== userId) {
+       return res.status(403).json({ error: 'No tienes permiso para actualizar este servicio.' });
+     }
 
     const updatedService = await prisma.servicios.update({
       where: { id: serviceId },
