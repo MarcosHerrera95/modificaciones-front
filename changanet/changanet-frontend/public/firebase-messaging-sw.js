@@ -27,9 +27,6 @@ firebase.initializeApp(firebaseConfig);
 // Inicializar Firebase Messaging
 const messaging = firebase.messaging();
 
-// Configurar VAPID key
-messaging.usePublicVapidKey('BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo');
-
 // Manejar mensajes en background
 messaging.onBackgroundMessage((payload) => {
   console.log('📬 Mensaje recibido en background:', payload);

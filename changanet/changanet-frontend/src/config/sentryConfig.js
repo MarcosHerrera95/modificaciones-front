@@ -10,6 +10,7 @@
 import * as Sentry from '@sentry/react';
 import { BrowserTracing } from '@sentry/tracing';
 import { Replay } from '@sentry/replay';
+import React from 'react';
 
 /**
  * @función initializeSentry - Inicialización de Sentry para frontend

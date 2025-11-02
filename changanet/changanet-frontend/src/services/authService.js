@@ -1,9 +1,7 @@
 /**
- * @archivo src/services/authService.js - Servicio de autenticación frontend
- * @descripción Gestiona autenticación de usuarios con Firebase Auth y backend (REQ-01, REQ-02, REQ-03)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
- * @impacto Social: Autenticación simplificada accesible para usuarios con dificultades técnicas
+ * Servicio de autenticación para el frontend de Changánet.
+ * Maneja registro, login y gestión de sesiones de usuario usando Firebase Auth.
+ * Incluye integración con backend para tokens JWT y comunicación postMessage.
  */
 
 import {
@@ -19,19 +17,20 @@ import {
 } from "firebase/auth";
 import { auth } from "../config/firebaseConfig";
 
+/**
+ * Instancia del proveedor de autenticación de Google.
+ */
 const googleProvider = new GoogleAuthProvider();
+
+/**
+ * Instancia del proveedor de autenticación de Facebook.
+ */
 const facebookProvider = new FacebookAuthProvider();
 
-// Registro con email y contraseña
 /**
- * @función registerWithEmail - Registro con email y contraseña
- * @descripción Crea cuenta de usuario en Firebase Auth y envía verificación (REQ-01)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Frontend] Implementar Registro de Usuario
- * @impacto Social: Registro accesible sin barreras técnicas
- * @param {string} email - Email del usuario
- * @param {string} password - Contraseña del usuario
- * @returns {Promise<Object>} Resultado del registro
+ * Registra un nuevo usuario usando email y contraseña.
+ * Crea la cuenta en Firebase Auth y envía email de verificación.
+ * Retorna el resultado de la operación con el usuario creado.
  */
 export const registerWithEmail = async (email, password) => {
   try {
@@ -43,7 +42,11 @@ export const registerWithEmail = async (email, password) => {
   }
 };
 
-// Inicio de sesión con email y contraseña
+/**
+ * Inicia sesión de un usuario existente con email y contraseña.
+ * Autentica las credenciales contra Firebase Auth.
+ * Retorna el resultado con el usuario autenticado.
+ */
 export const loginWithEmail = async (email, password) => {
   try {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -53,27 +56,25 @@ export const loginWithEmail = async (email, password) => {
   }
 };
 
-// Inicio de sesión con Google
 /**
- * @función loginWithGoogle - Autenticación con Google OAuth
- * @descripción Abre popup de Google OAuth y maneja respuesta del backend (REQ-02)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
- * @impacto Social: Autenticación simplificada para usuarios mayores con dificultades técnicas
- * @returns {Promise<Object>} Resultado de autenticación con token y datos de usuario
+ * Inicia sesión usando autenticación OAuth de Google.
+ * Abre una ventana popup que redirige al backend para el flujo OAuth.
+ * Maneja la comunicación postMessage entre la popup y la ventana principal.
+ * Retorna una promesa que se resuelve con el usuario y token JWT.
  */
 export const loginWithGoogle = async () => {
   try {
-    // Abrir popup de Google OAuth
+    // Abre una ventana popup para el flujo de autenticación OAuth
+    // Usa el proxy configurado en Vite (/api -> http://localhost:3002)
     const popup = window.open(
-      'http://localhost:3002/api/auth/google',
+      '/api/auth/google',
       'google-auth',
       'width=500,height=600,scrollbars=yes,resizable=yes'
     );
 
     return new Promise((resolve, reject) => {
       const handleMessage = (event) => {
-        // Verificar origen por seguridad
+        // Verifica que el mensaje provenga del mismo origen por seguridad
         if (event.origin !== window.location.origin) return;
 
         if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
@@ -93,7 +94,7 @@ export const loginWithGoogle = async () => {
 
       window.addEventListener('message', handleMessage);
 
-      // Timeout después de 5 minutos
+      // Configura un timeout de 5 minutos para evitar esperas infinitas
       setTimeout(() => {
         window.removeEventListener('message', handleMessage);
         popup.close();
@@ -106,14 +107,19 @@ export const loginWithGoogle = async () => {
   }
 };
 
-// Función para actualizar token FCM del usuario
+/**
+ * Actualiza el token FCM del usuario en el backend.
+ * Envía una petición PUT al endpoint de perfil con el nuevo token.
+ * Utiliza el token JWT almacenado en localStorage para autenticación.
+ */
 export const updateUserFCMToken = async (token, userId) => {
   try {
-    const response = await fetch('http://localhost:3002/api/profile/fcm-token', {
+    // Usar el proxy configurado en Vite (/api -> http://localhost:3002)
+    const response = await fetch('/api/profile/fcm-token', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
       },
       body: JSON.stringify({ fcm_token: token })
     });
@@ -129,7 +135,10 @@ export const updateUserFCMToken = async (token, userId) => {
   }
 };
 
-// Inicio de sesión con Facebook
+/**
+ * Inicia sesión usando autenticación OAuth de Facebook.
+ * Abre un popup para el flujo de autenticación y retorna el usuario autenticado.
+ */
 export const loginWithFacebook = async () => {
   try {
     const result = await signInWithPopup(auth, facebookProvider);
@@ -139,7 +148,10 @@ export const loginWithFacebook = async () => {
   }
 };
 
-// Recuperación de contraseña
+/**
+ * Envía un email de recuperación de contraseña usando Firebase Auth.
+ * El usuario recibe un enlace para restablecer su contraseña.
+ */
 export const resetPassword = async (email) => {
   try {
     await sendPasswordResetEmail(auth, email);
@@ -149,7 +161,10 @@ export const resetPassword = async (email) => {
   }
 };
 
-// Cerrar sesión
+/**
+ * Cierra la sesión del usuario actual en Firebase Auth.
+ * Elimina la sesión activa y limpia el estado de autenticación.
+ */
 export const logout = async () => {
   try {
     await signOut(auth);
@@ -159,7 +174,10 @@ export const logout = async () => {
   }
 };
 
-// Observador de estado de autenticación
+/**
+ * Configura un observador para cambios en el estado de autenticación.
+ * Ejecuta el callback proporcionado cuando el usuario inicia o cierra sesión.
+ */
 export const onAuthStateChange = (callback) => {
   return onAuthStateChanged(auth, callback);
 };

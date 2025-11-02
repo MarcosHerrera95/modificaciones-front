@@ -1,9 +1,6 @@
 /**
- * @archivo src/controllers/authController.js - Controlador de autenticación
- * @descripción Maneja registro, login y autenticación OAuth de usuarios (REQ-01, REQ-02, REQ-03)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Social: Acceso seguro y verificado para todos los usuarios; Económico: Base sólida para transacciones
+ * Controlador de autenticación que maneja registro, login y autenticación OAuth de usuarios.
+ * Gestiona la creación de cuentas, validación de credenciales y generación de tokens JWT.
  */
 
 const bcrypt = require('bcryptjs');
@@ -12,13 +9,8 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 /**
- * @función register - Registro de nuevos usuarios
- * @descripción Crea cuenta de usuario con email, contraseña y perfil básico (REQ-01)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
- * @impacto Social: Registro accesible para inclusión digital de adultos mayores
- * @param {Object} req - Request con email, password, name, role
- * @param {Object} res - Response con token JWT y datos de usuario
+ * Registra un nuevo usuario en el sistema.
+ * Valida que el email no exista, hashea la contraseña y crea el registro en la base de datos.
  */
 exports.register = async (req, res) => {
   const { email, password, name, role } = req.body;
@@ -40,23 +32,23 @@ exports.register = async (req, res) => {
       },
     });
 
-    // Enviar email de bienvenida/verificación
+    // Intenta enviar email de bienvenida (no bloqueante)
     try {
       const { sendWelcomeEmail } = require('../services/emailService');
       await sendWelcomeEmail(user);
-      console.log('📧 Email de bienvenida enviado a:', user.email);
+      console.log('Email de bienvenida enviado a:', user.email);
     } catch (emailError) {
       console.error('Error al enviar email de bienvenida:', emailError);
       // No fallar el registro por error de email
     }
 
-    // Enviar SMS de bienvenida si el usuario tiene teléfono
+    // Intenta enviar SMS de bienvenida si el usuario tiene teléfono (no bloqueante)
     try {
       if (user.telefono && user.telefono.trim() !== '') {
         const { sendSMS } = require('../services/smsService');
         const smsMessage = `¡Bienvenido a Changánet, ${user.nombre}! Tu cuenta ha sido creada exitosamente.`;
         await sendSMS(user.telefono, smsMessage);
-        console.log('📱 SMS de bienvenida enviado a:', user.telefono);
+        console.log('SMS de bienvenida enviado a:', user.telefono);
       }
     } catch (smsError) {
       console.error('Error al enviar SMS de bienvenida:', smsError);
@@ -65,7 +57,7 @@ exports.register = async (req, res) => {
 
     const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
-    // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY PARA REGISTRO
+    // Configura el contexto de usuario en Sentry para seguimiento
     const { setUserContext, captureMessage } = require('../services/sentryService');
     setUserContext({
       id: user.id,
@@ -74,7 +66,7 @@ exports.register = async (req, res) => {
       rol: user.rol
     });
 
-    // REGISTRAR MÉTRICA DE NUEVO USUARIO EN SENTRY
+    // Registra evento de nuevo usuario en Sentry
     captureMessage('Nuevo usuario registrado en Changánet', 'info', {
       tags: {
         event: 'user_registration',
@@ -91,7 +83,7 @@ exports.register = async (req, res) => {
       }
     });
 
-    // INCREMENTAR MÉTRICA DE PROMETHEUS PARA USUARIO REGISTRADO
+    // Incrementa métricas de Prometheus para usuario registrado
     const { incrementUserRegistered, incrementTripleImpactActivity } = require('../services/metricsService');
     incrementUserRegistered(user.rol, 'email');
     incrementTripleImpactActivity('social', 'registro_usuario');
@@ -114,13 +106,8 @@ exports.register = async (req, res) => {
 };
 
 /**
- * @función login - Autenticación de usuarios existentes
- * @descripción Valida credenciales y genera token JWT para acceso (REQ-02)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Económico: Autenticación segura para transacciones confiables
- * @param {Object} req - Request con email y password
- * @param {Object} res - Response con token JWT y datos de usuario
+ * Autentica un usuario existente validando sus credenciales.
+ * Compara la contraseña hasheada y genera un token JWT si es válido.
  */
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -137,7 +124,7 @@ exports.login = async (req, res) => {
 
     const token = jwt.sign({ userId: user.id, role: user.rol }, process.env.JWT_SECRET, { expiresIn: '24h' });
 
-    // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY
+    // Configura el contexto de usuario en Sentry para seguimiento
     const { setUserContext } = require('../services/sentryService');
     setUserContext({
       id: user.id,
@@ -162,24 +149,19 @@ exports.login = async (req, res) => {
 };
 
 /**
- * @función googleCallback - Callback de autenticación Google OAuth
- * @descripción Procesa respuesta de Google y genera token JWT para usuario (REQ-02)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Social: Autenticación simplificada para usuarios con dificultades técnicas
- * @param {Object} req - Request con datos de usuario de Google
- * @param {Object} res - Response que redirige al frontend con token
+ * Maneja el callback de autenticación OAuth de Google.
+ * Procesa la respuesta de Google, genera un token JWT y redirige al frontend.
  */
 exports.googleCallback = async (req, res) => {
   try {
     // Passport ya ha procesado la autenticación y ha agregado el usuario a req.user
     const { user, token } = req.user;
 
-    // Enviar email de bienvenida para usuarios nuevos de Google
+    // Intenta enviar email de bienvenida para usuarios nuevos de Google (no bloqueante)
     try {
       const { sendWelcomeEmail } = require('../services/emailService');
       await sendWelcomeEmail(user);
-      console.log('📧 Email de bienvenida enviado a usuario Google:', user.email);
+      console.log('Email de bienvenida enviado a usuario Google:', user.email);
     } catch (emailError) {
       console.error('Error al enviar email de bienvenida a usuario Google:', emailError);
     }

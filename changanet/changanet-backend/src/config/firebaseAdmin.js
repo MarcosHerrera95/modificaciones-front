@@ -1,10 +1,16 @@
-// src/config/firebaseAdmin.js
+/**
+ * Configuración de Firebase Admin SDK para el backend.
+ * Inicializa servicios de Firebase para notificaciones push, autenticación y almacenamiento.
+ */
 let admin;
 let messaging;
 let auth;
 let storage;
 
-// VERIFICACIÓN: Intentar inicializar Firebase Admin solo si existe el archivo de credenciales
+/**
+ * Inicialización condicional de Firebase Admin.
+ * Solo se inicializa si existe el archivo de credenciales de servicio.
+ */
 try {
   admin = require('firebase-admin');
   const serviceAccount = require('../config/serviceAccountKey.json');
@@ -15,20 +21,20 @@ try {
       projectId: process.env.FIREBASE_PROJECT_ID || 'changanet-notifications',
       storageBucket: process.env.FIREBASE_STORAGE_BUCKET || 'changanet-notifications.firebasestorage.app'
     });
-    console.log('✅ Firebase Admin inicializado correctamente');
+    console.log('Firebase Admin inicializado correctamente');
     messaging = admin.messaging();
     auth = admin.auth();
     storage = admin.storage();
-    console.log('📬 Firebase Messaging habilitado');
-    console.log('🔐 Firebase Auth habilitado');
-    console.log('🗂️ Firebase Storage habilitado');
+    console.log('Firebase Messaging habilitado');
+    console.log('Firebase Auth habilitado');
+    console.log('Firebase Storage habilitado');
   } else {
     messaging = admin.messaging();
     auth = admin.auth();
     storage = admin.storage();
   }
 } catch (error) {
-  console.warn('⚠️ Firebase Admin no disponible - funcionalidades de Firebase deshabilitadas');
+  console.warn('Firebase Admin no disponible - funcionalidades de Firebase deshabilitadas');
   console.warn('Para habilitar Firebase, descarga las credenciales reales de Firebase Console.');
   admin = null;
   messaging = null;
@@ -36,17 +42,18 @@ try {
   storage = null;
 }
 
-// Función para enviar notificación push
+/**
+ * Envía una notificación push a un dispositivo específico usando Firebase Cloud Messaging.
+ * Requiere un token FCM válido y servicios de Firebase Admin configurados.
+ */
 exports.sendPushNotification = async (token, title, body) => {
-  // VERIFICACIÓN: Verificar que Firebase Admin esté disponible
   if (!admin || !messaging) {
-    console.warn('⚠️ Firebase Admin no disponible - notificación push no enviada');
+    console.warn('Firebase Admin no disponible - notificación push no enviada');
     return null;
   }
 
-  // Si no hay token, no podemos enviar la notificación
   if (!token) {
-    console.warn('⚠️ Token FCM no proporcionado - notificación push no enviada');
+    console.warn('Token FCM no proporcionado - notificación push no enviada');
     return null;
   }
 
@@ -63,25 +70,26 @@ exports.sendPushNotification = async (token, title, body) => {
     };
 
     const response = await messaging.send(message);
-    console.log('📬 Notificación push enviada:', response);
+    console.log('Notificación push enviada:', response);
     return response;
   } catch (error) {
-    console.error('❌ Error al enviar notificación push:', error);
+    console.error('Error al enviar notificación push:', error);
     throw error;
   }
 };
 
-// Función para enviar notificación a múltiples tokens
+/**
+ * Envía notificaciones push a múltiples dispositivos simultáneamente.
+ * Utiliza el método sendMulticast de Firebase para optimizar el envío masivo.
+ */
 exports.sendMulticastPushNotification = async (tokens, title, body) => {
-  // VERIFICACIÓN: Verificar que Firebase Admin esté disponible
   if (!admin || !messaging) {
-    console.warn('⚠️ Firebase Admin no disponible - notificaciones push multicast no enviadas');
+    console.warn('Firebase Admin no disponible - notificaciones push multicast no enviadas');
     return null;
   }
 
-  // Si no hay tokens, no podemos enviar las notificaciones
   if (!tokens || tokens.length === 0) {
-    console.warn('⚠️ Tokens FCM no proporcionados - notificaciones push multicast no enviadas');
+    console.warn('Tokens FCM no proporcionados - notificaciones push multicast no enviadas');
     return null;
   }
 
@@ -98,10 +106,10 @@ exports.sendMulticastPushNotification = async (tokens, title, body) => {
     };
 
     const response = await messaging.sendMulticast(message);
-    console.log('📬 Notificaciones push enviadas:', response);
+    console.log('Notificaciones push enviadas:', response);
     return response;
   } catch (error) {
-    console.error('❌ Error al enviar notificaciones push multicast:', error);
+    console.error('Error al enviar notificaciones push multicast:', error);
     throw error;
   }
 };

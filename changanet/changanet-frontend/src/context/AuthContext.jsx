@@ -1,4 +1,7 @@
-// src/context/AuthContext.jsx
+/**
+ * Contexto de autenticación para la aplicación Changánet.
+ * Gestiona el estado de autenticación del usuario y proporciona métodos de login/logout.
+ */
 import { createContext, useState, useEffect, useContext } from 'react';
 
 export const AuthContext = createContext();
@@ -16,10 +19,18 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Recupera datos de usuario del localStorage al inicializar
     const token = localStorage.getItem('changanet_token');
     if (token) {
-      const userData = JSON.parse(localStorage.getItem('changanet_user'));
-      setUser(userData);
+      try {
+        const userData = JSON.parse(localStorage.getItem('changanet_user'));
+        setUser(userData);
+      } catch (error) {
+        console.error('Error parsing user data from localStorage:', error);
+        // Limpiar datos corruptos
+        localStorage.removeItem('changanet_token');
+        localStorage.removeItem('changanet_user');
+      }
     }
     setLoading(false);
   }, []);
@@ -47,7 +58,8 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password, role) => {
     try {
-      const response = await fetch('http://localhost:3002/api/auth/register', {
+      // Usar el proxy configurado en Vite (/api -> http://localhost:3002)
+      const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, name, role })
@@ -59,7 +71,7 @@ export const AuthProvider = ({ children }) => {
         if (data.token && data.user) {
           login(data.user, data.token);
 
-          // REGISTRAR MÉTRICA DE REGISTRO EN FRONTEND
+          // Registrar métrica de registro en frontend
           const { captureMessage } = require('../config/sentryConfig');
           captureMessage('Usuario registrado desde frontend', 'info', {
             tags: {

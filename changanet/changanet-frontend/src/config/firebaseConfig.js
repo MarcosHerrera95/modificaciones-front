@@ -1,18 +1,19 @@
 /**
- * @archivo src/config/firebaseConfig.js - Configuración de Firebase
- * @descripción Inicialización y configuración de servicios Firebase (Auth, Firestore, Messaging) (REQ-19, REQ-20)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
- * @impacto Social: Comunicación en tiempo real accesible para todos los usuarios
+ * Inicializa la conexión con Firebase Authentication y Messaging.
+ * Configura la app de Firebase con las credenciales del proyecto.
+ * Exporta instancias reutilizables de auth, db y messaging.
  */
 
 // src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getMessaging, getToken } from "firebase/messaging";
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
-// Tu configuración de Firebase (NO MODIFICAR)
+/**
+ * Configuración de Firebase con credenciales del proyecto.
+ * Contiene las claves necesarias para conectar con los servicios de Firebase.
+ */
 const firebaseConfig = {
   apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
   authDomain: "changanet-notifications.firebaseapp.com",
@@ -22,68 +23,85 @@ const firebaseConfig = {
   appId: "1:926478045621:web:6704a255057b65a6e549fc"
 };
 
-// 🚀 Inicializar Firebase (una sola vez)
+/**
+ * Inicializa la aplicación Firebase una sola vez.
+ * Crea una instancia global de la app que será usada por todos los servicios.
+ */
 const app = initializeApp(firebaseConfig);
 
-// ✅ Exportar servicios con la app correctamente pasada
-export const auth = getAuth(app); // ← ¡ESTO ES CLAVE!
+/**
+ * Instancia de Firebase Authentication para manejo de usuarios.
+ */
+export const auth = getAuth(app);
+
+/**
+ * Proveedor de autenticación de Google para OAuth.
+ */
 export const googleProvider = new GoogleAuthProvider();
+
+/**
+ * Instancia de Firestore para base de datos en tiempo real.
+ */
 export const db = getFirestore(app);
+
+/**
+ * Instancia de Firebase Cloud Messaging para notificaciones push.
+ */
 export const messaging = getMessaging(app);
 
-// 📲 Función para solicitar token FCM
 /**
- * @función requestFCMToken - Solicitud de token FCM para notificaciones push
- * @descripción Solicita permiso y obtiene token FCM para notificaciones push (REQ-20)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
- * @impacto Social: Notificaciones accesibles que no requieren visión perfecta
- * @returns {Promise<Object>} Resultado con token o error
+ * Solicita permiso al usuario y obtiene un token FCM para notificaciones push.
+ * Utiliza la VAPID key para identificar la aplicación en Firebase Cloud Messaging.
+ * Retorna el token si el permiso es concedido, null en caso contrario.
  */
 export const requestFCMToken = async () => {
   try {
     const permission = await Notification.requestPermission();
     if (permission === "granted") {
-      // 🔐 VAPID KEY real (desde Firebase Console > Cloud Messaging)
+      // Clave VAPID obtenida desde Firebase Console para autenticación de mensajes
       const vapidKey = "BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo";
       const fcmToken = await getToken(messaging, { vapidKey });
-      console.log("✅ FCM Token:", fcmToken);
+      console.log("Token FCM obtenido:", fcmToken);
       return fcmToken;
     } else {
-      console.warn("⚠️ Permiso de notificaciones denegado");
+      console.warn("Permiso de notificaciones denegado por el usuario");
       return null;
     }
   } catch (error) {
-    console.error("❌ Error al obtener FCM token:", error);
+    console.error("Error al obtener token FCM:", error);
     return null;
   }
 };
 
-// Función para escuchar mensajes en foreground
-import { onMessage } from "firebase/messaging";
-
+/**
+ * Configura un listener para mensajes FCM cuando la aplicación está en primer plano.
+ * Muestra notificaciones nativas del navegador cuando llegan mensajes.
+ */
 export const onForegroundMessage = () => {
   if (!messaging) {
-    console.warn('Firebase Messaging no disponible para escuchar mensajes en foreground');
+    console.warn('Firebase Messaging no está disponible');
     return;
   }
 
   onMessage(messaging, (payload) => {
-    console.log('📬 Mensaje recibido en foreground:', payload);
-    // Mostrar notificación en la UI
+    console.log('Mensaje FCM recibido en primer plano:', payload);
+    // Crea una notificación nativa del navegador con el contenido del mensaje
     const { title, body } = payload.notification;
     new Notification(title, { body });
   });
 };
 
-// Función de diagnóstico para verificar configuración
+/**
+ * Función de diagnóstico que verifica el estado de la configuración de Firebase.
+ * Retorna un objeto con el estado de cada servicio configurado.
+ */
 export const diagnoseFirebaseConfig = () => {
-  console.log('🔍 Diagnóstico de Firebase:');
-  console.log('- App inicializada:', !!app);
-  console.log('- Auth disponible:', !!auth);
-  console.log('- Google Provider configurado:', !!googleProvider);
+  console.log('Verificando configuración de Firebase:');
+  console.log('- Aplicación inicializada:', !!app);
+  console.log('- Autenticación disponible:', !!auth);
+  console.log('- Proveedor Google configurado:', !!googleProvider);
   console.log('- Messaging disponible:', !!messaging);
-  console.log('- VAPID Key configurada:', true);
+  console.log('- Clave VAPID configurada:', true);
 
   return {
     appInitialized: !!app,

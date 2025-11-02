@@ -1,19 +1,21 @@
 /**
- * @archivo src/server.js - Servidor principal de Changánet
- * @descripción Configuración y inicialización del servidor Express con middleware de seguridad, autenticación y servicios externos (REQ-01, REQ-40, REQ-41)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Económico: Infraestructura segura para transacciones; Ambiental: Optimización de recursos del servidor
+ * Servidor principal de la aplicación Changánet.
+ * Configura Express.js con middleware de seguridad, autenticación, monitoreo y servicios externos.
+ * Inicializa Socket.IO para comunicación en tiempo real y define rutas de la API.
  */
 
-// src/server.js (fragmento actualizado) - restarted
 require('dotenv').config();
 
-// IMPORTANTE: Inicializar Sentry ANTES de cualquier otro import o middleware (REQ-40)
+/**
+ * Inicializa Sentry para monitoreo de errores antes de cualquier otro middleware.
+ * Debe ejecutarse al inicio para capturar todos los errores de la aplicación.
+ */
 const { initializeSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } = require('./services/sentryService');
 initializeSentry();
 
-// Inicializar métricas de Prometheus
+/**
+ * Inicializa el sistema de métricas de Prometheus para monitoreo de rendimiento.
+ */
 const { initializeMetrics } = require('./services/metricsService');
 initializeMetrics();
 
@@ -30,14 +32,10 @@ const passport = require('./config/passport'); // Configuración de Passport
 const session = require('express-session'); // Sesiones para Passport
 
 /**
- * @sección FCM Integration - Inicialización de Firebase Admin SDK
- * @descripción Configura Firebase Admin para notificaciones push y autenticación (REQ-19, REQ-20)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real
- * @impacto Social: Comunicación accesible para todos los usuarios
+ * Inicialización condicional del SDK de Firebase Admin.
+ * Solo se inicializa si existe el archivo de credenciales de servicio.
+ * Se usa para enviar notificaciones push y gestionar autenticación.
  */
-
-// FCM Integration - Solo inicializar si existe el archivo de credenciales
 let admin;
 try {
   admin = require('firebase-admin');
@@ -47,10 +45,10 @@ try {
       credential: admin.credential.cert(serviceAccount),
       projectId: process.env.FIREBASE_PROJECT_ID || 'changanet-notifications'
     });
-    console.log('✅ Firebase Admin inicializado correctamente');
+    console.log('Firebase Admin inicializado correctamente');
   }
 } catch (error) {
-  console.warn('⚠️ Firebase Admin no disponible - notificaciones push deshabilitadas');
+  console.warn('Firebase Admin no disponible - notificaciones push deshabilitadas');
   admin = null;
 }
 
@@ -88,40 +86,38 @@ const io = new Server(server, {
 });
 
 /**
- * @sección Configuración de Middleware
- * @descripción Middlewares de seguridad, monitoreo y optimización (REQ-40, REQ-41, REQ-42)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Ambiental: Optimización de recursos mediante compresión y monitoreo eficiente
+ * Configuración de middleware para seguridad, monitoreo y optimización.
+ * Los middlewares se aplican en orden específico para garantizar funcionalidad correcta.
  */
 
-// Middleware de Sentry (DEBE ir ANTES de otros middlewares) - Monitoreo de errores (REQ-40)
+// Middleware de Sentry para captura de errores y tracing de rendimiento
 app.use(sentryRequestHandler());
 app.use(sentryTracingHandler());
 
-// Middleware de métricas HTTP (después de Sentry, antes de otros middlewares) - Métricas de rendimiento (REQ-41)
+// Middleware personalizado para recopilar métricas HTTP de Prometheus
 const { createHttpMetricsMiddleware } = require('./services/metricsService');
 app.use(createHttpMetricsMiddleware());
 
-// Middleware de seguridad y optimización - Seguridad y performance (REQ-42)
-app.use(helmet()); // Protege cabeceras HTTP
-app.use(compression()); // Comprime respuestas para mejorar rendimiento
-app.use(morgan('combined')); // Registra todas las solicitudes HTTP
+// Middleware de seguridad y optimización de rendimiento
+app.use(helmet()); // Configura cabeceras HTTP seguras
+app.use(compression()); // Comprime respuestas HTTP para reducir ancho de banda
+app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 /**
- * @sección Rate Limiting - Limitación de tasa de solicitudes
- * @descripción Protección contra ataques DDoS y abuso de API (REQ-42)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Económico: Protección de recursos del servidor contra ataques
+ * Configuración de limitación de tasa de solicitudes para protección contra abuso.
+ * Limita a 100 solicitudes por minuto por dirección IP para prevenir ataques DDoS.
  */
 
-// Configurar limitación de tasa (Rate Limiting) - Protección contra ataques DDoS
+// Configura el limitador de tasa usando RateLimiterMemory
 const limiter = new rateLimit.RateLimiterMemory({
-  points: 100, // 100 solicitudes
-  duration: 60, // por minuto
+  points: 100, // Número máximo de solicitudes permitidas
+  duration: 60, // Ventana de tiempo en segundos (1 minuto)
 });
 
+/**
+ * Middleware que verifica y limita la tasa de solicitudes por IP.
+ * Consume un punto por solicitud y rechaza si se excede el límite.
+ */
 const rateLimiterMiddleware = (req, res, next) => {
   limiter.consume(req.ip)
     .then(() => {
@@ -135,32 +131,30 @@ const rateLimiterMiddleware = (req, res, next) => {
 app.use(rateLimiterMiddleware);
 
 /**
- * @sección Middleware CORS y Parsing
- * @descripción Configuración de CORS y parsing de requests (REQ-01, REQ-42)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Social: Acceso seguro desde diferentes orígenes para usuarios diversos
+ * Configuración de middleware para manejo de CORS y parsing de datos.
+ * Permite solicitudes desde el frontend y parsea JSON y datos de formularios.
  */
 
-// Middleware estándar
+// Configura CORS para permitir solicitudes desde el frontend
 app.use(cors({
   origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://localhost:5173", "http://localhost:5174"],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
-app.use(express.json({ limit: '10mb' })); // Limitar tamaño de payloads
-app.use(express.urlencoded({ extended: true })); // Para datos de formularios
+
+// Middleware para parsear JSON con límite de tamaño
+app.use(express.json({ limit: '10mb' }));
+
+// Middleware para parsear datos de formularios URL-encoded
+app.use(express.urlencoded({ extended: true }));
 
 /**
- * @sección Configuración de Sesiones y Passport
- * @descripción Middleware de sesiones para autenticación OAuth (REQ-02)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Económico: Sesiones seguras para transacciones OAuth
+ * Configuración de sesiones y Passport.js para autenticación OAuth.
+ * Las sesiones son necesarias para mantener el estado durante el flujo OAuth.
  */
 
-// Middleware de sesión para Passport
+// Middleware de sesiones usando express-session
 app.use(session({
   secret: process.env.SESSION_SECRET || 'changanet-session-secret',
   resave: false,
@@ -172,11 +166,13 @@ app.use(session({
   }
 }));
 
-// Inicializar Passport
+// Inicializa Passport.js para manejo de autenticación
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Ruta raíz para compatibilidad con pruebas - ANTES de las rutas de API
+/**
+ * Ruta raíz que retorna información básica del estado de la API.
+ */
 app.get('/', (req, res) => {
   res.status(200).json({
     message: 'Changánet API funcionando correctamente',
@@ -186,7 +182,9 @@ app.get('/', (req, res) => {
   });
 });
 
-// Ruta de documentación API - Documentación Swagger (REQ-40)
+/**
+ * Ruta de documentación de la API usando Swagger UI.
+ */
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Rutas de métricas (antes de otras rutas para evitar interferencias)
@@ -194,49 +192,80 @@ const metricsRoutes = require('./routes/metricsRoutes');
 app.use('/api', metricsRoutes);
 
 /**
- * @sección Configuración de Rutas API
- * @descripción Definición de endpoints REST de la aplicación (REQ-01, REQ-03, REQ-05, REQ-06, REQ-07, REQ-08, REQ-09, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20)
- * @sprint Sprint 1-6 – Todos los sprints según funcionalidad
- * @tarjeta Tarjetas 1-10: [Backend] Implementación completa de APIs
- * @impacto Social: APIs accesibles para integración de servicios comunitarios
+ * Configuración de rutas de la API REST.
+ * Cada ruta está protegida según sea necesario con middleware de autenticación.
  */
 
-// Rutas de la API
-app.use('/api/auth', authRoutes); // Autenticación (REQ-01, REQ-02, REQ-03)
-app.use('/api/profile', profileRoutes); // Perfiles de usuario (REQ-05)
-app.use('/api/professionals', searchRoutes); // Búsqueda de profesionales (REQ-06)
-app.use('/api/messages', authenticateToken, messageRoutes); // Chat en tiempo real (REQ-19)
-app.use('/api/reviews', authenticateToken, reviewRoutes); // Sistema de reseñas (REQ-16)
-app.use('/api/availability', authenticateToken, availabilityRoutes); // Disponibilidad (REQ-10)
-app.use('/api/notifications', authenticateToken, notificationRoutes); // Notificaciones (REQ-19, REQ-20)
-app.use('/api/quotes', authenticateToken, quoteRoutes); // Sistema de cotizaciones (REQ-11, REQ-12)
-app.use('/api/verification', authenticateToken, verificationRoutes); // Verificación de identidad (REQ-04)
-app.use('/api/custody', authenticateToken, custodyRoutes); // Custodia de pagos (REQ-17)
-app.use('/api/ranking', rankingRoutes); // Sistema de rankings (REQ-18)
-app.use('/api/services', serviceRoutes); // Gestión de servicios (REQ-07, REQ-08, REQ-09)
-app.use('/api/gallery', authenticateToken, galleryRoutes); // Galería de trabajos (REQ-15)
+// Rutas de autenticación (registro, login, OAuth)
+app.use('/api/auth', authRoutes);
 
-// Socket.IO para chat en tiempo real (REQ-19)
+// Rutas de perfiles de usuario
+app.use('/api/profile', profileRoutes);
+
+// Rutas de búsqueda de profesionales
+app.use('/api/professionals', searchRoutes);
+
+// Rutas de mensajería con autenticación requerida
+app.use('/api/messages', authenticateToken, messageRoutes);
+
+// Rutas de reseñas con autenticación requerida
+app.use('/api/reviews', authenticateToken, reviewRoutes);
+
+// Rutas de disponibilidad con autenticación requerida
+app.use('/api/availability', authenticateToken, availabilityRoutes);
+
+// Rutas de notificaciones con autenticación requerida
+app.use('/api/notifications', authenticateToken, notificationRoutes);
+
+// Rutas de cotizaciones con autenticación requerida
+app.use('/api/quotes', authenticateToken, quoteRoutes);
+
+// Rutas de verificación con autenticación requerida
+app.use('/api/verification', authenticateToken, verificationRoutes);
+
+// Rutas de custodia de pagos con autenticación requerida
+app.use('/api/custody', authenticateToken, custodyRoutes);
+
+// Rutas de rankings (públicas)
+app.use('/api/ranking', rankingRoutes);
+
+// Rutas de gestión de servicios
+app.use('/api/services', serviceRoutes);
+
+// Rutas de galería con autenticación requerida
+app.use('/api/gallery', authenticateToken, galleryRoutes);
+
+/**
+ * Configuración de eventos de Socket.IO para chat en tiempo real.
+ * Maneja conexiones de usuarios, envío de mensajes y marcación como leídos.
+ */
 io.on('connection', (socket) => {
-  console.log('🚀 Usuario conectado:', socket.id);
+  console.log('Usuario conectado:', socket.id);
 
-  // Unir usuario a su sala personal para recibir mensajes
+  /**
+   * Evento para unir un usuario a su sala personal de Socket.IO.
+   * Permite enviar mensajes dirigidos específicamente a ese usuario.
+   */
   socket.on('join', (userId) => {
     socket.join(userId);
     console.log(`Usuario ${userId} se unió a su sala personal`);
   });
 
+  /**
+   * Evento para enviar un mensaje a otro usuario.
+   * Guarda el mensaje en la base de datos y lo emite en tiempo real.
+   */
   socket.on('sendMessage', async (data) => {
     const { remitente_id, destinatario_id, contenido, url_imagen } = data;
 
     try {
-      // Validar datos requeridos
+      // Validar que todos los campos requeridos estén presentes
       if (!remitente_id || !destinatario_id || !contenido) {
         socket.emit('error', { message: 'Datos incompletos para enviar mensaje.' });
         return;
       }
 
-      // Crear mensaje en la base de datos
+      // Crear el mensaje en la base de datos
       const message = await prisma.mensajes.create({
         data: {
           remitente_id,
@@ -247,21 +276,24 @@ io.on('connection', (socket) => {
         },
       });
 
-      // INTEGRACIÓN CON SERVICIO DE NOTIFICACIONES
+      // Enviar notificación push al destinatario
       await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${remitente_id}`);
 
-      // EMITIR MENSAJE EN TIEMPO REAL usando salas
+      // Emitir el mensaje en tiempo real usando salas de Socket.IO
       io.to(destinatario_id).emit('receiveMessage', message);
       io.to(remitente_id).emit('messageSent', message);
 
-      console.log(`📨 Mensaje enviado de ${remitente_id} a ${destinatario_id}`);
+      console.log(`Mensaje enviado de ${remitente_id} a ${destinatario_id}`);
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       socket.emit('error', { message: 'No se pudo enviar el mensaje.' });
     }
   });
 
-  // Marcar mensajes como leídos
+  /**
+   * Evento para marcar mensajes como leídos.
+   * Actualiza el estado de los mensajes en la base de datos.
+   */
   socket.on('markAsRead', async (data) => {
     const { senderId, recipientId } = data;
 
@@ -275,7 +307,7 @@ io.on('connection', (socket) => {
         data: { esta_leido: true },
       });
 
-      // Notificar al remitente que sus mensajes fueron leídos
+      // Notificar al remitente que sus mensajes fueron marcados como leídos
       io.to(senderId).emit('messagesRead', { by: recipientId });
     } catch (error) {
       console.error('Error al marcar mensajes como leídos:', error);
@@ -283,8 +315,11 @@ io.on('connection', (socket) => {
     }
   });
 
+  /**
+   * Evento que se ejecuta cuando un usuario se desconecta.
+   */
   socket.on('disconnect', () => {
-    console.log('👋 Usuario desconectado:', socket.id);
+    console.log('Usuario desconectado:', socket.id);
   });
 });
 
@@ -307,12 +342,16 @@ app.get('/', (req, res) => {
   });
 });
 
-// Ruta de salud para monitoreo - Health check para load balancers (REQ-41)
+/**
+ * Endpoint de health check para monitoreo y load balancers.
+ */
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Ruta de prueba para verificar CORS - Testing de configuración CORS (REQ-42)
+/**
+ * Ruta de prueba para verificar la configuración de CORS.
+ */
 app.get('/test-cors', (req, res) => {
   res.json({
     message: 'CORS funcionando correctamente',

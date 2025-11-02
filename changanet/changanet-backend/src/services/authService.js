@@ -1,10 +1,14 @@
-// src/services/authService.js
-// Servicio de autenticación usando Firebase Auth Admin SDK
-// Proporciona funciones para gestionar usuarios con credenciales reales de Firebase
+/**
+ * Servicio de autenticación usando Firebase Auth Admin SDK.
+ * Proporciona funciones para gestionar usuarios con credenciales reales de Firebase.
+ */
 
 const { auth } = require('../config/firebaseAdmin');
 
-// Función para crear usuario con email y contraseña
+/**
+ * Crea un nuevo usuario en Firebase Auth con email y contraseña.
+ * Utiliza el Admin SDK para crear usuarios desde el servidor.
+ */
 exports.createUserWithEmailAndPassword = async (email, password, displayName = null) => {
   try {
     if (!auth) {
@@ -18,15 +22,17 @@ exports.createUserWithEmailAndPassword = async (email, password, displayName = n
       emailVerified: false,
     });
 
-    console.log('✅ Usuario creado exitosamente:', userRecord.uid);
+    console.log('Usuario creado exitosamente:', userRecord.uid);
     return userRecord;
   } catch (error) {
-    console.error('❌ Error al crear usuario:', error);
+    console.error('Error al crear usuario:', error);
     throw error;
   }
 };
 
-// Función para verificar usuario por email
+/**
+ * Obtiene la información de un usuario de Firebase Auth usando su email.
+ */
 exports.getUserByEmail = async (email) => {
   try {
     if (!auth) {
@@ -36,12 +42,14 @@ exports.getUserByEmail = async (email) => {
     const userRecord = await auth.getUserByEmail(email);
     return userRecord;
   } catch (error) {
-    console.error('❌ Error al obtener usuario por email:', error);
+    console.error('Error al obtener usuario por email:', error);
     throw error;
   }
 };
 
-// Función para actualizar usuario
+/**
+ * Actualiza las propiedades de un usuario existente en Firebase Auth.
+ */
 exports.updateUser = async (uid, properties) => {
   try {
     if (!auth) {
@@ -49,15 +57,17 @@ exports.updateUser = async (uid, properties) => {
     }
 
     const userRecord = await auth.updateUser(uid, properties);
-    console.log('✅ Usuario actualizado exitosamente:', uid);
+    console.log('Usuario actualizado exitosamente:', uid);
     return userRecord;
   } catch (error) {
-    console.error('❌ Error al actualizar usuario:', error);
+    console.error('Error al actualizar usuario:', error);
     throw error;
   }
 };
 
-// Función para eliminar usuario
+/**
+ * Elimina un usuario de Firebase Auth usando su UID.
+ */
 exports.deleteUser = async (uid) => {
   try {
     if (!auth) {
@@ -65,15 +75,17 @@ exports.deleteUser = async (uid) => {
     }
 
     await auth.deleteUser(uid);
-    console.log('✅ Usuario eliminado exitosamente:', uid);
+    console.log('Usuario eliminado exitosamente:', uid);
     return true;
   } catch (error) {
-    console.error('❌ Error al eliminar usuario:', error);
+    console.error('Error al eliminar usuario:', error);
     throw error;
   }
 };
 
-// Función para verificar token de Firebase Auth
+/**
+ * Verifica la validez de un token ID de Firebase Auth y decodifica su contenido.
+ */
 exports.verifyIdToken = async (idToken) => {
   try {
     if (!auth) {
@@ -83,12 +95,14 @@ exports.verifyIdToken = async (idToken) => {
     const decodedToken = await auth.verifyIdToken(idToken);
     return decodedToken;
   } catch (error) {
-    console.error('❌ Error al verificar token:', error);
+    console.error('Error al verificar token:', error);
     throw error;
   }
 };
 
-// Función para crear token personalizado
+/**
+ * Crea un token personalizado de Firebase Auth para un usuario específico.
+ */
 exports.createCustomToken = async (uid) => {
   try {
     if (!auth) {
@@ -98,24 +112,27 @@ exports.createCustomToken = async (uid) => {
     const customToken = await auth.createCustomToken(uid);
     return customToken;
   } catch (error) {
-    console.error('❌ Error al crear token personalizado:', error);
+    console.error('Error al crear token personalizado:', error);
     throw error;
   }
 };
 
-// Función para enviar email de verificación
+/**
+ * Envía un email de verificación al usuario.
+ * Requiere configuración previa en Firebase Console.
+ */
 exports.sendEmailVerification = async (email) => {
   try {
     if (!auth) {
       throw new Error('Firebase Auth no está disponible');
     }
 
-    // Nota: Esta función requiere configuración adicional en Firebase Console
+    // Esta función requiere configuración adicional en Firebase Console
     // Para usar esta función, necesitas configurar el email action handler
-    console.log('📧 Email de verificación enviado a:', email);
+    console.log('Email de verificación enviado a:', email);
     return true;
   } catch (error) {
-    console.error('❌ Error al enviar email de verificación:', error);
+    console.error('Error al enviar email de verificación:', error);
     throw error;
   }
 };
