@@ -1,4 +1,11 @@
-// test-prometheus.js - Script de prueba para métricas de Prometheus
+/**
+ * @archivo test-prometheus.js - Pruebas de métricas Prometheus
+ * @descripción Script para verificar funcionamiento de métricas de monitoreo (REQ-41)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Infra] Configurar Monitoreo con Prometheus y Grafana
+ * @impacto Ambiental: Verificación de métricas para optimización de recursos del sistema
+ */
+
 const axios = require('axios');
 
 const BACKEND_URL = 'http://localhost:3002';

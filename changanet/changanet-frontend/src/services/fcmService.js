@@ -1,7 +1,22 @@
+/**
+ * @archivo src/services/fcmService.js - Servicio de Firebase Cloud Messaging
+ * @descripción Gestiona notificaciones push con Firebase FCM (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Comunicación accesible en tiempo real para usuarios con discapacidades
+ */
+
 import { getMessaging, getToken, onMessage, deleteToken } from "firebase/messaging";
 import { messaging } from "../config/firebaseConfig";
 
-// Configurar FCM
+/**
+ * @función initializeFCM - Inicialización de Firebase Cloud Messaging
+ * @descripción Solicita permisos y obtiene token FCM para notificaciones push (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Notificaciones que no requieren visión perfecta para ser efectivas
+ * @returns {Promise<Object>} Resultado con token o error
+ */
 export const initializeFCM = async () => {
   try {
     // Solicitar permiso para notificaciones
@@ -33,7 +48,14 @@ export const initializeFCM = async () => {
   }
 };
 
-// Obtener token FCM del usuario
+/**
+ * @función getFCMToken - Obtener token FCM del usuario
+ * @descripción Obtiene token FCM para notificaciones push (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Token único para notificaciones personalizadas y accesibles
+ * @returns {Promise<Object>} Resultado con token o error
+ */
 export const getFCMToken = async () => {
   try {
     const token = await getToken(messaging, {
@@ -45,14 +67,29 @@ export const getFCMToken = async () => {
   }
 };
 
-// Escuchar mensajes en primer plano
+/**
+ * @función onFCMMessage - Escuchar mensajes en primer plano
+ * @descripción Configura listener para mensajes FCM cuando la app está abierta (REQ-19)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Mensajes en tiempo real accesibles sin interrupciones visuales
+ * @param {Function} callback - Función a ejecutar al recibir mensaje
+ * @returns {Function} Función para remover listener
+ */
 export const onFCMMessage = (callback) => {
   return onMessage(messaging, (payload) => {
     callback(payload);
   });
 };
 
-// Eliminar token FCM
+/**
+ * @función removeFCMToken - Eliminar token FCM
+ * @descripción Remueve token FCM del dispositivo (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Control de privacidad para usuarios con necesidades especiales
+ * @returns {Promise<Object>} Resultado de la operación
+ */
 export const removeFCMToken = async () => {
   try {
     await deleteToken(messaging);
@@ -62,7 +99,18 @@ export const removeFCMToken = async () => {
   }
 };
 
-// Enviar notificación push (desde el cliente - simulado)
+/**
+ * @función sendFCMNotification - Enviar notificación push (simulada)
+ * @descripción Simula envío de notificación FCM desde cliente (REQ-19)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Testing accesible de notificaciones sin backend
+ * @param {string} token - Token FCM del destinatario
+ * @param {string} title - Título de la notificación
+ * @param {string} body - Cuerpo de la notificación
+ * @param {Object} data - Datos adicionales
+ * @returns {Promise<Object>} Resultado del envío
+ */
 export const sendFCMNotification = async (token, title, body, data = {}) => {
   // En producción, esto se haría desde el servidor backend
   console.log('Enviando notificación FCM:', { token, title, body, data });
@@ -79,7 +127,14 @@ export const sendFCMNotification = async (token, title, body, data = {}) => {
   return { success: true };
 };
 
-// Verificar soporte de FCM
+/**
+ * @función isFCMSupported - Verificar soporte de FCM
+ * @descripción Verifica si el navegador soporta Firebase Cloud Messaging (REQ-19)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Compatibilidad con navegadores accesibles para todos los usuarios
+ * @returns {boolean} True si es soportado
+ */
 export const isFCMSupported = () => {
   return 'serviceWorker' in navigator && 'PushManager' in window;
 };

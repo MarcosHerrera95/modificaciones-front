@@ -1,4 +1,11 @@
-// src/config/passport.js
+/**
+ * @archivo src/config/passport.js - Configuración de Passport.js para OAuth
+ * @descripción Configura estrategias de autenticación OAuth con Google (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Autenticación simplificada accesible para usuarios con dificultades técnicas
+ */
+
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const { PrismaClient } = require('@prisma/client');
@@ -6,7 +13,13 @@ const jwt = require('jsonwebtoken');
 
 const prisma = new PrismaClient();
 
-// Configurar estrategia de Google OAuth
+/**
+ * @estrategia Google OAuth - Autenticación con Google
+ * @descripción Configura estrategia OAuth 2.0 para login con Google (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Inclusión digital mediante autenticación familiar y accesible
+ */
 passport.use(
   new GoogleStrategy(
     {

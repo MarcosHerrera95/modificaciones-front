@@ -1,7 +1,22 @@
-// src/components/QuoteRequestForm.jsx
+/**
+ * @component QuoteRequestForm - Formulario de solicitud de presupuesto
+ * @descripción Componente para crear solicitudes de presupuesto a múltiples profesionales (REQ-31, REQ-32, REQ-33)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
+ * @impacto Económico: Facilita comparación de precios y acceso a servicios profesionales
+ */
+
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+/**
+ * @función QuoteRequestForm - Componente principal del formulario
+ * @descripción Maneja estado del formulario y envío de solicitudes de presupuesto (REQ-31)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
+ * @impacto Económico: Interfaz intuitiva para conectar demanda y oferta de servicios
+ * @returns {JSX.Element} Formulario de solicitud de presupuesto
+ */
 const QuoteRequestForm = () => {
   const [formData, setFormData] = useState({
     descripción: '',
@@ -11,6 +26,14 @@ const QuoteRequestForm = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
+  /**
+   * @función handleChange - Manejar cambios en inputs del formulario
+   * @descripción Actualiza estado del formulario con valores de inputs (REQ-31)
+   * @sprint Sprint 2 – Solicitudes y Presupuestos
+   * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
+   * @impacto Social: Interfaz intuitiva accesible para todos los niveles técnicos
+   * @param {Event} e - Evento de cambio del input
+   */
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -18,6 +41,14 @@ const QuoteRequestForm = () => {
     });
   };
 
+  /**
+   * @función handleSubmit - Enviar solicitud de presupuesto
+   * @descripción Envía solicitud a backend y maneja respuesta con métricas (REQ-32, REQ-33)
+   * @sprint Sprint 2 – Solicitudes y Presupuestos
+   * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
+   * @impacto Económico: Conecta eficientemente demanda y oferta de servicios profesionales
+   * @param {Event} e - Evento de envío del formulario
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');

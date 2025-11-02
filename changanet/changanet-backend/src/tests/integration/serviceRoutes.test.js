@@ -1,4 +1,11 @@
-// src/tests/integration/serviceRoutes.test.js - Pruebas de integración para rutas de servicios
+/**
+ * @archivo src/tests/integration/serviceRoutes.test.js - Pruebas de integración de servicios
+ * @descripción Tests automatizados para verificar agendamiento y gestión de servicios (REQ-07, REQ-08, REQ-09)
+ * @sprint Sprint 3 – Servicios y Transacciones
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Servicios y Agendamiento
+ * @impacto Económico: Verificación de procesos transaccionales seguros y confiables
+ */
+
 const request = require('supertest');
 const app = require('../../server');
 const { prisma } = require('../setupTestDB');

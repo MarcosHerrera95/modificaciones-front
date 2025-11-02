@@ -1,4 +1,11 @@
-// src/tests/integration/authRoutes.test.js - Pruebas de integración para rutas de autenticación
+/**
+ * @archivo src/tests/integration/authRoutes.test.js - Pruebas de integración de autenticación
+ * @descripción Tests automatizados para verificar registro, login y OAuth (REQ-01, REQ-02, REQ-03)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Verificación de accesibilidad en procesos de autenticación para todos los usuarios
+ */
+
 const request = require('supertest');
 const app = require('../../server');
 const { prisma } = require('../setupTestDB');

@@ -1,8 +1,10 @@
-// prisma/schema.prisma
-// FUNCIÓN: Define la estructura de la base de datos relacional de Changánet.
-// RELACIÓN PRD: Sección 6 (Entorno Operativo) y Sección 7 (Requerimientos Funcionales).
-// TARJETA BACKEND: N/A (Base de datos para todas las tarjetas).
-// SPRINT: Sprint 0 - Fase 2 (UX Research) - "Pruebas de concepto implementadas, garantizando que las tecnologías elegidas sean viables."
+/**
+ * @archivo prisma/schema.prisma - Esquema de base de datos de Changánet
+ * @descripción Define estructura relacional completa de la plataforma (REQ-01 a REQ-45)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Económico: Base de datos robusta para transacciones seguras y escalables
+ */
 
 generator client {
   provider = "prisma-client-js"

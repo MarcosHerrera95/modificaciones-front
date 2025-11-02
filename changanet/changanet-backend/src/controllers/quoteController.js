@@ -1,10 +1,26 @@
-// src/controllers/quoteController.js
+/**
+ * @archivo src/controllers/quoteController.js - Controlador de cotizaciones
+ * @descripción Gestiona solicitudes de presupuesto entre clientes y profesionales (REQ-31, REQ-32, REQ-33, REQ-34, REQ-35)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
+ * @impacto Económico: Transparencia en precios y eficiencia en la conexión comercial
+ */
+
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('../services/notificationService');
 const { sendQuoteRequestEmail } = require('../services/emailService');
 
 const prisma = new PrismaClient();
 
+/**
+ * @función createQuoteRequest - Crear solicitud de cotización
+ * @descripción Crea nueva solicitud de presupuesto y notifica al profesional (REQ-31, REQ-32)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
+ * @impacto Económico: Conexión directa entre demanda y oferta de servicios profesionales
+ * @param {Object} req - Request con datos de la solicitud
+ * @param {Object} res - Response con datos de la cotización creada
+ */
 exports.createQuoteRequest = async (req, res) => {
   const { id: clientId } = req.user;
   const { profesional_id, descripcion, zona_cobertura } = req.body;
@@ -36,6 +52,15 @@ exports.createQuoteRequest = async (req, res) => {
   }
 };
 
+/**
+ * @función getQuotesForProfessional - Obtener cotizaciones para profesional
+ * @descripción Lista todas las solicitudes de presupuesto dirigidas al profesional (REQ-32)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
+ * @impacto Económico: Acceso a oportunidades comerciales para profesionales independientes
+ * @param {Object} req - Request del profesional autenticado
+ * @param {Object} res - Response con lista de cotizaciones
+ */
 exports.getQuotesForProfessional = async (req, res) => {
   const { id: professionalId } = req.user;
 
@@ -55,6 +80,15 @@ exports.getQuotesForProfessional = async (req, res) => {
   }
 };
 
+/**
+ * @función respondToQuote - Responder a solicitud de cotización
+ * @descripción Permite al profesional aceptar o rechazar cotización con precio (REQ-33, REQ-35)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
+ * @impacto Económico: Negociación transparente y eficiente de servicios profesionales
+ * @param {Object} req - Request con acción (accept/reject) y datos opcionales
+ * @param {Object} res - Response con cotización actualizada
+ */
 exports.respondToQuote = async (req, res) => {
   const { id: professionalId } = req.user;
   const { quoteId, action, precio, comentario } = req.body;
@@ -109,6 +143,15 @@ exports.respondToQuote = async (req, res) => {
   }
 };
 
+/**
+ * @función getClientQuotes - Obtener cotizaciones del cliente
+ * @descripción Lista todas las cotizaciones enviadas por el cliente (REQ-34)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
+ * @impacto Social: Seguimiento transparente de solicitudes para consumidores informados
+ * @param {Object} req - Request del cliente autenticado
+ * @param {Object} res - Response con lista de cotizaciones del cliente
+ */
 exports.getClientQuotes = async (req, res) => {
   const { id: clientId } = req.user;
 
