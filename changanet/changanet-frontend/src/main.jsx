@@ -7,29 +7,15 @@ import './index.css';
 import { initializeSentry } from './config/sentryConfig';
 initializeSentry();
 
-// FCM Integration: Inicializar Firebase y registrar service worker
-import { initializeFCM } from './services/fcmService';
-
-// Inicializar FCM cuando la app se carga
-if ('serviceWorker' in navigator) {
+// FCM Integration: Inicializar Firebase y registrar service worker (solo en producción)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       // Registrar service worker para FCM
       const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-      console.log('Service Worker registrado:', registration);
-
-      // Inicializar FCM solo si el usuario está autenticado
-      const userToken = localStorage.getItem('token');
-      if (userToken) {
-        const fcmResult = await initializeFCM();
-        if (fcmResult.success) {
-          console.log('FCM inicializado correctamente');
-        } else {
-          console.error('Error inicializando FCM:', fcmResult.error);
-        }
-      }
+      console.log('✅ Service Worker registrado:', registration);
     } catch (error) {
-      console.error('Error registrando Service Worker:', error);
+      console.error('❌ Error registrando Service Worker:', error);
     }
   });
 }

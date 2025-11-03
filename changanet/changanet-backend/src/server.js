@@ -62,6 +62,7 @@ const availabilityRoutes = require('./routes/availabilityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const quoteRoutes = require('./routes/quoteRoutes');
 const verificationRoutes = require('./routes/verificationRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 const custodyRoutes = require('./routes/custodyRoutes');
 const rankingRoutes = require('./routes/rankingRoutes');
 const serviceRoutes = require('./routes/servicesRoutes');
@@ -232,6 +233,8 @@ app.use('/api/ranking', rankingRoutes);
 // Rutas de gestión de servicios
 app.use('/api/services', serviceRoutes);
 
+// Rutas de pagos con custodia de fondos con autenticación requerida
+app.use('/api/payments', paymentRoutes);
 // Rutas de galería con autenticación requerida
 app.use('/api/gallery', authenticateToken, galleryRoutes);
 
@@ -379,10 +382,34 @@ app.get('/api/status', (req, res) => {
 
 const PORT = process.env.PORT || 3002;
 
+/**
+ * Función para encontrar un puerto disponible automáticamente
+ * Intenta usar el puerto especificado, y si está ocupado, busca el siguiente disponible
+ */
+const findAvailablePort = (startPort) => {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer();
+    server.listen(startPort, () => {
+      const port = server.address().port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => {
+      // Si el puerto está ocupado, intentar con el siguiente
+      findAvailablePort(startPort + 1).then(resolve).catch(reject);
+    });
+  });
+};
+
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`🚀 Backend y Socket.IO corriendo en http://localhost:${PORT}`);
-    console.log(`📚 Documentación API disponible en http://localhost:${PORT}/api-docs`);
+  findAvailablePort(PORT).then(availablePort => {
+    server.listen(availablePort, () => {
+      console.log(`🚀 Backend y Socket.IO corriendo en http://localhost:${availablePort}`);
+      console.log(`📚 Documentación API disponible en http://localhost:${availablePort}/api-docs`);
+      console.log(`🔍 Puerto automático: ${availablePort !== PORT ? `Puerto ${PORT} ocupado, usando ${availablePort}` : `Usando puerto configurado ${PORT}`}`);
+    });
+  }).catch(error => {
+    console.error('❌ Error al encontrar puerto disponible:', error);
+    process.exit(1);
   });
 }
 

@@ -74,6 +74,38 @@ const tripleImpactActivities = new promClient.Counter({
   labelNames: ['tipo_impacto', 'categoria']
 });
 
+// Métricas de negocio específicas
+const quotesRequested = new promClient.Counter({
+  name: 'changanet_quotes_requested_total',
+  help: 'Total de cotizaciones solicitadas',
+  labelNames: ['categoria_servicio', 'estado']
+});
+
+const servicesCompleted = new promClient.Counter({
+  name: 'changanet_services_completed_total',
+  help: 'Total de servicios completados exitosamente',
+  labelNames: ['categoria', 'ubicacion', 'calificacion_promedio']
+});
+
+const userEngagement = new promClient.Histogram({
+  name: 'changanet_user_engagement_duration_seconds',
+  help: 'Duración de engagement de usuarios en segundos',
+  labelNames: ['tipo_usuario', 'accion'],
+  buckets: [30, 60, 300, 600, 1800, 3600] // 30s, 1min, 5min, 10min, 30min, 1hora
+});
+
+const conversionRate = new promClient.Gauge({
+  name: 'changanet_conversion_rate',
+  help: 'Tasa de conversión de visitantes a usuarios registrados',
+  labelNames: ['fuente', 'tipo_conversion']
+});
+
+const revenueTotal = new promClient.Counter({
+  name: 'changanet_revenue_total',
+  help: 'Ingresos totales generados por la plataforma',
+  labelNames: ['tipo_ingreso', 'metodo_pago']
+});
+
 /**
  * Funciones para incrementar métricas
  */
@@ -105,6 +137,31 @@ function incrementBusinessError(tipo = 'general', componente = 'unknown') {
 // Triple impacto
 function incrementTripleImpactActivity(tipoImpacto = 'social', categoria = 'servicio') {
   tripleImpactActivities.inc({ tipo_impacto: tipoImpacto, categoria });
+}
+
+// Cotizaciones
+function incrementQuoteRequested(categoriaServicio = 'general', estado = 'pendiente') {
+  quotesRequested.inc({ categoria_servicio: categoriaServicio, estado });
+}
+
+// Servicios completados (función específica)
+function incrementServiceCompletedDetailed(categoria = 'general', ubicacion = 'desconocida', calificacion = '0') {
+  servicesCompleted.inc({ categoria, ubicacion, calificacion_promedio: calificacion });
+}
+
+// Engagement de usuario
+function recordUserEngagement(tipoUsuario = 'cliente', accion = 'navegacion', duracionSegundos) {
+  userEngagement.observe({ tipo_usuario: tipoUsuario, accion }, duracionSegundos);
+}
+
+// Tasa de conversión
+function setConversionRate(fuente = 'directo', tipoConversion = 'registro', tasa) {
+  conversionRate.set({ fuente, tipo_conversion: tipoConversion }, tasa);
+}
+
+// Ingresos
+function incrementRevenue(tipoIngreso = 'comision', metodoPago = 'efectivo', monto) {
+  revenueTotal.inc({ tipo_ingreso: tipoIngreso, metodo_pago: metodoPago }, monto);
 }
 
 // Usuarios activos
@@ -178,6 +235,11 @@ module.exports = {
   incrementSmsSent,
   incrementBusinessError,
   incrementTripleImpactActivity,
+  incrementQuoteRequested,
+  incrementServiceCompletedDetailed,
+  recordUserEngagement,
+  setConversionRate,
+  incrementRevenue,
   setActiveUsers,
   incrementActiveUsers,
   decrementActiveUsers,
@@ -190,5 +252,10 @@ module.exports = {
   httpRequestsTotal,
   activeUsers,
   businessErrorsTotal,
-  tripleImpactActivities
+  tripleImpactActivities,
+  quotesRequested,
+  servicesCompleted,
+  userEngagement,
+  conversionRate,
+  revenueTotal
 };

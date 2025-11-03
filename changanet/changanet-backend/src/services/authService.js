@@ -138,11 +138,11 @@ exports.sendEmailVerification = async (email) => {
 };
 
 module.exports = {
-  createUserWithEmailAndPassword,
-  getUserByEmail,
-  updateUser,
-  deleteUser,
-  verifyIdToken,
-  createCustomToken,
-  sendEmailVerification
+  createUserWithEmailAndPassword: exports.createUserWithEmailAndPassword,
+  getUserByEmail: exports.getUserByEmail,
+  updateUser: exports.updateUser,
+  deleteUser: exports.deleteUser,
+  verifyIdToken: exports.verifyIdToken,
+  createCustomToken: exports.createCustomToken,
+  sendEmailVerification: exports.sendEmailVerification
 };
