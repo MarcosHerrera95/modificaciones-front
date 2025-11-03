@@ -7,7 +7,20 @@
  */
 
 import { getMessaging, getToken, onMessage, deleteToken } from "firebase/messaging";
-import { messaging } from "../config/firebaseConfig";
+import { getMessaging as getMessagingInstance } from "firebase/messaging";
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: "changanet-notifications.firebaseapp.com",
+  projectId: "changanet-notifications",
+  storageBucket: "changanet-notifications.appspot.com",
+  messagingSenderId: "926478045621",
+  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+};
+
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
 
 /**
  * @función initializeFCM - Inicialización de Firebase Cloud Messaging
@@ -39,7 +52,7 @@ export const initializeFCM = async () => {
     });
 
     // Actualizar token en el backend si hay usuario autenticado
-    const userToken = localStorage.getItem('token');
+    const userToken = localStorage.getItem('changanet_token');
     if (userToken && token) {
       try {
         const { updateUserFCMToken } = await import('./authService');

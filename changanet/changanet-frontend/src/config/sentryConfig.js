@@ -52,7 +52,7 @@ export function initializeSentry() {
         const error = hint.originalException;
 
         // No reportar errores de red comunes en desarrollo
-        if (process.env.NODE_ENV !== 'production') {
+        if (import.meta.env.PROD) {
           if (error && error.message) {
             if (error.message.includes('Failed to fetch') ||
                 error.message.includes('NetworkError') ||

@@ -20,23 +20,35 @@ export const ChatProvider = ({ children }) => {
   const [unreadCounts, setUnreadCounts] = useState({});
 
   useEffect(() => {
+    let newSocket = null;
+
     if (user) {
       // Conectar Socket.IO
-      const newSocket = io(process.env.REACT_APP_BACKEND_URL || 'http://localhost:3002', {
+      newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002', {
         auth: {
-          token: localStorage.getItem('token') // Asumiendo que el token JWT está en localStorage
-        }
+          token: localStorage.getItem('changanet_token') // Token correcto de Changánet
+        },
+        transports: ['websocket', 'polling'], // Fallback para compatibilidad
+        timeout: 5000, // Timeout de conexión
+        reconnection: true, // Reconexión automática
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
       });
 
       newSocket.on('connect', () => {
-        console.log('Conectado a Socket.IO');
+        console.log('✅ Conectado a Socket.IO');
         setIsConnected(true);
         // Unirse a la sala personal del usuario
         newSocket.emit('join', user.id);
       });
 
-      newSocket.on('disconnect', () => {
-        console.log('Desconectado de Socket.IO');
+      newSocket.on('disconnect', (reason) => {
+        console.log('❌ Desconectado de Socket.IO:', reason);
+        setIsConnected(false);
+      });
+
+      newSocket.on('connect_error', (error) => {
+        console.error('❌ Error de conexión Socket.IO:', error);
         setIsConnected(false);
       });
 
@@ -61,7 +73,7 @@ export const ChatProvider = ({ children }) => {
 
       newSocket.on('messageSent', (message) => {
         // Confirmación de que el mensaje fue enviado
-        console.log('Mensaje enviado:', message);
+        console.log('📤 Mensaje enviado:', message);
       });
 
       newSocket.on('messagesRead', (data) => {
@@ -75,11 +87,22 @@ export const ChatProvider = ({ children }) => {
       });
 
       setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-      };
     }
+
+    // Cleanup function para cerrar conexiones
+    return () => {
+      if (newSocket) {
+        console.log('🧹 Limpiando conexión Socket.IO');
+        newSocket.off('connect');
+        newSocket.off('disconnect');
+        newSocket.off('connect_error');
+        newSocket.off('receiveMessage');
+        newSocket.off('messageSent');
+        newSocket.off('messagesRead');
+        newSocket.close();
+        setIsConnected(false);
+      }
+    };
   }, [user]);
 
   const sendMessage = (destinatario_id, contenido, url_imagen = null) => {
@@ -109,9 +132,9 @@ export const ChatProvider = ({ children }) => {
 
   const loadMessageHistory = async (otherUserId) => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL || 'http://localhost:3002'}/api/messages?with=${otherUserId}`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/messages?with=${otherUserId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }
       });
 

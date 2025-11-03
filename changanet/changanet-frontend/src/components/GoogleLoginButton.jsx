@@ -36,13 +36,13 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
 
       if (result.success) {
         // Guardar la autenticación con el token JWT del backend
-        login(result.user, result.token);
+        login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
 
         // Redirigir al dashboard
         navigate('/');
       } else {
         console.error('Error en autenticación con Google:', result.error);
-        alert('Error al iniciar sesión con Google. Inténtalo de nuevo.');
+        alert(`Error al iniciar sesión con Google: ${result.error}`);
       }
     } catch (error) {
       console.error('Error en autenticación con Google:', error);

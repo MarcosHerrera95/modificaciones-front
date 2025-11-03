@@ -1,5 +1,18 @@
 import { ref, push, onValue, off, set, update, remove } from "firebase/database";
-import { database } from "../config/firebaseConfig";
+import { getDatabase } from "firebase/database";
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: "changanet-notifications.firebaseapp.com",
+  projectId: "changanet-notifications",
+  storageBucket: "changanet-notifications.appspot.com",
+  messagingSenderId: "926478045621",
+  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+};
+
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
 
 // Enviar mensaje
 export const sendMessage = async (chatId, message) => {

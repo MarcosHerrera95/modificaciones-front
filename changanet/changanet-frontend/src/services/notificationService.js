@@ -1,5 +1,17 @@
-import { getToken, onMessage } from "firebase/messaging";
-import { messaging } from "../config/firebaseConfig";
+import { getToken, onMessage, getMessaging } from "firebase/messaging";
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: "changanet-notifications.firebaseapp.com",
+  projectId: "changanet-notifications",
+  storageBucket: "changanet-notifications.appspot.com",
+  messagingSenderId: "926478045621",
+  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+};
+
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
 
 // Solicitar permiso para notificaciones push
 export const requestNotificationPermission = async () => {

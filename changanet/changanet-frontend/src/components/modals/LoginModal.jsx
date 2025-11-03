@@ -22,7 +22,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
 
       if (result.success) {
         // INTEGRACIÓN CON CONTEXT: Guardar usuario de Firebase
-        login(result.user, result.user.accessToken);
+        login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
         onClose();
       } else {
         setError(result.error || 'Credenciales inválidas');

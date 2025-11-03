@@ -4,6 +4,17 @@
  * Incluye integración con backend para tokens JWT y comunicación postMessage.
  */
 
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
+} from "firebase/auth";
+import { auth } from "../config/firebaseConfig";
+
 /**
  * Registra un nuevo usuario usando email y contraseña.
  * Crea la cuenta en Firebase Auth y envía email de verificación.
@@ -11,11 +22,75 @@
  */
 export const registerWithEmail = async (email, password) => {
   try {
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
+    }
+
+    // Validar entrada
+    if (!email || !password) {
+      throw new Error('Email y contraseña son requeridos');
+    }
+
+    if (password.length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres');
+    }
+
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    await sendEmailVerification(userCredential.user);
-    return { success: true, user: userCredential.user };
+
+    // Enviar email de verificación
+    try {
+      await sendEmailVerification(userCredential.user);
+    } catch (verificationError) {
+      console.warn('No se pudo enviar email de verificación:', verificationError);
+      // No fallar el registro por esto
+    }
+
+    return {
+      success: true,
+      user: userCredential.user,
+      message: 'Usuario registrado exitosamente. Revisa tu email para verificar la cuenta.'
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('❌ Error en registro:', error);
+
+    // Manejar errores específicos de Firebase
+    let errorMessage = 'Error al registrar usuario';
+
+    // Si es error de configuración, proporcionar información específica
+    if (error.code === 'auth/configuration-not-found') {
+      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
+      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
+    } else {
+      // Otros errores de Firebase
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = 'Este email ya está registrado. Intenta iniciar sesión en su lugar.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Email inválido. Verifica el formato.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'La contraseña debe tener al menos 6 caracteres.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
+          break;
+        case 'auth/app-deleted':
+          errorMessage = 'Aplicación Firebase eliminada. Contacta al administrador.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Registro de usuarios deshabilitado. Contacta al administrador.';
+          break;
+        default:
+          errorMessage = error.message || errorMessage;
+      }
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -26,61 +101,156 @@ export const registerWithEmail = async (email, password) => {
  */
 export const loginWithEmail = async (email, password) => {
   try {
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      console.error('❌ Firebase Auth no disponible. Verificando configuración...');
+
+      // Intentar diagnosticar el problema
+      const { diagnoseFirebaseConfig } = await import('../config/firebaseConfig');
+      const isConfigOk = diagnoseFirebaseConfig();
+
+      if (!isConfigOk) {
+        throw new Error('Firebase no está configurado correctamente. Revisa la consola para más detalles.');
+      } else {
+        throw new Error('Firebase Auth no está disponible temporalmente. Inténtalo más tarde.');
+      }
+    }
+
+    // Validar entrada
+    if (!email || !password) {
+      throw new Error('Email y contraseña son requeridos');
+    }
+
+    console.log('🔐 Intentando login con Firebase Auth...');
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    return { success: true, user: userCredential.user };
+
+    // Verificar si el email está verificado
+    if (!userCredential.user.emailVerified) {
+      console.warn('Email no verificado, pero permitiendo login');
+      // Podríamos enviar otro email de verificación aquí si queremos ser estrictos
+    }
+
+    return {
+      success: true,
+      user: userCredential.user,
+      message: 'Inicio de sesión exitoso'
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('❌ Error en login:', error);
+
+    // Manejar errores específicos de Firebase
+    let errorMessage = 'Error al iniciar sesión';
+
+    // Si es error de configuración, proporcionar información específica
+    if (error.code === 'auth/configuration-not-found') {
+      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
+      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
+    } else {
+      // Otros errores de Firebase
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'Usuario no encontrado. Verifica tu email.';
+          break;
+        case 'auth/wrong-password':
+          errorMessage = 'Contraseña incorrecta';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Email inválido';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'Cuenta deshabilitada. Contacta al soporte.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Demasiados intentos. Espera unos minutos antes de intentar nuevamente.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
+          break;
+        case 'auth/app-deleted':
+          errorMessage = 'Aplicación Firebase eliminada. Contacta al administrador.';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Credenciales inválidas. Verifica tu email y contraseña.';
+          break;
+        default:
+          errorMessage = error.message || errorMessage;
+      }
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 
 /**
  * Inicia sesión usando autenticación OAuth de Google.
- * Abre una ventana popup que redirige al backend para el flujo OAuth.
- * Maneja la comunicación postMessage entre la popup y la ventana principal.
- * Retorna una promesa que se resuelve con el usuario y token JWT.
+ * Usa Firebase Authentication directamente para simplificar el flujo.
+ * Retorna el resultado con el usuario autenticado.
  */
 export const loginWithGoogle = async () => {
   try {
-    // Abre una ventana popup para el flujo de autenticación OAuth
-    // Usa el proxy configurado en Vite (/api -> http://localhost:3002)
-    const popup = window.open(
-      `${window.location.origin}/api/auth/google`,
-      'google-auth',
-      'width=500,height=600,scrollbars=yes,resizable=yes'
-    );
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
+    }
 
-    return new Promise((resolve, reject) => {
-      const handleMessage = (event) => {
-        // Verifica que el mensaje provenga del mismo origen por seguridad
-        if (event.origin !== window.location.origin) return;
+    const provider = new GoogleAuthProvider();
 
-        if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
-          window.removeEventListener('message', handleMessage);
-          popup.close();
-          resolve({
-            success: true,
-            user: event.data.payload.user,
-            token: event.data.payload.token
-          });
-        } else if (event.data.type === 'GOOGLE_AUTH_ERROR') {
-          window.removeEventListener('message', handleMessage);
-          popup.close();
-          reject(new Error(event.data.error));
-        }
-      };
-
-      window.addEventListener('message', handleMessage);
-
-      // Configura un timeout de 5 minutos para evitar esperas infinitas
-      setTimeout(() => {
-        window.removeEventListener('message', handleMessage);
-        popup.close();
-        reject(new Error('Timeout en autenticación con Google'));
-      }, 300000);
+    // Configurar el provider
+    provider.setCustomParameters({
+      prompt: 'select_account'
     });
+
+    // Usar popup en lugar del flujo del backend para simplificar
+    const result = await signInWithPopup(auth, provider);
+
+    return {
+      success: true,
+      user: result.user,
+      message: 'Inicio de sesión con Google exitoso'
+    };
   } catch (error) {
-    console.error('Error en loginWithGoogle:', error);
-    return { success: false, error: error.message };
+    console.error('❌ Error en loginWithGoogle:', error);
+
+    // Manejar errores específicos de Firebase
+    let errorMessage = 'Error al iniciar sesión con Google';
+
+    // Si es error de configuración, proporcionar información específica
+    if (error.code === 'auth/configuration-not-found') {
+      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
+      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
+    } else {
+      // Otros errores de Firebase
+      switch (error.code) {
+        case 'auth/popup-closed-by-user':
+          errorMessage = 'Ventana de autenticación cerrada por el usuario.';
+          break;
+        case 'auth/popup-blocked':
+          errorMessage = 'Popup bloqueado por el navegador. Permite popups para este sitio.';
+          break;
+        case 'auth/cancelled-popup-request':
+          errorMessage = 'Solicitud de autenticación cancelada.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Inicio de sesión con Google deshabilitado. Contacta al administrador.';
+          break;
+        case 'auth/unauthorized-domain':
+          errorMessage = 'Dominio no autorizado para autenticación con Google.';
+          break;
+        default:
+          errorMessage = error.message || errorMessage;
+      }
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -91,24 +261,37 @@ export const loginWithGoogle = async () => {
  */
 export const updateUserFCMToken = async (token, userId) => {
   try {
-    // Usar el proxy configurado en Vite (/api -> http://localhost:3002)
-    const response = await fetch('/api/profile/fcm-token', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-      },
-      body: JSON.stringify({ fcm_token: token })
-    });
-
-    if (!response.ok) {
-      throw new Error('Error al actualizar token FCM');
+    // Validar parámetros
+    if (!token || !userId) {
+      throw new Error('Token FCM y ID de usuario son requeridos');
     }
 
-    return { success: true };
+    // Usar el nuevo apiService con retry logic
+    const { api } = await import('./apiService');
+
+    const response = await api.put(`/profile/fcm-token`, {
+      fcm_token: token,
+      user_id: userId
+    });
+
+    return {
+      success: true,
+      message: 'Token FCM actualizado correctamente'
+    };
   } catch (error) {
     console.error('Error updating FCM token:', error);
-    return { success: false, error: error.message };
+
+    let errorMessage = 'Error al actualizar token FCM';
+
+    if (error.message?.includes('401')) {
+      errorMessage = 'Sesión expirada. Inicia sesión nuevamente';
+    } else if (error.message?.includes('403')) {
+      errorMessage = 'No tienes permisos para esta acción';
+    } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
+      errorMessage = 'Error de conexión. El token se actualizará cuando haya conexión';
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -131,10 +314,46 @@ export const loginWithFacebook = async () => {
  */
 export const resetPassword = async (email) => {
   try {
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
+    }
+
+    // Validar email
+    if (!email) {
+      throw new Error('Email es requerido');
+    }
+
     await sendPasswordResetEmail(auth, email);
-    return { success: true };
+
+    return {
+      success: true,
+      message: 'Email de recuperación enviado. Revisa tu bandeja de entrada.'
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('Error en reset password:', error);
+
+    // Manejar errores específicos de Firebase
+    let errorMessage = 'Error al enviar email de recuperación';
+
+    switch (error.code) {
+      case 'auth/user-not-found':
+        errorMessage = 'No existe una cuenta con este email';
+        break;
+      case 'auth/invalid-email':
+        errorMessage = 'Email inválido';
+        break;
+      case 'auth/too-many-requests':
+        errorMessage = 'Demasiadas solicitudes. Inténtalo más tarde';
+        break;
+      case 'auth/network-request-failed':
+        errorMessage = 'Error de conexión. Verifica tu internet';
+        break;
+      default:
+        errorMessage = error.message || errorMessage;
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 
@@ -144,10 +363,42 @@ export const resetPassword = async (email) => {
  */
 export const logout = async () => {
   try {
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      // Si Firebase no está disponible, solo limpiar localStorage
+      localStorage.removeItem('changanet_token');
+      localStorage.removeItem('changanet_user');
+      return { success: true, message: 'Sesión cerrada localmente' };
+    }
+
+    // Limpiar tokens locales antes de cerrar sesión en Firebase
+    localStorage.removeItem('changanet_token');
+    localStorage.removeItem('changanet_user');
+
     await signOut(auth);
-    return { success: true };
+
+    return {
+      success: true,
+      message: 'Sesión cerrada correctamente'
+    };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('Error en logout:', error);
+
+    // Intentar limpiar localStorage aunque Firebase falle
+    localStorage.removeItem('changanet_token');
+    localStorage.removeItem('changanet_user');
+
+    let errorMessage = 'Error al cerrar sesión';
+
+    switch (error.code) {
+      case 'auth/network-request-failed':
+        errorMessage = 'Error de conexión, pero sesión cerrada localmente';
+        break;
+      default:
+        errorMessage = error.message || errorMessage;
+    }
+
+    return { success: false, error: errorMessage };
   }
 };
 

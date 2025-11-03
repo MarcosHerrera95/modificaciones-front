@@ -21,16 +21,20 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import './index.css';
 
-// Inicializar Firebase Messaging si está disponible
-import { onForegroundMessage, diagnoseFirebaseConfig } from './config/firebaseConfig';
-if (typeof window !== 'undefined') {
-  onForegroundMessage();
-  // Ejecutar diagnóstico en desarrollo
-  if (process.env.NODE_ENV === 'development') {
-    setTimeout(() => {
-      diagnoseFirebaseConfig();
-    }, 1000);
-  }
+// Inicializar Firebase Messaging si está disponible (solo en producción)
+if (import.meta.env.PROD && typeof window !== 'undefined') {
+  import('./services/fcmService').then(({ onForegroundMessage }) => {
+    onForegroundMessage();
+  }).catch(error => {
+    console.warn('FCM no disponible:', error.message);
+  });
+}
+
+// Ejecutar diagnóstico básico en desarrollo
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  setTimeout(() => {
+    console.log('🔍 Diagnóstico básico: App cargada correctamente');
+  }, 1000);
 }
 
 // Componente temporal para registro de profesional
