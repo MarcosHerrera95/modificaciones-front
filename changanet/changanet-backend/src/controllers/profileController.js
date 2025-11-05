@@ -1,25 +1,38 @@
 // src/controllers/profileController.js
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
+const { getCachedProfessionalProfile, cacheProfessionalProfile, invalidateProfessionalProfile } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
 exports.getProfile = async (req, res) => {
   const { professionalId } = req.params;
 
   try {
+    // Intentar obtener perfil del caché
+    const cachedProfile = await getCachedProfessionalProfile(professionalId);
+    if (cachedProfile) {
+      console.log('👤 Perfil obtenido del caché');
+      return res.status(200).json(cachedProfile);
+    }
+
     const profile = await prisma.perfiles_profesionales.findUnique({
       where: { usuario_id: professionalId },
-      include: { 
-        usuario: { 
-          select: { 
-            nombre: true, 
-            email: true 
-          } 
-        } 
+      include: {
+        usuario: {
+          select: {
+            nombre: true,
+            email: true
+          }
+        }
       },
     });
 
     if (!profile) return res.status(404).json({ error: 'Perfil no encontrado.' });
+
+    // Almacenar en caché
+    await cacheProfessionalProfile(professionalId, profile);
+    console.log('💾 Perfil almacenado en caché');
+
     res.status(200).json(profile);
   } catch (error) {
     console.error(error);
@@ -84,6 +97,10 @@ exports.updateProfile = async (req, res) => {
         },
       });
     }
+
+    // Invalidar caché del perfil después de actualizar
+    await invalidateProfessionalProfile(userId);
+    console.log('🗑️ Caché de perfil invalidado');
 
     res.status(200).json(profile);
   } catch (error) {

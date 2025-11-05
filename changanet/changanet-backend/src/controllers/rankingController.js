@@ -1,9 +1,17 @@
 // src/controllers/rankingController.js
 const { PrismaClient } = require('@prisma/client');
+const { getCachedProfessionalRankings, cacheProfessionalRankings } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
 exports.getRanking = async (req, res) => {
   try {
+    // Intentar obtener rankings del caché
+    const cachedRankings = await getCachedProfessionalRankings();
+    if (cachedRankings) {
+      console.log('🏆 Rankings obtenidos del caché');
+      return res.status(200).json(cachedRankings);
+    }
+
     const professionals = await prisma.perfiles_profesionales.findMany({
       include: {
         usuario: {
@@ -21,6 +29,10 @@ exports.getRanking = async (req, res) => {
       profesional: prof,
       calificacion: prof.calificacion_promedio || 0
     }));
+
+    // Almacenar en caché
+    await cacheProfessionalRankings(ranking);
+    console.log('💾 Rankings almacenados en caché');
 
     res.status(200).json(ranking);
   } catch (error) {

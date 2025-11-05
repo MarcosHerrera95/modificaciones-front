@@ -46,8 +46,8 @@ export const AuthProvider = ({ children }) => {
       setUserContext({
         id: userData.id,
         email: userData.email,
-        nombre: userData.name,
-        rol: userData.role
+        nombre: userData.nombre,
+        rol: userData.rol
       });
     } catch (error) {
       console.warn('Sentry no disponible para configurar contexto de usuario');

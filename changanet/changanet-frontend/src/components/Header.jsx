@@ -42,13 +42,13 @@ const Header = () => {
           </button>
 
           <nav className="hidden md:flex space-x-8">
-            <button onClick={() => smartNavigate('/')} type="button" aria-label="Ir a Inicio" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
+            <button onClick={() => smartNavigate('/')} type="button" aria-label="Ir a Inicio" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md min-h-[44px] touch-manipulation">
               <span className="flex items-center space-x-2">
                 <HomeIcon className="w-6 h-6" />
                 <span>Inicio</span>
               </span>
             </button>
-            <button onClick={() => smartNavigate('/profesionales')} type="button" aria-label="Ir a Servicios" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
+            <button onClick={() => smartNavigate('/profesionales')} type="button" aria-label="Ir a Servicios" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md min-h-[44px] touch-manipulation">
               <span className="flex items-center space-x-2">
                 <WrenchIcon className="w-6 h-6" />
                 <span>Servicios</span>
@@ -61,13 +61,13 @@ const Header = () => {
               <>
                 <NotificationBell />
                 <span className="text-gray-700 hidden lg:inline font-medium bg-emerald-50 px-3 py-1 rounded-full">Hola, {user.name}</span>
-                <button onClick={() => smartNavigate('/mi-cuenta')} type="button" className="bg-white text-black font-medium transition-all duration-300 px-4 py-2 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2">
+                <button onClick={() => smartNavigate('/mi-cuenta')} type="button" className="bg-white text-black font-medium transition-all duration-300 px-4 py-2 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2 min-h-[44px] touch-manipulation">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                   <span>Mi Cuenta</span>
                 </button>
-                <button onClick={handleLogout} type="button" className="bg-gray-500 text-white px-4 py-2 rounded-xl hover:bg-gray-600 hover:shadow-md hover:scale-[1.02] transition-all duration-300 font-medium flex items-center space-x-2">
+                <button onClick={handleLogout} type="button" className="bg-gray-500 text-white px-4 py-2 rounded-xl hover:bg-gray-600 hover:shadow-md hover:scale-[1.02] transition-all duration-300 font-medium flex items-center space-x-2 min-h-[44px] touch-manipulation">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -76,7 +76,7 @@ const Header = () => {
               </>
             ) : (
               <>
-                <button onClick={() => setShowLogin(true)} type="button" className="bg-white text-black font-bold transition-all duration-300 px-6 py-3 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2">
+                <button onClick={() => setShowLogin(true)} type="button" className="bg-white text-black font-bold transition-all duration-300 px-6 py-3 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2 min-h-[44px] touch-manipulation">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
@@ -85,7 +85,7 @@ const Header = () => {
                 <button
                   onClick={() => setShowSignup(true)}
                   type="button"
-                  className="bg-emerald-500 text-white font-bold px-6 py-3 rounded-lg hover:bg-emerald-600 hover:shadow-md hover:scale-[1.02] hover:brightness-105 transition-all duration-300 flex items-center space-x-2">
+                  className="bg-emerald-500 text-white font-bold px-6 py-3 rounded-lg hover:bg-emerald-600 hover:shadow-md hover:scale-[1.02] hover:brightness-105 transition-all duration-300 flex items-center space-x-2 min-h-[44px] touch-manipulation">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
@@ -98,7 +98,7 @@ const Header = () => {
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
               type="button"
-              className="md:hidden text-cyan-600 hover:text-cyan-700 p-3 rounded-lg hover:bg-cyan-50/50 transition-all duration-300"
+              className="md:hidden text-cyan-600 hover:text-cyan-700 p-3 rounded-lg hover:bg-cyan-50/50 transition-all duration-300 min-h-[44px] touch-manipulation"
               aria-label="Alternar menú de navegación">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isMenuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
@@ -118,7 +118,7 @@ const Header = () => {
                 }}
                 type="button"
                 aria-label="Ir a Inicio"
-                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
+                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300 min-h-[44px] touch-manipulation">
                 <HomeIcon className="w-6 h-6" />
                 <span>Inicio</span>
               </button>
@@ -129,7 +129,7 @@ const Header = () => {
                 }}
                 type="button"
                 aria-label="Ir a Servicios"
-                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
+                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300 min-h-[44px] touch-manipulation">
                 <WrenchIcon className="w-6 h-6" />
                 <span>Servicios</span>
               </button>

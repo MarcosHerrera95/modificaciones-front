@@ -1,11 +1,29 @@
 // src/controllers/searchController.js
 const { PrismaClient } = require('@prisma/client');
+const { getCachedProfessionalSearch, cacheProfessionalSearch } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
 exports.searchProfessionals = async (req, res) => {
   const { specialty, location, minPrice, maxPrice, page = 1, limit = 10 } = req.query;
 
   try {
+    // Crear objeto de filtros para el caché
+    const filters = {
+      specialty: specialty || null,
+      location: location || null,
+      minPrice: minPrice ? parseFloat(minPrice) : null,
+      maxPrice: maxPrice ? parseFloat(maxPrice) : null,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    };
+
+    // Intentar obtener resultados del caché
+    const cachedResults = await getCachedProfessionalSearch(filters);
+    if (cachedResults) {
+      console.log('🔍 Resultados obtenidos del caché');
+      return res.status(200).json(cachedResults);
+    }
+
     const where = {};
 
     if (specialty) {
@@ -39,12 +57,18 @@ exports.searchProfessionals = async (req, res) => {
     const total = await prisma.perfiles_profesionales.count({ where });
     const totalPages = Math.ceil(total / limit);
 
-    res.status(200).json({
+    const results = {
       professionals,
       total,
       page: parseInt(page),
       totalPages,
-    });
+    };
+
+    // Almacenar en caché para futuras consultas
+    await cacheProfessionalSearch(filters, results);
+    console.log('💾 Resultados almacenados en caché');
+
+    res.status(200).json(results);
   } catch (error) {
     console.error('Error searching professionals:', error);
     res.status(500).json({ error: 'Error al buscar profesionales.' });

@@ -10,9 +10,27 @@ generator client {
   provider = "prisma-client-js"
 }
 
+generator erd {
+  provider = "prisma-erd-generator"
+  output = "../docs/database-diagram.png"
+}
+
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+enum EstadoServicio {
+  PENDIENTE
+  AGENDADO
+  COMPLETADO
+  CANCELADO
+}
+
+enum EstadoCotizacion {
+  PENDIENTE
+  ACEPTADO
+  RECHAZADO
 }
 
 // MODELO: usuarios
@@ -44,6 +62,9 @@ model usuarios {
   cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
   cotizaciones_como_profesional cotizaciones[] @relation("CotizacionProfesional")
   verification_request verification_requests?
+
+  @@index([rol])
+  @@index([esta_verificado])
 }
 
 // MODELO: perfiles_profesionales
@@ -65,6 +86,10 @@ model perfiles_profesionales {
   estado_verificacion String @default("pendiente")
   verificado_en    DateTime?
   url_documento_verificacion String?
+
+  @@index([especialidad])
+  @@index([zona_cobertura])
+  @@index([calificacion_promedio])
 }
 
 // MODELO: servicios
@@ -79,11 +104,15 @@ model servicios {
   profesional_id String
   profesional    usuarios @relation("ServicioProfesional", fields: [profesional_id], references: [id])
   descripcion    String
-  estado         String @default("pendiente")
+  estado         EstadoServicio @default(PENDIENTE)
   fecha_agendada DateTime?
   creado_en      DateTime @default(now())
   completado_en  DateTime?
   resena         resenas?
+
+  @@index([cliente_id])
+  @@index([profesional_id])
+  @@index([estado])
 }
 
 model resenas {
@@ -96,6 +125,8 @@ model resenas {
   comentario    String?
   url_foto      String?
   creado_en     DateTime @default(now())
+
+  @@index([servicio_id])
 }
 
 // MODELO: mensajes
@@ -151,7 +182,7 @@ model cotizaciones {
   profesional_id String
   profesional    usuarios @relation("CotizacionProfesional", fields: [profesional_id], references: [id])
   descripcion    String
-  estado         String @default("pendiente")
+  estado         EstadoCotizacion @default(PENDIENTE)
   precio         Float
   comentario     String?
   creado_en      DateTime @default(now())

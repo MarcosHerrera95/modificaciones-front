@@ -56,7 +56,7 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
     <button
       onClick={handleGoogleLogin}
       disabled={loading}
-      className={`w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${className} ${
+      className={`w-full min-h-[44px] flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 touch-manipulation ${className} ${
         loading ? 'opacity-50 cursor-not-allowed' : ''
       }`}
       aria-label="Iniciar sesión con Google"

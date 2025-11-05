@@ -19,6 +19,12 @@ initializeSentry();
 const { initializeMetrics } = require('./services/metricsService');
 initializeMetrics();
 
+/**
+ * Inicializa el sistema de caché Redis para optimización de rendimiento.
+ */
+const { initializeRedis } = require('./services/cacheService');
+initializeRedis();
+
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
