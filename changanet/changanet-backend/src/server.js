@@ -67,6 +67,8 @@ const custodyRoutes = require('./routes/custodyRoutes');
 const rankingRoutes = require('./routes/rankingRoutes');
 const serviceRoutes = require('./routes/servicesRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
+const contactRoutes = require('./routes/contactRoutes');
+const newsletterRoutes = require('./routes/newsletterRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 
@@ -237,6 +239,12 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/payments', paymentRoutes);
 // Rutas de galería con autenticación requerida
 app.use('/api/gallery', authenticateToken, galleryRoutes);
+
+// Rutas de contacto (públicas)
+app.use('/api/contact', contactRoutes);
+
+// Rutas de newsletter (públicas)
+app.use('/api/newsletter', newsletterRoutes);
 
 /**
  * Configuración de eventos de Socket.IO para chat en tiempo real.

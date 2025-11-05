@@ -43,6 +43,7 @@ model usuarios {
   notificaciones notificaciones[]
   cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
   cotizaciones_como_profesional cotizaciones[] @relation("CotizacionProfesional")
+  verification_request verification_requests?
 }
 
 // MODELO: perfiles_profesionales
@@ -156,6 +157,23 @@ model cotizaciones {
   creado_en      DateTime @default(now())
   aceptado_en    DateTime?
   rechazado_en   DateTime?
+}
+
+// MODELO: verification_requests
+// FUNCIÓN: Gestiona solicitudes de verificación de identidad para profesionales.
+// RELACIÓN PRD: REQ-36 (Subir documento), REQ-37 (Insignia verificado), REQ-40 (Aprobación admin).
+// TARJETA BACKEND: Tarjeta 8: [Backend] Implementar Sistema de Verificación de Identidad.
+// SPRINT: Sprint 3 (Tercera Entrega) - "Verificación y confianza".
+model verification_requests {
+  id            String   @id @default(uuid())
+  usuario_id    String   @unique // Un usuario solo puede tener una solicitud activa
+  usuario       usuarios @relation(fields: [usuario_id], references: [id])
+  documento_url String   // URL del documento subido (Cloudinary/Firebase)
+  estado        String   @default("pendiente") // "pendiente", "aprobado", "rechazado"
+  comentario_admin String? // Comentario del administrador al aprobar/rechazar
+  creado_en     DateTime @default(now())
+  revisado_en   DateTime?
+  revisado_por  String?  // ID del administrador que revisó
 }
 
 // Note: Enums converted to String types for SQLite compatibility

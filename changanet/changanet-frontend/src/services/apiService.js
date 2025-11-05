@@ -6,6 +6,15 @@
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
 /**
+ * Headers de seguridad para todas las peticiones
+ */
+const getSecurityHeaders = () => ({
+  'X-Requested-With': 'XMLHttpRequest',
+  'X-Client-Version': '1.0.0',
+  'X-Client-Type': 'web',
+});
+
+/**
  * Configuración de reintentos para llamadas API
  */
 const RETRY_CONFIG = {
@@ -48,6 +57,7 @@ async function apiRequest(url, options = {}, retryCount = 0) {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
+        ...getSecurityHeaders(),
         ...options.headers,
       },
     });
@@ -140,6 +150,7 @@ export const api = {
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
   register: (userData) => api.post('/api/auth/register', userData),
+  registerProfessional: (userData) => api.post('/api/auth/register-professional', userData),
   logout: () => api.post('/api/auth/logout'),
   refreshToken: () => api.post('/api/auth/refresh'),
   getProfile: () => api.get('/api/profile'),

@@ -40,6 +40,16 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
       throw new Error('El servicio debe estar en estado pendiente para crear un pago');
     }
 
+    // Validar que el profesional existe y está verificado
+    if (!service.profesional || service.profesional.rol !== 'profesional') {
+      throw new Error('El profesional asignado no es válido');
+    }
+
+    // Validar montos razonables
+    if (amount <= 0 || amount > 1000000) { // Máximo $1M ARS
+      throw new Error('Monto de pago inválido');
+    }
+
     // Calcular comisión del 10%
     const marketplaceFee = Math.round(amount * 0.1);
 

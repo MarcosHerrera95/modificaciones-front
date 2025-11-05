@@ -64,7 +64,7 @@ passport.use(
         const token = jwt.sign(
           { userId: user.id, role: user.rol },
           process.env.JWT_SECRET,
-          { expiresIn: '24h' }
+          { expiresIn: '24h', algorithm: 'HS256' }
         );
 
         // Devolver usuario y token

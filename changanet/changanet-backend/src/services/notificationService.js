@@ -1,51 +1,213 @@
-// src/services/notificationService.js
-// FUNCIÓN: Envía notificaciones automáticas a los usuarios y las almacena en la base de datos para su posterior consulta.
-// RELACIÓN PRD: REQ-19 (Notificaciones automáticas por actividad: nuevas solicitudes, mensajes, pagos, reseñas).
-// TARJETA BACKEND: Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real (parte de notificaciones) y Tarjeta 9: [Backend] Implementar API de Notificaciones Automáticas.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
+/**
+ * @archivo src/services/notificationService.js - Servicio de notificaciones
+ * @descripción Gestiona creación y operaciones de notificaciones (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar Servicio de Notificaciones
+ * @impacto Social: Sistema de notificaciones inclusivo y accesible
+ */
 
 const { PrismaClient } = require('@prisma/client');
-const { sendPushNotification } = require('../config/firebaseAdmin');
+const { sendPushNotification, sendMulticastPushNotification } = require('../config/firebaseAdmin');
+const { sendNotificationEmail } = require('./emailService');
+
 const prisma = new PrismaClient();
 
-// Función para enviar una notificación
-exports.sendNotification = async (userId, type, message) => {
+/**
+ * Tipos de notificaciones soportados
+ */
+const NOTIFICATION_TYPES = {
+  BIENVENIDA: 'bienvenida',
+  COTIZACION: 'cotizacion',
+  MENSAJE: 'mensaje',
+  TURNO_AGENDADO: 'turno_agendado',
+  RESENA_RECIBIDA: 'resena_recibida',
+  PAGO_LIBERADO: 'pago_liberado',
+  VERIFICACION_APROBADA: 'verificacion_aprobada'
+};
+
+/**
+ * Crear una nueva notificación
+ * @param {string} userId - ID del usuario destinatario
+ * @param {string} type - Tipo de notificación
+ * @param {string} message - Mensaje de la notificación
+ * @param {Object} metadata - Datos adicionales (opcional)
+ */
+exports.createNotification = async (userId, type, message, metadata = {}) => {
   try {
-    // Guardar la notificación en la base de datos (tabla 'notificaciones')
-    // Esto permite que el usuario pueda ver su historial de notificaciones incluso si no estaba conectado en el momento del evento.
-    await prisma.notificaciones.create({
-      data: {
-        usuario_id: userId, // ID del usuario que recibirá la notificación
-        tipo: type, // Tipo de notificación (ej: 'nuevo_mensaje', 'nueva_cotización', 'servicio_agendado')
-        mensaje: message, // Contenido textual de la notificación
-        esta_leido: false, // La notificación se marca como no leída por defecto
-      },
-    });
-
-    // VERIFICACIÓN: Enviar notificación push usando Firebase Cloud Messaging con VAPID key verificada
-    try {
-      // Obtener token FCM del usuario desde la base de datos
-      const user = await prisma.usuarios.findUnique({
-        where: { id: userId },
-        select: { fcm_token: true }
-      });
-
-      if (user && user.fcm_token) {
-        const pushResult = await sendPushNotification(user.fcm_token, `Changánet - ${type}`, message);
-        if (pushResult) {
-          console.log(`📬 Notificación push enviada para ${userId}`);
-        }
-      } else {
-        console.log(`⚠️ Usuario ${userId} no tiene token FCM registrado`);
-      }
-    } catch (pushError) {
-      console.error('Error al enviar notificación push:', pushError);
-      // No fallar la notificación general si falla el push
+    // Validar tipo de notificación
+    if (!Object.values(NOTIFICATION_TYPES).includes(type)) {
+      throw new Error(`Tipo de notificación inválido: ${type}`);
     }
 
-    console.log(`🔔 Notificación enviada a ${userId}: ${message}`);
+    // Crear notificación en base de datos
+    const notification = await prisma.notificaciones.create({
+      data: {
+        usuario_id: userId,
+        tipo: type,
+        mensaje: message,
+        esta_leido: false
+      }
+    });
+
+    console.log(`Notificación creada: ${type} para usuario ${userId}`);
+
+    // Enviar notificación push si el usuario tiene FCM token
+    try {
+      const user = await prisma.usuarios.findUnique({
+        where: { id: userId },
+        select: { fcm_token: true, email: true, nombre: true }
+      });
+
+      if (user?.fcm_token) {
+        await sendPushNotification(user.fcm_token, getNotificationTitle(type), message);
+      }
+
+      // Programar email de respaldo (24 horas)
+      setTimeout(async () => {
+        try {
+          await sendNotificationEmail(user.email, type, message, user.nombre);
+        } catch (emailError) {
+          console.error('Error enviando email de respaldo:', emailError);
+        }
+      }, 24 * 60 * 60 * 1000); // 24 horas
+
+    } catch (pushError) {
+      console.error('Error enviando notificación push:', pushError);
+    }
+
+    return notification;
   } catch (error) {
-    console.error('Error al enviar notificación:', error);
-    // En un entorno de producción, aquí se podría integrar un servicio de monitoreo (como Sentry) o reintentar el envío.
+    console.error('Error creando notificación:', error);
+    throw error;
   }
+};
+
+/**
+ * Obtener notificaciones de un usuario con filtros
+ * @param {string} userId - ID del usuario
+ * @param {string} filter - Filtro: 'all', 'unread', 'read'
+ */
+exports.getUserNotifications = async (userId, filter = 'all') => {
+  try {
+    let whereClause = { usuario_id: userId };
+
+    if (filter === 'unread') {
+      whereClause.esta_leido = false;
+    } else if (filter === 'read') {
+      whereClause.esta_leido = true;
+    }
+
+    const notifications = await prisma.notificaciones.findMany({
+      where: whereClause,
+      orderBy: { creado_en: 'desc' },
+      take: 50 // Limitar a 50 notificaciones más recientes
+    });
+
+    const unreadCount = await prisma.notificaciones.count({
+      where: {
+        usuario_id: userId,
+        esta_leido: false
+      }
+    });
+
+    return {
+      notifications,
+      unreadCount
+    };
+  } catch (error) {
+    console.error('Error obteniendo notificaciones:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtener una notificación por ID
+ * @param {string} notificationId - ID de la notificación
+ */
+exports.getNotificationById = async (notificationId) => {
+  try {
+    return await prisma.notificaciones.findUnique({
+      where: { id: notificationId }
+    });
+  } catch (error) {
+    console.error('Error obteniendo notificación:', error);
+    throw error;
+  }
+};
+
+/**
+ * Marcar notificación como leída
+ * @param {string} notificationId - ID de la notificación
+ */
+exports.markAsRead = async (notificationId) => {
+  try {
+    await prisma.notificaciones.update({
+      where: { id: notificationId },
+      data: { esta_leido: true }
+    });
+  } catch (error) {
+    console.error('Error marcando notificación como leída:', error);
+    throw error;
+  }
+};
+
+/**
+ * Marcar todas las notificaciones de un usuario como leídas
+ * @param {string} userId - ID del usuario
+ */
+exports.markAllAsRead = async (userId) => {
+  try {
+    await prisma.notificaciones.updateMany({
+      where: {
+        usuario_id: userId,
+        esta_leido: false
+      },
+      data: { esta_leido: true }
+    });
+  } catch (error) {
+    console.error('Error marcando todas las notificaciones como leídas:', error);
+    throw error;
+  }
+};
+
+/**
+ * Eliminar una notificación
+ * @param {string} notificationId - ID de la notificación
+ */
+exports.deleteNotification = async (notificationId) => {
+  try {
+    await prisma.notificaciones.delete({
+      where: { id: notificationId }
+    });
+  } catch (error) {
+    console.error('Error eliminando notificación:', error);
+    throw error;
+  }
+};
+
+/**
+ * Función auxiliar para obtener título de notificación según tipo
+ * @param {string} type - Tipo de notificación
+ */
+function getNotificationTitle(type) {
+  const titles = {
+    [NOTIFICATION_TYPES.BIENVENIDA]: '¡Bienvenido a Changánet!',
+    [NOTIFICATION_TYPES.COTIZACION]: 'Nueva solicitud de presupuesto',
+    [NOTIFICATION_TYPES.MENSAJE]: 'Nuevo mensaje',
+    [NOTIFICATION_TYPES.TURNO_AGENDADO]: 'Servicio agendado',
+    [NOTIFICATION_TYPES.RESENA_RECIBIDA]: 'Nueva reseña',
+    [NOTIFICATION_TYPES.PAGO_LIBERADO]: 'Pago liberado',
+    [NOTIFICATION_TYPES.VERIFICACION_APROBADA]: 'Verificación aprobada'
+  };
+  return titles[type] || 'Nueva notificación';
+}
+
+module.exports = {
+  createNotification: exports.createNotification,
+  getUserNotifications: exports.getUserNotifications,
+  getNotificationById: exports.getNotificationById,
+  markAsRead: exports.markAsRead,
+  markAllAsRead: exports.markAllAsRead,
+  deleteNotification: exports.deleteNotification,
+  NOTIFICATION_TYPES
 };

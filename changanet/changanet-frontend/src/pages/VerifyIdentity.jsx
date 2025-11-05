@@ -13,10 +13,9 @@ const VerifyIdentity = () => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/verification/submit', {
+      const response = await fetch('/api/verification/request', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({ url_documento: documentUrl })

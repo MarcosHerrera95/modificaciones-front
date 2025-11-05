@@ -73,7 +73,7 @@ const Hero = () => {
         {/* Call to action */}
         <div className="mt-16 animate-fade-in" style={{ animationDelay: '0.8s' }}>
           <p className="text-xl mb-6 opacity-90 font-medium">
-            ¿Eres profesional? Únete a nuestra red de impacto positivo
+          ¿Eres cliente o profesional? ¡Ambos son bienvenidos! Únete a nuestra red de impacto positivo.
           </p>
       <button
         onClick={() => setShowSignup(true)}
@@ -82,7 +82,7 @@ const Hero = () => {
         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
-            Regístrate como Profesional
+        Regístrate como cliente o profesional
           </button>
         </div>
       </div>

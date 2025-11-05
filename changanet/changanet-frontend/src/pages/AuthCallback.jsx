@@ -1,27 +1,54 @@
 // src/pages/AuthCallback.jsx
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   useEffect(() => {
-    // Si estamos en una ventana popup, redirigir al backend para iniciar OAuth
-    if (window.opener) {
-      // Redirigir al backend para iniciar el flujo de OAuth
-      window.location.href = '/api/auth/google';
-    } else {
-      // Si no estamos en popup, redirigir a home
-      navigate('/');
-    }
-  }, [navigate]);
+    const handleAuthCallback = async () => {
+      try {
+        // Obtener parámetros de la URL (desde el callback de Google)
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const userData = urlParams.get('user');
+
+        if (token && userData) {
+          // Parsear datos del usuario
+          const user = JSON.parse(decodeURIComponent(userData));
+
+          // Autenticar al usuario en el contexto
+          login(user, token);
+
+          // Redirigir al dashboard
+          navigate('/mi-cuenta');
+        } else {
+          // Si no hay parámetros, verificar si estamos en una ventana popup
+          if (window.opener) {
+            // Redirigir al backend para iniciar OAuth
+            window.location.href = '/api/auth/google';
+          } else {
+            // Si no hay parámetros y no estamos en popup, redirigir a home
+            navigate('/');
+          }
+        }
+      } catch (error) {
+        console.error('Error en callback de autenticación:', error);
+        navigate('/');
+      }
+    };
+
+    handleAuthCallback();
+  }, [navigate, login]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-turquoise-50 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-emerald-600 mx-auto mb-4"></div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Redirigiendo a Google...</h2>
-        <p className="text-gray-600">Por favor espera mientras te conectamos con Google.</p>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Procesando autenticación...</h2>
+        <p className="text-gray-600">Por favor espera mientras completamos tu inicio de sesión.</p>
       </div>
     </div>
   );

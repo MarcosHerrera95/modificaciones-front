@@ -30,14 +30,30 @@ exports.authenticateToken = (req, res, next) => {
 
   // Si no hay token, devolver error 401 (No autorizado)
   // Esto protege las rutas contra accesos no autenticados.
-  if (!token) return res.sendStatus(401);
+  if (!token) {
+    return res.status(401).json({
+      error: 'Token de autenticación requerido',
+      message: 'Debes iniciar sesión para acceder a este recurso'
+    });
+  }
 
   // Verificar el token usando la clave secreta (JWT_SECRET del .env)
   // La clave secreta debe coincidir con la usada al generar el token en el login.
-  jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] }, async (err, user) => {
     if (err) {
       console.error('Error al verificar token JWT:', err);
-      return res.sendStatus(403); // Si el token es inválido, expirado o mal formado, devolver 403 (Prohibido)
+      let errorMessage = 'Token inválido o expirado';
+
+      if (err.name === 'TokenExpiredError') {
+        errorMessage = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.';
+      } else if (err.name === 'JsonWebTokenError') {
+        errorMessage = 'Token de autenticación inválido.';
+      }
+
+      return res.status(403).json({
+        error: 'Token inválido',
+        message: errorMessage
+      });
     }
 
     console.log('Token verificado, user:', user);
@@ -70,7 +86,10 @@ exports.authenticateToken = (req, res, next) => {
       next(); // Pasar al siguiente middleware o controlador, permitiendo el acceso a la ruta solicitada
     } catch (dbError) {
       console.error('Error al obtener datos del usuario:', dbError);
-      return res.sendStatus(500); // Error interno del servidor
+      return res.status(500).json({
+        error: 'Error interno del servidor',
+        message: 'Error al verificar autenticación. Inténtalo de nuevo.'
+      });
     }
   });
 };

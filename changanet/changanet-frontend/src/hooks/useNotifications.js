@@ -1,139 +1,123 @@
-import { useState, useCallback } from 'react';
+/**
+ * @hook useNotifications - Hook personalizado para gestión de notificaciones
+ * @descripción Maneja estado y operaciones de notificaciones del usuario (REQ-19)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Hook de Notificaciones
+ * @impacto Social: Estado reactivo de notificaciones para usuarios con discapacidades
+ */
+
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import * as notificationService from '../services/notificationService';
 
 export const useNotifications = () => {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const fetchNotifications = useCallback(async () => {
+  // Función para cargar notificaciones
+  const loadNotifications = useCallback(async () => {
     if (!user) return;
 
-    try {
-      const response = await fetch('/api/notifications', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
+    setLoading(true);
+    setError(null);
 
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-        setUnreadCount(data.filter(n => !n.leida).length);
-      } else {
-        console.error('Error al obtener notificaciones');
-        // Fallback a datos mock para desarrollo
-        const mockNotifications = [
-          {
-            id: '1',
-            titulo: 'Bienvenido a Changánet',
-            mensaje: '¡Completa tu perfil para comenzar a recibir trabajos!',
-            fecha_creacion: new Date().toISOString(),
-            leida: false,
-            tipo: 'bienvenida'
-          },
-          {
-            id: '2',
-            titulo: 'Nueva cotización',
-            mensaje: 'Tienes una nueva solicitud de cotización pendiente.',
-            fecha_creacion: new Date(Date.now() - 86400000).toISOString(),
-            leida: true,
-            tipo: 'cotizacion'
-          }
-        ];
-        setNotifications(mockNotifications);
-        setUnreadCount(mockNotifications.filter(n => !n.leida).length);
-      }
-    } catch (error) {
-      console.error('Error al cargar notificaciones:', error);
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (err) {
+      console.error('Error cargando notificaciones:', err);
+      setError('Error al cargar notificaciones');
+    } finally {
+      setLoading(false);
     }
   }, [user]);
 
+  // Función para marcar notificación como leída
   const markAsRead = useCallback(async (notificationId) => {
-    if (!user) return;
-
     try {
-      const response = await fetch(`/api/notifications/${notificationId}/read`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
+      await notificationService.markAsRead(notificationId);
 
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => n.id === notificationId ? { ...n, leida: true } : n)
-        );
-        setUnreadCount(prev => Math.max(0, prev - 1));
-      } else {
-        console.error('Error al marcar notificación como leída');
-      }
-    } catch (error) {
-      console.error('Error al marcar notificación como leída:', error);
-    }
-  }, [user]);
+      // Actualizar estado local
+      setNotifications(prev =>
+        prev.map(notification =>
+          notification.id === notificationId
+            ? { ...notification, esta_leido: true }
+            : notification
+        )
+      );
 
-  const markAllAsRead = useCallback(async () => {
-    if (!user) return;
-
-    try {
-      const response = await fetch('/api/notifications/read-all', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-
-      if (response.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, leida: true })));
-        setUnreadCount(0);
-      } else {
-        console.error('Error al marcar todas las notificaciones como leídas');
-      }
-    } catch (error) {
-      console.error('Error al marcar todas las notificaciones como leídas:', error);
-    }
-  }, [user]);
-
-  const deleteNotification = useCallback(async (notificationId) => {
-    if (!user) return;
-
-    try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-
-      if (response.ok) {
-        const wasUnread = notifications.find(n => n.id === notificationId)?.leida === false;
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
-        if (wasUnread) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
-      } else {
-        console.error('Error al eliminar notificación');
-      }
-    } catch (error) {
-      console.error('Error al eliminar notificación:', error);
-    }
-  }, [user, notifications]);
-
-  const addNotification = useCallback((newNotification) => {
-    setNotifications(prev => [newNotification, ...prev]);
-    if (!newNotification.leida) {
-      setUnreadCount(prev => prev + 1);
+      // Actualizar contador
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Error marcando notificación como leída:', err);
+      setError('Error al marcar notificación como leída');
     }
   }, []);
+
+  // Función para marcar todas como leídas
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await notificationService.markAllAsRead();
+
+      // Actualizar estado local
+      setNotifications(prev =>
+        prev.map(notification => ({ ...notification, esta_leido: true }))
+      );
+
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Error marcando todas las notificaciones como leídas:', err);
+      setError('Error al marcar todas las notificaciones como leídas');
+    }
+  }, []);
+
+  // Función para eliminar notificación
+  const deleteNotification = useCallback(async (notificationId) => {
+    try {
+      await notificationService.deleteNotification(notificationId);
+
+      // Actualizar estado local
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+
+      // Actualizar contador si era no leída
+      if (deletedNotification && !deletedNotification.esta_leido) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('Error eliminando notificación:', err);
+      setError('Error al eliminar notificación');
+    }
+  }, [notifications]);
+
+  // Función para refrescar notificaciones
+  const refreshNotifications = useCallback(() => {
+    loadNotifications();
+  }, [loadNotifications]);
+
+  // Cargar notificaciones al montar o cambiar de usuario
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+    } else {
+      setNotifications([]);
+      setUnreadCount(0);
+    }
+  }, [user, loadNotifications]);
 
   return {
     notifications,
     unreadCount,
-    fetchNotifications,
+    loading,
+    error,
+    fetchNotifications: loadNotifications,
     markAsRead,
     markAllAsRead,
     deleteNotification,
-    addNotification
+    refreshNotifications
   };
 };

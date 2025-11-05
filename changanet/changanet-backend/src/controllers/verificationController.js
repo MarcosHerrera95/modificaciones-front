@@ -1,59 +1,186 @@
-// src/controllers/verificationController.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+/**
+ * Controlador para gestión de verificación de identidad.
+ * Maneja solicitudes de verificación, consultas de estado y operaciones administrativas.
+ */
 
-exports.submitVerification = async (req, res) => {
-  const { id: userId } = req.user;
-  const { url_documento } = req.body;
+const verificationService = require('../services/verificationService');
+const { storageService } = require('../services/storageService');
 
+/**
+ * Solicita verificación de identidad subiendo un documento
+ */
+async function requestVerification(req, res) {
   try {
-    const user = await prisma.usuarios.findUnique({ where: { id: userId } });
-    if (user.rol !== 'profesional') {
-      return res.status(403).json({ error: 'Solo los profesionales pueden solicitar verificación.' });
+    const userId = req.user.id;
+
+    // Verificar que se haya subido un archivo
+    if (!req.file) {
+      return res.status(400).json({
+        error: 'Se requiere subir un documento de identidad'
+      });
     }
 
-    const profile = await prisma.perfiles_profesionales.update({
-      where: { usuario_id: userId },
-      data: {
-        url_documento_verificacion: url_documento,
-        estado_verificación: 'pendiente'
-      }
-    });
+    const { buffer, originalname, mimetype } = req.file;
 
-    res.status(200).json({ message: 'Documento de verificación enviado. En revisión.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al enviar documento de verificación.' });
-  }
-};
-
-exports.reviewVerification = async (req, res) => {
-  const { professionalId, action } = req.body; // action: 'approve' o 'reject'
-
-  try {
-    let estado_verificación;
-    let verificado_en = null;
-
-    if (action === 'approve') {
-      estado_verificación = 'verificado';
-      verificado_en = new Date();
-    } else if (action === 'reject') {
-      estado_verificación = 'rechazado';
-    } else {
-      return res.status(400).json({ error: 'Acción inválida. Usa "approve" o "reject".' });
+    // Validar tipo de archivo
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+    if (!allowedTypes.includes(mimetype)) {
+      return res.status(400).json({
+        error: 'Tipo de archivo no permitido. Solo se aceptan imágenes (JPG, PNG) y PDF.'
+      });
     }
 
-    const profile = await prisma.perfiles_profesionales.update({
-      where: { usuario_id: professionalId },
+    // Validar tamaño del archivo (máximo 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (buffer.length > maxSize) {
+      return res.status(400).json({
+        error: 'El archivo es demasiado grande. Máximo 5MB permitido.'
+      });
+    }
+
+    const verificationRequest = await verificationService.createVerificationRequest(
+      userId,
+      buffer,
+      originalname,
+      mimetype
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Solicitud de verificación enviada correctamente',
       data: {
-        estado_verificación,
-        verificado_en
+        id: verificationRequest.id,
+        estado: verificationRequest.estado,
+        documento_url: verificationRequest.documento_url,
+        creado_en: verificationRequest.creado_en
       }
     });
-
-    res.status(200).json({ message: `Verificación ${action === 'approve' ? 'aprobada' : 'rechazada'} con éxito.` });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al revisar verificación.' });
+    console.error('Error en requestVerification:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
   }
+}
+
+/**
+ * Obtiene el estado de verificación del usuario actual
+ */
+async function getVerificationStatus(req, res) {
+  try {
+    const userId = req.user.id;
+    const status = await verificationService.getVerificationStatus(userId);
+
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('Error en getVerificationStatus:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+}
+
+/**
+ * Lista todas las solicitudes de verificación pendientes (solo administradores)
+ */
+async function getPendingVerifications(req, res) {
+  try {
+    // Verificar que el usuario sea administrador
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Acceso denegado. Se requieren permisos de administrador.'
+      });
+    }
+
+    const requests = await verificationService.getPendingVerifications();
+
+    res.json({
+      success: true,
+      data: requests
+    });
+  } catch (error) {
+    console.error('Error en getPendingVerifications:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+}
+
+/**
+ * Aprueba una solicitud de verificación (solo administradores)
+ */
+async function approveVerification(req, res) {
+  try {
+    // Verificar que el usuario sea administrador
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Acceso denegado. Se requieren permisos de administrador.'
+      });
+    }
+
+    const { id } = req.params;
+    const { comentario } = req.body;
+    const adminId = req.user.id;
+
+    const result = await verificationService.approveVerification(id, adminId, comentario);
+
+    res.json({
+      success: true,
+      message: 'Verificación aprobada correctamente',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error en approveVerification:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+}
+
+/**
+ * Rechaza una solicitud de verificación (solo administradores)
+ */
+async function rejectVerification(req, res) {
+  try {
+    // Verificar que el usuario sea administrador
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({
+        error: 'Acceso denegado. Se requieren permisos de administrador.'
+      });
+    }
+
+    const { id } = req.params;
+    const { comentario } = req.body;
+    const adminId = req.user.id;
+
+    if (!comentario || comentario.trim() === '') {
+      return res.status(400).json({
+        error: 'Se requiere un comentario explicando el rechazo'
+      });
+    }
+
+    const result = await verificationService.rejectVerification(id, adminId, comentario);
+
+    res.json({
+      success: true,
+      message: 'Verificación rechazada correctamente',
+      data: result
+    });
+  } catch (error) {
+    console.error('Error en rejectVerification:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+}
+
+module.exports = {
+  requestVerification,
+  getVerificationStatus,
+  getPendingVerifications,
+  approveVerification,
+  rejectVerification
 };

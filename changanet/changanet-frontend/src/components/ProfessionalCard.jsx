@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import QuoteRequestModal from './modals/QuoteRequestModal';
+import VerifiedBadge from './VerifiedBadge';
 
 const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
@@ -42,9 +43,14 @@ const ProfessionalCard = ({ professional }) => {
         <div className="flex-grow">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start mb-4">
             <div>
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300 mb-1">
-                {professional.usuario.nombre}
-              </h2>
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 group-hover:text-emerald-700 transition-colors duration-300">
+                  {professional.usuario.nombre}
+                </h2>
+                {professional.estado_verificacion === 'verificado' && (
+                  <VerifiedBadge size="sm" />
+                )}
+              </div>
               <p className="text-emerald-600 font-semibold text-xl mb-2">{professional.especialidad}</p>
               <p className="text-gray-600 flex items-center text-lg">
                 <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

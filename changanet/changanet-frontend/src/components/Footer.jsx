@@ -20,16 +20,43 @@ const Footer = () => {
     }
   };
 
-  const handleSubscribe = () => {
+  const handleSubscribe = async () => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (emailRegex.test(email)) {
-      setMessage('¡Suscripción exitosa! Te mantendremos informado.');
-      setMessageType('success');
-      setEmail('');
-    } else {
+    if (!emailRegex.test(email)) {
       setMessage('Por favor, ingresa un correo electrónico válido.');
       setMessageType('error');
+      setTimeout(() => {
+        setMessage('');
+        setMessageType('');
+      }, 5000);
+      return;
     }
+
+    try {
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setMessage('¡Suscripción exitosa! Te mantendremos informado.');
+        setMessageType('success');
+        setEmail('');
+      } else {
+        setMessage(data.error || 'Error al suscribirse. Inténtalo de nuevo.');
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Error al suscribirse:', error);
+      setMessage('Error de conexión. Inténtalo de nuevo.');
+      setMessageType('error');
+    }
+
     setTimeout(() => {
       setMessage('');
       setMessageType('');
@@ -80,12 +107,6 @@ const Footer = () => {
                 <button onClick={() => handleLinkClick('/profesionales')} className="text-gray-300 hover:text-emerald-400 transition-colors duration-200 flex items-center">
                   <span className="mr-2">🔧</span>
                   Servicios
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleLinkClick('/para-profesionales')} className="text-gray-300 hover:text-emerald-400 transition-colors duration-200 flex items-center">
-                  <span className="mr-2">👥</span>
-                  Para Profesionales
                 </button>
               </li>
               <li>

@@ -6,6 +6,7 @@ import SignupModal from './modals/SignupModal';
 import { useModal } from '../context/ModalContext';
 import NotificationBell from './NotificationBell';
 import useSmartNavigation from '../hooks/useSmartNavigation';
+import { HomeIcon, WrenchIcon } from '@heroicons/react/24/outline';
 
 const Header = () => {
   const smartNavigate = useSmartNavigation();
@@ -43,26 +44,14 @@ const Header = () => {
           <nav className="hidden md:flex space-x-8">
             <button onClick={() => smartNavigate('/')} type="button" aria-label="Ir a Inicio" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
               <span className="flex items-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
+                <HomeIcon className="w-6 h-6" />
                 <span>Inicio</span>
               </span>
             </button>
             <button onClick={() => smartNavigate('/profesionales')} type="button" aria-label="Ir a Servicios" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
               <span className="flex items-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m8 0V8a2 2 0 01-2 2H8a2 2 0 01-2-2V6m8 0H8m0 0V4" />
-                </svg>
+                <WrenchIcon className="w-6 h-6" />
                 <span>Servicios</span>
-              </span>
-            </button>
-            <button onClick={() => smartNavigate('/registro-profesional')} type="button" aria-label="Ir a Registro Profesional" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
-              <span className="flex items-center space-x-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span>Para Profesionales</span>
               </span>
             </button>
           </nav>
@@ -130,9 +119,7 @@ const Header = () => {
                 type="button"
                 aria-label="Ir a Inicio"
                 className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
+                <HomeIcon className="w-6 h-6" />
                 <span>Inicio</span>
               </button>
               <button
@@ -143,23 +130,8 @@ const Header = () => {
                 type="button"
                 aria-label="Ir a Servicios"
                 className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m8 0V8a2 2 0 01-2 2H8a2 2 0 01-2-2V6m8 0H8m0 0V4" />
-                </svg>
+                <WrenchIcon className="w-6 h-6" />
                 <span>Servicios</span>
-              </button>
-              <button
-                onClick={() => {
-                  smartNavigate('/registro-profesional');
-                  setIsMenuOpen(false);
-                }}
-                type="button"
-                aria-label="Ir a Registro Profesional"
-                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-                <span>Para Profesionales</span>
               </button>
             </nav>
           </div>

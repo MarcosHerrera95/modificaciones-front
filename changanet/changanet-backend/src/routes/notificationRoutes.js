@@ -1,36 +1,27 @@
+/**
+ * @archivo src/routes/notificationRoutes.js - Rutas de notificaciones
+ * @descripción Define endpoints REST para gestión de notificaciones (REQ-19, REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Backend] Implementar API de Notificaciones
+ * @impacto Social: Endpoints seguros para gestión de notificaciones accesibles
+ */
+
 const express = require('express');
-const router = express.Router();
+const notificationController = require('../controllers/notificationController');
 const { authenticateToken } = require('../middleware/authenticate');
-const {
-  getNotifications,
-  markAsRead,
-  markAllAsRead,
-  deleteNotification,
-  updateFCMToken,
-  testFCMNotification
-} = require('../controllers/notificationController');
 
-// Todas las rutas requieren autenticación
-router.use(authenticateToken);
+const router = express.Router();
 
-// Obtener notificaciones del usuario
-router.get('/', getNotifications);
+// GET /api/notifications - Obtener notificaciones del usuario
+router.get('/', authenticateToken, notificationController.getNotifications);
 
-// Marcar notificación específica como leída
-router.put('/:id/read', markAsRead);
+// PUT /api/notifications/:id/read - Marcar notificación como leída
+router.put('/:id/read', authenticateToken, notificationController.markAsRead);
 
-// Marcar todas las notificaciones como leídas
-router.put('/read-all', markAllAsRead);
+// PUT /api/notifications/read-all - Marcar todas como leídas
+router.put('/read-all', authenticateToken, notificationController.markAllAsRead);
 
-// Eliminar notificación
-router.delete('/:id', deleteNotification);
-
-// Actualizar token FCM del usuario
-router.put('/fcm-token', updateFCMToken);
-
-// Endpoint de prueba para FCM (solo en desarrollo)
-if (process.env.NODE_ENV !== 'production') {
-  router.post('/test-fcm', testFCMNotification);
-}
+// DELETE /api/notifications/:id - Eliminar notificación
+router.delete('/:id', authenticateToken, notificationController.deleteNotification);
 
 module.exports = router;

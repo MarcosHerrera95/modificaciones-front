@@ -3,12 +3,12 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
-  authDomain: "changanet-notifications.firebaseapp.com",
-  projectId: "changanet-notifications",
-  storageBucket: "changanet-notifications.appspot.com",
-  messagingSenderId: "926478045621",
-  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "changanet-notifications.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "changanet-notifications",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "changanet-notifications.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "926478045621",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:926478045621:web:6704a255057b65a6e549fc"
 };
 
 const app = initializeApp(firebaseConfig);

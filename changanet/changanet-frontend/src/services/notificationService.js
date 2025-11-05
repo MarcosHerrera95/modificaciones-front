@@ -1,85 +1,101 @@
-import { getToken, onMessage, getMessaging } from "firebase/messaging";
-import { initializeApp } from "firebase/app";
+/**
+ * @service notificationService - Servicio cliente para notificaciones
+ * @descripción Funciones para interactuar con la API de notificaciones (REQ-19)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Servicio de Notificaciones
+ * @impacto Social: API cliente accesible para gestión de notificaciones
+ */
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
-  authDomain: "changanet-notifications.firebaseapp.com",
-  projectId: "changanet-notifications",
-  storageBucket: "changanet-notifications.appspot.com",
-  messagingSenderId: "926478045621",
-  appId: "1:926478045621:web:6704a255057b65a6e549fc"
-};
+const API_BASE = '/api';
 
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+// Función para obtener notificaciones del usuario
+export const getNotifications = async () => {
+  const token = localStorage.getItem('changanet_token');
 
-// Solicitar permiso para notificaciones push
-export const requestNotificationPermission = async () => {
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      return { success: true };
-    } else {
-      return { success: false, error: 'Permiso denegado' };
+  if (!token) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const response = await fetch(`${API_BASE}/notifications`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
     }
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-// Obtener token de registro para notificaciones
-export const getMessagingToken = async () => {
-  try {
-    const token = await getToken(messaging, {
-      vapidKey: 'BBcq0rChqpfQkexHGzbzAcPNyEcXQ6pHimpgltESqpSgmMmiQEPK2yfv87taE80q794Q_wtvRc8Zlnal75mqpoo' // VAPID Key verificada y activa
-    });
-    return { success: true, token };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
-};
-
-// Escuchar mensajes en primer plano
-export const onMessageListener = () =>
-  new Promise((resolve) => {
-    onMessage(messaging, (payload) => {
-      resolve(payload);
-    });
   });
 
-// Mostrar notificación local
-export const showLocalNotification = (title, body, icon = '/favicon.ico') => {
-  if (Notification.permission === 'granted') {
-    new Notification(title, {
-      body,
-      icon,
-      tag: 'changanet-notification'
-    });
+  if (!response.ok) {
+    throw new Error('Error al obtener notificaciones');
   }
+
+  return await response.json();
 };
 
-// Enviar notificación push (simulada - en producción usarías Cloud Functions)
-export const sendPushNotification = async (token, title, body) => {
-  // Esta función simula el envío de notificaciones
-  // En producción, usarías Firebase Cloud Functions o tu servidor backend
-  console.log('Enviando notificación push:', { token, title, body });
-  return { success: true };
-};
+// Función para marcar notificación como leída
+export const markAsRead = async (notificationId) => {
+  const token = localStorage.getItem('changanet_token');
 
-// Configurar notificaciones automáticas
-export const setupAutomaticNotifications = () => {
-  // Configurar listeners para eventos que requieren notificaciones
-  // Por ejemplo: nuevos mensajes, nuevas cotizaciones, etc.
-  console.log('Configurando notificaciones automáticas');
-};
-
-// Limpiar token de notificaciones
-export const deleteMessagingToken = async () => {
-  try {
-    // Firebase no tiene una función directa para eliminar token
-    // En su lugar, puedes desuscribir del servicio
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+  if (!token) {
+    throw new Error('Usuario no autenticado');
   }
+
+  const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Error al marcar notificación como leída');
+  }
+
+  return await response.json();
+};
+
+// Función para marcar todas las notificaciones como leídas
+export const markAllAsRead = async () => {
+  const token = localStorage.getItem('changanet_token');
+
+  if (!token) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const response = await fetch(`${API_BASE}/notifications/read-all`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Error al marcar todas las notificaciones como leídas');
+  }
+
+  return await response.json();
+};
+
+// Función para eliminar una notificación
+export const deleteNotification = async (notificationId) => {
+  const token = localStorage.getItem('changanet_token');
+
+  if (!token) {
+    throw new Error('Usuario no autenticado');
+  }
+
+  const response = await fetch(`${API_BASE}/notifications/${notificationId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Error al eliminar notificación');
+  }
+
+  return await response.json();
 };

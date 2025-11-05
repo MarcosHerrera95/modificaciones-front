@@ -1,131 +1,295 @@
 /**
- * @archivo src/services/emailService.js - Servicio de envío de emails
- * @descripción Gestiona envío de emails transaccionales y de notificación (REQ-04, REQ-19)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
- * @impacto Social: Comunicación accesible vía email para confirmaciones y notificaciones
+ * Envía un mensaje de contacto al equipo de soporte
+ * @param {Object} contactData - Datos del formulario de contacto
+ * @param {string} contactData.name - Nombre del remitente
+ * @param {string} contactData.email - Email del remitente
+ * @param {string} contactData.subject - Asunto del mensaje
+ * @param {string} contactData.message - Contenido del mensaje
  */
+exports.sendContactMessage = async (contactData) => {
+  const { name, email, subject, message } = contactData;
 
-const sgMail = require('@sendgrid/mail');
-
-// Configurar SendGrid con validación
-const sendgridApiKey = process.env.SENDGRID_API_KEY;
-if (!sendgridApiKey) {
-  console.warn('⚠️ SENDGRID_API_KEY no configurado - emails no se enviarán');
-} else {
-  sgMail.setApiKey(sendgridApiKey);
-  console.log('✅ SendGrid configurado correctamente');
-}
-
-/**
- * @función sendEmail - Envío genérico de emails
- * @descripción Envía email personalizado usando SendGrid (REQ-04)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
- * @impacto Ambiental: Comunicación digital eficiente sin papel
- * @param {string} to - Email destinatario
- * @param {string} subject - Asunto del email
- * @param {string} html - Contenido HTML del email
- * @returns {Promise<Object>} Resultado del envío
- */
-exports.sendEmail = async (to, subject, html) => {
-   try {
-     if (!sendgridApiKey) {
-       console.warn('⚠️ SendGrid no configurado - email no enviado');
-       return null;
-     }
-
-     const msg = {
-       to,
-       from: process.env.FROM_EMAIL || 'noreply@changanet.com',
-       subject,
-       html
-     };
-
-     const info = await sgMail.send(msg);
-     console.log('📧 Email enviado con SendGrid:', info[0].statusCode);
-     return info;
-   } catch (error) {
-     console.error('❌ Error al enviar email con SendGrid:', error);
-     throw error;
-   }
- };
-
-/**
- * @función sendWelcomeEmail - Email de bienvenida
- * @descripción Envía email de bienvenida personalizado al nuevo usuario (REQ-04)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 2: [Dev] Implementar API y Frontend para Registro de Usuario
- * @impacto Social: Bienvenida inclusiva que facilita la adopción de la plataforma
- * @param {Object} user - Objeto usuario con email y nombre
- * @returns {Promise<void>}
- */
-exports.sendWelcomeEmail = async (user) => {
-  const subject = '¡Bienvenido a Changánet!';
-  const html = `
+  // Email para el equipo de soporte
+  const supportSubject = `Nuevo mensaje de contacto: ${subject}`;
+  const supportHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: #10B981; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">¡Bienvenido a Changánet!</h1>
+      <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Nuevo Mensaje de Contacto</h1>
       </div>
       <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-        <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${user.nombre}!</h2>
-        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
-          Gracias por unirte a Changánet. Estamos emocionados de tenerte con nosotros en esta plataforma que conecta a los mejores profesionales con quienes los necesitan.
+        <h2 style="color: #333; margin-bottom: 20px;">Detalles del mensaje:</h2>
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <p style="margin: 5px 0;"><strong>Nombre:</strong> ${name}</p>
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0;"><strong>Asunto:</strong> ${subject}</p>
+        </div>
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0; color: #333;">Mensaje:</h3>
+          <p style="color: #666; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+        </div>
+        <p style="color: #666; font-size: 12px; text-align: center;">
+          Este mensaje fue enviado desde el formulario de contacto de Changánet.
         </p>
+      </div>
+    </div>
+  `;
+
+  // Enviar email al soporte
+  await exports.sendEmail('soporte@changanet.com.ar', supportSubject, supportHtml);
+
+  // Opcional: Enviar email de confirmación al usuario
+  const confirmationSubject = 'Hemos recibido tu mensaje - Changánet';
+  const confirmationHtml = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Mensaje Recibido</h1>
+      </div>
+      <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${name}!</h2>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Gracias por contactarnos. Hemos recibido tu mensaje y nuestro equipo de soporte lo revisará en las próximas 24 horas.
+        </p>
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0; color: #333;">Resumen de tu consulta:</h3>
+          <p style="margin: 5px 0;"><strong>Asunto:</strong> ${subject}</p>
+          <p style="color: #666; line-height: 1.6; white-space: pre-wrap;">${message}</p>
+        </div>
         <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
-          Tu cuenta ha sido verificada automáticamente. Ya puedes comenzar a explorar servicios o publicar tu propio servicio si eres profesional.
+          Si tienes alguna información adicional o necesitas urgente, puedes contactarnos directamente al teléfono +54 9 11 1234-5678 durante nuestro horario de atención.
         </p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/"
-             style="background-color: #10B981; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            Explorar Servicios
+             style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Volver a Changánet
           </a>
         </div>
-        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
-          Si tienes alguna pregunta, no dudes en contactarnos respondiendo a este email.
-        </p>
-        <p style="color: #666; line-height: 1.6;">
-          Saludos,<br>
-          <strong>El equipo de Changánet</strong>
-        </p>
       </div>
     </div>
   `;
 
-  await exports.sendEmail(user.email, subject, html);
+  // Enviar confirmación al usuario (opcional, comentado por defecto)
+  // await exports.sendEmail(email, confirmationSubject, confirmationHtml);
 };
 
-exports.sendQuoteRequestEmail = async (professional, client, quoteRequest) => {
-  const subject = `Nueva solicitud de presupuesto de ${client.nombre}`;
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: #10B981; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">Nueva Solicitud de Presupuesto</h1>
-      </div>
-      <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-        <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${professional.nombre}!</h2>
-        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
-          Has recibido una nueva solicitud de presupuesto de <strong>${client.nombre}</strong>.
-        </p>
-        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="color: #333; margin-bottom: 10px;">Detalles del trabajo:</h3>
-          <p style="color: #666; margin-bottom: 10px;"><strong>Descripción:</strong> ${quoteRequest.descripción}</p>
-          <p style="color: #666; margin-bottom: 10px;"><strong>Zona:</strong> ${quoteRequest.zona_cobertura}</p>
-          <p style="color: #666;"><strong>Fecha:</strong> ${new Date().toLocaleDateString('es-ES')}</p>
-        </div>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
-             style="background-color: #10B981; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-            Ver detalles y responder
-          </a>
-        </div>
-        <p style="color: #666; line-height: 1.6;">
-          Saludos,<br>
-          <strong>El equipo de Changánet</strong>
-        </p>
-      </div>
-    </div>
-  `;
+exports.sendNotificationEmail = async (email, type, message, userName) => {
+  let subject;
+  let html;
 
-  await exports.sendEmail(professional.email, subject, html);
+  switch (type) {
+    case 'bienvenida':
+      subject = '¡Bienvenido a Changánet!';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">¡Bienvenido a Changánet!</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+              Gracias por registrarte en Changánet. Tu cuenta ha sido creada exitosamente.
+            </p>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Explorar Servicios
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'cotizacion':
+      subject = 'Nueva solicitud de presupuesto - Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Nueva Solicitud de Presupuesto</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver detalles y responder
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'mensaje':
+      subject = 'Nuevo mensaje en Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Nuevo Mensaje</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mensajes"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver mensaje
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'turno_agendado':
+      subject = 'Servicio agendado - Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Servicio Agendado</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver detalles del servicio
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'resena_recibida':
+      subject = 'Nueva reseña recibida - Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Nueva Reseña</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver reseña
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'pago_liberado':
+      subject = 'Pago liberado - Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Pago Liberado</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver detalles del pago
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    case 'verificacion_aprobada':
+      subject = 'Verificación aprobada - Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Verificación Aprobada</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/mi-cuenta"
+                 style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+                Ver mi perfil verificado
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+      break;
+
+    default:
+      subject = 'Notificación de Changánet';
+      html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+          <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Notificación</h1>
+          </div>
+          <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #333; margin-bottom: 20px;">¡Hola, ${userName}!</h2>
+            <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+              ${message}
+            </p>
+          </div>
+        </div>
+      `;
+  }
+
+  await exports.sendEmail(email, subject, html);
+};
+
+/**
+ * Envía un email genérico usando SendGrid
+ * @param {string} to - Email del destinatario
+ * @param {string} subject - Asunto del email
+ * @param {string} html - Contenido HTML del email
+ */
+exports.sendEmail = async (to, subject, html) => {
+  const sgMail = require('@sendgrid/mail');
+
+  // Configurar API key
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+  const msg = {
+    to: to,
+    from: {
+      email: process.env.FROM_EMAIL,
+      name: 'Changánet'
+    },
+    subject: subject,
+    html: html,
+  };
+
+  try {
+    await sgMail.send(msg);
+    console.log(`✅ Email enviado exitosamente a ${to}`);
+  } catch (error) {
+    console.error('❌ Error al enviar email:', error);
+    if (error.response) {
+      console.error('Detalles del error:', error.response.body);
+    }
+    throw error;
+  }
 };

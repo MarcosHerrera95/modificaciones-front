@@ -24,7 +24,7 @@ export const ChatProvider = ({ children }) => {
 
     if (user) {
       // Conectar Socket.IO
-      newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002', {
+      newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:30021', {
         auth: {
           token: localStorage.getItem('changanet_token') // Token correcto de Changánet
         },
@@ -132,7 +132,7 @@ export const ChatProvider = ({ children }) => {
 
   const loadMessageHistory = async (otherUserId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/messages?with=${otherUserId}`, {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:30021'}/api/messages?with=${otherUserId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }

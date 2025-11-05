@@ -8,6 +8,29 @@ const prisma = new PrismaClient();
 // Función para guardar mensaje en la base de datos
 const saveMessage = async (remitente_id, destinatario_id, contenido, url_imagen = null) => {
   try {
+    // Validar entrada
+    if (!remitente_id || !destinatario_id) {
+      throw new Error('IDs de remitente y destinatario son requeridos');
+    }
+
+    if (!contenido && !url_imagen) {
+      throw new Error('El mensaje debe tener contenido o imagen');
+    }
+
+    if (contenido && contenido.length > 1000) {
+      throw new Error('El mensaje no puede exceder 1000 caracteres');
+    }
+
+    // Verificar que ambos usuarios existen
+    const [remitente, destinatario] = await Promise.all([
+      prisma.usuarios.findUnique({ where: { id: remitente_id } }),
+      prisma.usuarios.findUnique({ where: { id: destinatario_id } })
+    ]);
+
+    if (!remitente || !destinatario) {
+      throw new Error('Usuario remitente o destinatario no encontrado');
+    }
+
     const message = await prisma.mensajes.create({
       data: {
         remitente_id,
@@ -27,6 +50,15 @@ const saveMessage = async (remitente_id, destinatario_id, contenido, url_imagen 
 // Función para obtener historial de mensajes entre dos usuarios
 const getMessageHistory = async (userId1, userId2, limit = 50) => {
   try {
+    // Validar parámetros
+    if (!userId1 || !userId2) {
+      throw new Error('IDs de usuario son requeridos');
+    }
+
+    if (limit < 1 || limit > 100) {
+      limit = 50; // Valor por defecto razonable
+    }
+
     const messages = await prisma.mensajes.findMany({
       where: {
         OR: [
@@ -36,6 +68,14 @@ const getMessageHistory = async (userId1, userId2, limit = 50) => {
       },
       orderBy: { creado_en: 'desc' },
       take: limit,
+      include: {
+        remitente: {
+          select: { id: true, nombre: true }
+        },
+        destinatario: {
+          select: { id: true, nombre: true }
+        }
+      }
     });
     return messages.reverse(); // Devolver en orden cronológico
   } catch (error) {
