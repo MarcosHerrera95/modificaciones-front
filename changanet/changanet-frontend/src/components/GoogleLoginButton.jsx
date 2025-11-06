@@ -34,23 +34,11 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
       // INTEGRACIÓN CON BACKEND: Usar flujo OAuth del backend (redirección)
       const result = await loginWithGoogle();
 
-<<<<<<< HEAD
       // Si el método retorna redirecting: true, la redirección ya está en proceso
       if (result.redirecting) {
         // La redirección al backend OAuth ya está ocurriendo
         // El callback se manejará en AuthCallback.jsx
         return;
-=======
-      if (result.success) {
-        // Guardar la autenticación con el token JWT del backend
-        login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
-
-        // Redirigir al dashboard
-        navigate('/');
-      } else {
-        console.error('Error en autenticación con Google:', result.error);
-        alert(`Error al iniciar sesión con Google: ${result.error}`);
->>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
       }
 
       // Este código ya no debería ejecutarse con el nuevo flujo
@@ -87,7 +75,7 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
            </svg>
            <span className="font-medium">{text}</span>
-         </div>
+        </div>
       )}
     </button>
   );

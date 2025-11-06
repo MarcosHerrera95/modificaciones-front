@@ -147,9 +147,6 @@ exports.deleteUser = async (uid) => {
   } catch (error) {
     console.error('Error al eliminar usuario:', error);
     throw error;
-  }
-<<<<<<< HEAD
-=======
 };
 
 /**
@@ -214,5 +211,4 @@ module.exports = {
   verifyIdToken: exports.verifyIdToken,
   createCustomToken: exports.createCustomToken,
   sendEmailVerification: exports.sendEmailVerification
->>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
 };

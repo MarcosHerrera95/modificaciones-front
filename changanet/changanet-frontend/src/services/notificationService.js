@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /**
  * @service notificationService - Servicio cliente para notificaciones
  * @descripción Funciones para interactuar con la API de notificaciones (REQ-19)
@@ -6,7 +5,6 @@
  * @tarjeta Tarjeta 4: [Frontend] Implementar Servicio de Notificaciones
  * @impacto Social: API cliente accesible para gestión de notificaciones
  */
-=======
 import { getToken, onMessage, getMessaging } from "firebase/messaging";
 import { initializeApp } from "firebase/app";
 
@@ -21,7 +19,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const messaging = getMessaging(app);
->>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
 
 const API_BASE = '/api';
 
