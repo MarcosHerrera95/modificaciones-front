@@ -23,8 +23,30 @@
 
 /* Focus indicators for keyboard navigation */
 *:focus {
-  outline: 2px solid #10B981;
+  outline: 3px solid #10B981;
   outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Ensure minimum touch target sizes */
+button, [role="button"], input[type="submit"], input[type="button"] {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Improve contrast for better accessibility */
+.text-gray-600 {
+  color: #374151;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .text-gray-300 {
+    color: #ffffff;
+  }
+  .bg-gray-800 {
+    background-color: #000000;
+  }
 }
 
 /* Skip link for screen readers */

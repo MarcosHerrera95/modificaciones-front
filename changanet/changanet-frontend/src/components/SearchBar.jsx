@@ -23,13 +23,26 @@ const SearchBar = () => {
         </div>
         <input
           type="text"
-          placeholder="¿Qué necesitas? (Plomero, Electricista...)"
+          placeholder="Ejemplos: Plomero, Electricista, Pintor, Jardinería..."
           value={service}
           onChange={(e) => setService(e.target.value)}
-          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-400 shadow-lg hover:shadow-xl text-lg"
+          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg"
           required
-          aria-label="Buscar servicio"
+          aria-label="Buscar servicio profesional"
+          list="services-list"
         />
+        <datalist id="services-list">
+          <option value="Plomero" />
+          <option value="Electricista" />
+          <option value="Pintor" />
+          <option value="Jardinero" />
+          <option value="Carpintero" />
+          <option value="Mecánico" />
+          <option value="Técnico en aire acondicionado" />
+          <option value="Cerrajero" />
+          <option value="Limpieza del hogar" />
+          <option value="Mudanzas" />
+        </datalist>
       </div>
 
       <div className="flex-1 relative group">
@@ -41,13 +54,26 @@ const SearchBar = () => {
         </div>
         <input
           type="text"
-          placeholder="¿Dónde? (Buenos Aires, CABA...)"
+          placeholder="Ejemplos: Buenos Aires, Palermo, CABA, La Plata..."
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-400 shadow-lg hover:shadow-xl text-lg"
+          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg"
           required
-          aria-label="Buscar ubicación"
+          aria-label="Buscar ubicación geográfica"
+          list="locations-list"
         />
+        <datalist id="locations-list">
+          <option value="Buenos Aires" />
+          <option value="CABA" />
+          <option value="Palermo" />
+          <option value="Recoleta" />
+          <option value="Belgrano" />
+          <option value="La Plata" />
+          <option value="Mar del Plata" />
+          <option value="Córdoba" />
+          <option value="Rosario" />
+          <option value="Mendoza" />
+        </datalist>
       </div>
 
       <button

@@ -1,6 +1,7 @@
 // src/routes/metricsRoutes.js - Rutas para exponer métricas de Prometheus
 const express = require('express');
 const { getMetrics } = require('../services/metricsService');
+const queryMonitor = require('../services/queryMonitorService');
 
 const router = express.Router();
 
@@ -37,5 +38,12 @@ router.get('/metrics/health', (req, res) => {
     message: 'Servicio de métricas funcionando correctamente'
   });
 });
+
+/**
+ * GET /api/metrics/queries
+ * Endpoint para obtener métricas de queries de base de datos
+ * Incluye queries lentas y estadísticas de rendimiento
+ */
+router.get('/metrics/queries', queryMonitor.getMetricsEndpoint());
 
 module.exports = router;

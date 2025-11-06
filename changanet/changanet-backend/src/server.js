@@ -13,6 +13,10 @@ require('dotenv').config();
 const { initializeSentry, sentryRequestHandler, sentryTracingHandler, sentryErrorHandler } = require('./services/sentryService');
 initializeSentry();
 
+// Inicializar servicios de monitoreo
+const queryMonitor = require('./services/queryMonitorService');
+const backupService = require('./services/backupService');
+
 /**
  * Inicializa el sistema de métricas de Prometheus para monitoreo de rendimiento.
  */
@@ -84,13 +88,84 @@ const yaml = require('js-yaml');
 const fs = require('fs');
 const swaggerDocument = yaml.load(fs.readFileSync('./src/docs/swagger.yaml', 'utf8'));
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
+});
+
+// Configurar monitoreo de queries en desarrollo/producción
+if (process.env.NODE_ENV !== 'test') {
+  console.log('📊 Monitoreo de queries activado');
+}
+
+// Inicializar servicio de backup
+backupService.initialize().then(success => {
+  if (success) {
+    console.log('💾 Servicio de backup inicializado');
+  } else {
+    console.warn('⚠️  Servicio de backup no pudo inicializarse');
+  }
+});
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
+    origin: ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://localhost:5175"],
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+/**
+ * Middleware de autenticación para Socket.IO
+ * Verifica el token JWT enviado en el handshake de conexión
+ */
+io.use(async (socket, next) => {
+  const token = socket.handshake.auth.token;
+
+  if (!token) {
+    console.warn('Socket.IO: No token provided - allowing connection for development');
+    // Para desarrollo, permitir conexión sin token
+    socket.user = null;
+    return next();
+  }
+
+  try {
+    // Verificar el token usando jwt.verify
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
+
+    // Obtener datos del usuario desde la base de datos
+    const userData = await prisma.usuarios.findUnique({
+      where: { id: decoded.userId || decoded.id },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        rol: true,
+        esta_verificado: true
+      }
+    });
+
+    if (!userData) {
+      console.warn('Socket.IO: User not found in database - allowing connection for development');
+      socket.user = null;
+      return next();
+    }
+
+    // Adjuntar datos del usuario al socket
+    socket.user = {
+      ...decoded,
+      ...userData,
+      role: userData.rol
+    };
+
+    console.log('Socket.IO: User authenticated:', socket.user.nombre);
+    next();
+  } catch (error) {
+    console.warn('Socket.IO: Authentication error:', error.message, '- allowing connection for development');
+    // Para desarrollo, permitir conexión incluso con token inválido
+    socket.user = null;
+    next();
   }
 });
 
@@ -196,9 +271,11 @@ app.get('/', (req, res) => {
  */
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-// Rutas de métricas (antes de otras rutas para evitar interferencias)
+// Rutas de métricas y backup (antes de otras rutas para evitar interferencias)
 const metricsRoutes = require('./routes/metricsRoutes');
+const backupRoutes = backupService.getBackupRoutes();
 app.use('/api', metricsRoutes);
+app.use('/api', backupRoutes);
 
 /**
  * Configuración de rutas de la API REST.

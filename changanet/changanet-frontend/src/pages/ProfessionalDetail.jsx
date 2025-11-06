@@ -1,13 +1,16 @@
 // src/pages/ProfessionalDetail.jsx - Página de Detalle del Profesional con Chat en Tiempo Real
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChatWidget from '../components/ChatWidget';
+import QuoteRequestForm from '../components/QuoteRequestForm';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
   const { id: professionalId } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('about');
+  const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [profile, setProfile] = useState({
     nombre: '',
     email: '',
@@ -149,6 +152,27 @@ const ProfessionalDetail = () => {
     setGallery(prev => [...prev, newPhoto]);
   };
 
+  const handleRequestQuote = () => {
+    if (!user) {
+      navigate('/registro-cliente');
+      return;
+    }
+    setShowQuoteForm(true);
+  };
+
+  const handleScheduleService = () => {
+    if (!user) {
+      navigate('/registro-cliente');
+      return;
+    }
+    // Navigate to scheduling page or show scheduling modal
+    alert('Funcionalidad de agendamiento próximamente disponible');
+  };
+
+  const handleCloseQuoteForm = () => {
+    setShowQuoteForm(false);
+  };
+
   const renderStars = (rating) => {
     return '★'.repeat(Math.round(rating || 0)).padEnd(5, '☆');
   };
@@ -217,11 +241,19 @@ const ProfessionalDetail = () => {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <button className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-3 rounded-2xl hover:from-amber-600 hover:to-orange-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center">
+                <button
+                  onClick={handleRequestQuote}
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-3 rounded-2xl hover:from-amber-600 hover:to-orange-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
+                  aria-label="Solicitar presupuesto al profesional"
+                >
                   <span className="mr-2">💰</span>
                   Solicitar Presupuesto
                 </button>
-                <button className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center">
+                <button
+                  onClick={handleScheduleService}
+                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
+                  aria-label="Agendar servicio con el profesional"
+                >
                   <span className="mr-2">📅</span>
                   Agendar Servicio
                 </button>
@@ -517,6 +549,31 @@ const ProfessionalDetail = () => {
             )}
           </div>
         </div>
+
+        {/* Quote Request Modal */}
+        {showQuoteForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    Solicitar Presupuesto a {profile.nombre}
+                  </h2>
+                  <button
+                    onClick={handleCloseQuoteForm}
+                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                    aria-label="Cerrar modal"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <div className="p-6">
+                <QuoteRequestForm onClose={handleCloseQuoteForm} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

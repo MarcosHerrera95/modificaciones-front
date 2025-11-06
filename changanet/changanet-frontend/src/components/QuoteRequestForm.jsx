@@ -17,7 +17,7 @@ import { useNavigate } from 'react-router-dom';
  * @impacto Económico: Interfaz intuitiva para conectar demanda y oferta de servicios
  * @returns {JSX.Element} Formulario de solicitud de presupuesto
  */
-const QuoteRequestForm = () => {
+const QuoteRequestForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
     descripción: '',
     zona_cobertura: ''
@@ -82,6 +82,10 @@ const QuoteRequestForm = () => {
           }
         });
 
+        // Cerrar modal y mostrar mensaje de éxito
+        if (onClose) {
+          onClose();
+        }
         alert('Solicitud de cotización enviada. Recibirás respuestas pronto.');
         navigate('/mi-cuenta/presupuestos');
       } else {

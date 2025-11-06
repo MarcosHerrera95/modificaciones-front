@@ -90,6 +90,7 @@ model perfiles_profesionales {
   @@index([especialidad])
   @@index([zona_cobertura])
   @@index([calificacion_promedio])
+  @@index([especialidad, zona_cobertura, calificacion_promedio])
 }
 
 // MODELO: servicios
@@ -113,6 +114,10 @@ model servicios {
   @@index([cliente_id])
   @@index([profesional_id])
   @@index([estado])
+  @@index([creado_en])
+  @@index([cliente_id, estado])
+  @@index([profesional_id, estado])
+  @@index([estado, creado_en])
 }
 
 model resenas {
@@ -144,6 +149,11 @@ model mensajes {
   url_imagen     String?
   esta_leido     Boolean  @default(false)
   creado_en      DateTime @default(now())
+
+  @@index([remitente_id, creado_en])
+  @@index([destinatario_id, creado_en])
+  @@index([remitente_id, destinatario_id, creado_en])
+  @@index([creado_en])
 }
 
 // MODELO: disponibilidad
@@ -188,6 +198,10 @@ model cotizaciones {
   creado_en      DateTime @default(now())
   aceptado_en    DateTime?
   rechazado_en   DateTime?
+
+  @@index([cliente_id, estado])
+  @@index([profesional_id, estado])
+  @@index([estado, creado_en])
 }
 
 // MODELO: verification_requests

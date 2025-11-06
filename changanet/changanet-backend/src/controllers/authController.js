@@ -134,7 +134,7 @@ exports.registerProfessional = async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '24h' }
+      { expiresIn: '24h', algorithm: 'HS256' }
     );
 
     res.status(201).json({ message: 'Profesional registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol }, profile });
