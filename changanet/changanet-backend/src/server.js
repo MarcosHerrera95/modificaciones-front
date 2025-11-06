@@ -422,8 +422,8 @@ app.use(sentryErrorHandler());
 
 // Manejo de errores global (después de Sentry) - Manejo de errores no capturados (REQ-40)
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Algo salió mal!' });
+  console.error('Error global:', err.stack);
+  res.status(500).json({ error: 'Algo salió mal!', details: err.message });
 });
 
 // Ruta raíz para compatibilidad con pruebas - ANTES de las rutas de API

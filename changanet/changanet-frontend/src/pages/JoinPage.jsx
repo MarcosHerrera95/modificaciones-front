@@ -15,6 +15,7 @@ const JoinPage = () => {
   const navigate = useNavigate();
 
   const handleRoleSelect = (role) => {
+    console.log('Role selected:', role);
     setSelectedRole(role);
     setError('');
   };
@@ -45,6 +46,7 @@ const JoinPage = () => {
     }
 
     try {
+      console.log('Submitting registration with role:', selectedRole);
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,18 +58,23 @@ const JoinPage = () => {
         })
       });
       const data = await response.json();
+      console.log('Registration response:', response.status, data);
 
       if (response.ok) {
         // Login automático después del registro exitoso
         if (data.token && data.user) {
+          console.log('Logging in user:', data.user);
           login(data.user, data.token);
         }
+        console.log('Selected role:', selectedRole);
+        console.log('Navigation path:', selectedRole === 'cliente' ? '/mi-cuenta' : '/dashboard-profesional');
         navigate(selectedRole === 'cliente' ? '/mi-cuenta' : '/dashboard-profesional');
       } else {
+        console.error('Registration failed:', data.error);
         setError(data.error || 'Error al crear la cuenta');
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Network error:', error);
       setError('Error de conexión. Inténtalo de nuevo.');
     } finally {
       setLoading(false);
@@ -87,7 +94,7 @@ const JoinPage = () => {
         {!selectedRole ? (
           <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
             {/* Cliente Section */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 cursor-pointer" onClick={() => handleRoleSelect('cliente')}>
+            <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 cursor-pointer" onClick={() => handleRoleSelect('cliente')} key="cliente">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -98,13 +105,14 @@ const JoinPage = () => {
               <button
                 className="inline-block bg-white text-emerald-600 px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-emerald-50 hover:shadow-xl hover:scale-105 transition-all duration-300 w-full text-center min-h-[44px] touch-manipulation"
                 aria-label="Registrarme como cliente"
+                onClick={() => handleRoleSelect('cliente')}
               >
                 Registrarme como Cliente
               </button>
             </div>
 
             {/* Profesional Section */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 cursor-pointer" onClick={() => handleRoleSelect('profesional')}>
+            <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 border border-white/20 hover:bg-white/20 transition-all duration-300 cursor-pointer" onClick={() => handleRoleSelect('profesional')} key="profesional">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -116,6 +124,7 @@ const JoinPage = () => {
               <button
                 className="inline-block border-2 border-white text-white px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-white hover:text-emerald-600 hover:shadow-xl hover:scale-105 transition-all duration-300 w-full text-center min-h-[44px] touch-manipulation"
                 aria-label="Registrarme como profesional"
+                onClick={() => handleRoleSelect('profesional')}
               >
                 Convertirse en Profesional
               </button>

@@ -24,37 +24,55 @@ const ProfessionalDashboard = () => {
 
   // Verificar permisos
   useEffect(() => {
-    if (!user || user.role !== 'profesional') {
+    console.log('ProfessionalDashboard - User:', user);
+    console.log('ProfessionalDashboard - User role:', user?.role || user?.rol);
+    if (!user || (user.role !== 'profesional' && user.rol !== 'profesional')) {
+      console.log('ProfessionalDashboard - Redirecting because user is not profesional');
       navigate('/');
       return;
     }
-    loadDashboardData();
+    // Don't load data immediately, wait for user to be fully set
+    if (user && (user.role === 'profesional' || user.rol === 'profesional')) {
+      loadDashboardData();
+    }
   }, [user, navigate]);
 
   const loadDashboardData = async () => {
     try {
+      console.log('Loading dashboard data for user:', user);
+      const token = sessionStorage.getItem('changanet_token');
+      console.log('Token from sessionStorage:', token ? 'present' : 'missing');
+
       // Cargar estadísticas
       const statsResponse = await fetch('/api/professionals/stats', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
+      console.log('Stats response:', statsResponse.status);
 
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
+        console.log('Stats data:', statsData);
         setStats(statsData.data);
+      } else {
+        console.error('Failed to load stats:', statsResponse.status);
       }
 
       // Cargar actividad reciente
       const activityResponse = await fetch('/api/professionals/activity', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
+      console.log('Activity response:', activityResponse.status);
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
+        console.log('Activity data:', activityData);
         setRecentActivity(activityData.data);
+      } else {
+        console.error('Failed to load activity:', activityResponse.status);
       }
     } catch (error) {
       console.error('Error cargando datos del dashboard:', error);
@@ -243,7 +261,8 @@ const ProfessionalDashboard = () => {
     }
   };
 
-  if (!user || user.role !== 'profesional') {
+  if (!user || (user.role !== 'profesional' && user.rol !== 'profesional')) {
+    console.log('ProfessionalDashboard - Not rendering because user is not profesional:', user);
     return null; // No renderizar si no es profesional
   }
 

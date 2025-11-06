@@ -15,7 +15,7 @@ export default defineConfig({
   },
   server: {
     host: 'localhost',
-    port: 5173,
+    port: 5175,
     headers: {
       // Headers de desarrollo para facilitar OAuth y evitar problemas de CSP
       // NOTA: En producción, estos headers deben ser más restrictivos
@@ -29,7 +29,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:30021',
+        target: 'http://localhost:3002',
         changeOrigin: true,
         secure: false,
       },

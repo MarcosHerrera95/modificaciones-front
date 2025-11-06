@@ -36,6 +36,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData, token) => {
+    console.log('Login called with userData:', userData);
+    console.log('User role:', userData.rol || userData.role);
     sessionStorage.setItem('changanet_token', token);
     sessionStorage.setItem('changanet_user', JSON.stringify(userData));
     setUser(userData);
@@ -66,7 +68,7 @@ export const AuthProvider = ({ children }) => {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, role })
+        body: JSON.stringify({ name, email, password, rol: role })
       });
       const data = await response.json();
 
