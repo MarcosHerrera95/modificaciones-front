@@ -3,8 +3,37 @@
  * @descripción Inicializa FCM para recibir notificaciones push
  * @sprint Sprint 2 – Notificaciones y Comunicación
  * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+<<<<<<< HEAD
  * @impacto Social: Notificaciones push en tiempo real para usuarios
  * @returns {Promise<Object>} Resultado de la inicialización
+=======
+ * @impacto Social: Comunicación accesible en tiempo real para usuarios con discapacidades
+ */
+
+import { getMessaging, getToken, onMessage, deleteToken } from "firebase/messaging";
+import { getMessaging as getMessagingInstance } from "firebase/messaging";
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: "changanet-notifications.firebaseapp.com",
+  projectId: "changanet-notifications",
+  storageBucket: "changanet-notifications.appspot.com",
+  messagingSenderId: "926478045621",
+  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+};
+
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
+
+/**
+ * @función initializeFCM - Inicialización de Firebase Cloud Messaging
+ * @descripción Solicita permisos y obtiene token FCM para notificaciones push (REQ-20)
+ * @sprint Sprint 2 – Notificaciones y Comunicación
+ * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
+ * @impacto Social: Notificaciones que no requieren visión perfecta para ser efectivas
+ * @returns {Promise<Object>} Resultado con token o error
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
  */
 export const initializeFCM = async () => {
   try {
@@ -32,7 +61,22 @@ export const initializeFCM = async () => {
     // Por ahora, simulamos la inicialización exitosa
     console.log('FCM inicializado correctamente (simulado)');
 
+<<<<<<< HEAD
     return { success: true };
+=======
+    // Actualizar token en el backend si hay usuario autenticado
+    const userToken = localStorage.getItem('changanet_token');
+    if (userToken && token) {
+      try {
+        const { updateUserFCMToken } = await import('./authService');
+        await updateUserFCMToken(token, null); // El backend obtiene el userId del token JWT
+      } catch (updateError) {
+        console.error('Error updating FCM token in backend:', updateError);
+      }
+    }
+
+    return { success: true, token };
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
   } catch (error) {
     console.error('Error inicializando FCM:', error);
     return { success: false, error: error.message };

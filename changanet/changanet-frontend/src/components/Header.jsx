@@ -54,6 +54,17 @@ const Header = () => {
                 <span>Servicios</span>
               </span>
             </button>
+<<<<<<< HEAD
+=======
+            <button onClick={() => smartNavigate('/registro-profesional')} type="button" aria-label="Ir a Registro Profesional" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md">
+              <span className="flex items-center space-x-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span>Para Profesionales</span>
+              </span>
+            </button>
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
           </nav>
 
           <div className="flex items-center space-x-3">
@@ -133,6 +144,22 @@ const Header = () => {
                 <WrenchIcon className="w-6 h-6" />
                 <span>Servicios</span>
               </button>
+<<<<<<< HEAD
+=======
+              <button
+                onClick={() => {
+                  smartNavigate('/registro-profesional');
+                  setIsMenuOpen(false);
+                }}
+                type="button"
+                aria-label="Ir a Registro Profesional"
+                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span>Para Profesionales</span>
+              </button>
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
             </nav>
           </div>
         )}

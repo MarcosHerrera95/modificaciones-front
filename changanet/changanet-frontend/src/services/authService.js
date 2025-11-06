@@ -186,11 +186,16 @@ export const loginWithEmail = async (email, password) => {
 
 /**
  * Inicia sesión usando autenticación OAuth de Google.
+<<<<<<< HEAD
  * Usa el flujo de redirección del backend para evitar problemas de COOP y popups.
+=======
+ * Usa Firebase Authentication directamente para simplificar el flujo.
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
  * Retorna el resultado con el usuario autenticado.
  */
 export const loginWithGoogle = async () => {
   try {
+<<<<<<< HEAD
     // En lugar de usar Firebase directamente, redirigir al backend OAuth
     // Esto evita problemas de COOP y popups bloqueados
     window.location.href = '/api/auth/google';
@@ -198,6 +203,68 @@ export const loginWithGoogle = async () => {
   } catch (error) {
     console.error('❌ Error en loginWithGoogle:', error);
     return { success: false, error: 'Error al iniciar sesión con Google' };
+=======
+    // Verificar que Firebase Auth esté disponible
+    if (!auth) {
+      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
+    }
+
+    const provider = new GoogleAuthProvider();
+
+    // Configurar el provider
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+
+    // Usar popup en lugar del flujo del backend para simplificar
+    const result = await signInWithPopup(auth, provider);
+
+    return {
+      success: true,
+      user: result.user,
+      message: 'Inicio de sesión con Google exitoso'
+    };
+  } catch (error) {
+    console.error('❌ Error en loginWithGoogle:', error);
+
+    // Manejar errores específicos de Firebase
+    let errorMessage = 'Error al iniciar sesión con Google';
+
+    // Si es error de configuración, proporcionar información específica
+    if (error.code === 'auth/configuration-not-found') {
+      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
+      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
+    } else {
+      // Otros errores de Firebase
+      switch (error.code) {
+        case 'auth/popup-closed-by-user':
+          errorMessage = 'Ventana de autenticación cerrada por el usuario.';
+          break;
+        case 'auth/popup-blocked':
+          errorMessage = 'Popup bloqueado por el navegador. Permite popups para este sitio.';
+          break;
+        case 'auth/cancelled-popup-request':
+          errorMessage = 'Solicitud de autenticación cancelada.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'Inicio de sesión con Google deshabilitado. Contacta al administrador.';
+          break;
+        case 'auth/unauthorized-domain':
+          errorMessage = 'Dominio no autorizado para autenticación con Google.';
+          break;
+        default:
+          errorMessage = error.message || errorMessage;
+      }
+    }
+
+    return { success: false, error: errorMessage };
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
   }
 };
 

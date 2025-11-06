@@ -34,11 +34,23 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
       // INTEGRACIÓN CON BACKEND: Usar flujo OAuth del backend (redirección)
       const result = await loginWithGoogle();
 
+<<<<<<< HEAD
       // Si el método retorna redirecting: true, la redirección ya está en proceso
       if (result.redirecting) {
         // La redirección al backend OAuth ya está ocurriendo
         // El callback se manejará en AuthCallback.jsx
         return;
+=======
+      if (result.success) {
+        // Guardar la autenticación con el token JWT del backend
+        login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
+
+        // Redirigir al dashboard
+        navigate('/');
+      } else {
+        console.error('Error en autenticación con Google:', result.error);
+        alert(`Error al iniciar sesión con Google: ${result.error}`);
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
       }
 
       // Este código ya no debería ejecutarse con el nuevo flujo

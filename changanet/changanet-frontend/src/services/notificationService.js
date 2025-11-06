@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /**
  * @service notificationService - Servicio cliente para notificaciones
  * @descripción Funciones para interactuar con la API de notificaciones (REQ-19)
@@ -5,6 +6,22 @@
  * @tarjeta Tarjeta 4: [Frontend] Implementar Servicio de Notificaciones
  * @impacto Social: API cliente accesible para gestión de notificaciones
  */
+=======
+import { getToken, onMessage, getMessaging } from "firebase/messaging";
+import { initializeApp } from "firebase/app";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
+  authDomain: "changanet-notifications.firebaseapp.com",
+  projectId: "changanet-notifications",
+  storageBucket: "changanet-notifications.appspot.com",
+  messagingSenderId: "926478045621",
+  appId: "1:926478045621:web:6704a255057b65a6e549fc"
+};
+
+const app = initializeApp(firebaseConfig);
+const messaging = getMessaging(app);
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
 
 const API_BASE = '/api';
 

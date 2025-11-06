@@ -24,7 +24,11 @@ export const ChatProvider = ({ children }) => {
 
     if (user) {
       // Conectar Socket.IO
+<<<<<<< HEAD
       newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:30021', {
+=======
+      newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002', {
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
         auth: {
           token: localStorage.getItem('changanet_token') // Token correcto de Changánet
         },
@@ -132,7 +136,11 @@ export const ChatProvider = ({ children }) => {
 
   const loadMessageHistory = async (otherUserId) => {
     try {
+<<<<<<< HEAD
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:30021'}/api/messages?with=${otherUserId}`, {
+=======
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/messages?with=${otherUserId}`, {
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }

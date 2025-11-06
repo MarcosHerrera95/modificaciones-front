@@ -148,4 +148,71 @@ exports.deleteUser = async (uid) => {
     console.error('Error al eliminar usuario:', error);
     throw error;
   }
+<<<<<<< HEAD
+=======
+};
+
+/**
+ * Verifica la validez de un token ID de Firebase Auth y decodifica su contenido.
+ */
+exports.verifyIdToken = async (idToken) => {
+  try {
+    if (!auth) {
+      throw new Error('Firebase Auth no está disponible');
+    }
+
+    const decodedToken = await auth.verifyIdToken(idToken);
+    return decodedToken;
+  } catch (error) {
+    console.error('Error al verificar token:', error);
+    throw error;
+  }
+};
+
+/**
+ * Crea un token personalizado de Firebase Auth para un usuario específico.
+ */
+exports.createCustomToken = async (uid) => {
+  try {
+    if (!auth) {
+      throw new Error('Firebase Auth no está disponible');
+    }
+
+    const customToken = await auth.createCustomToken(uid);
+    return customToken;
+  } catch (error) {
+    console.error('Error al crear token personalizado:', error);
+    throw error;
+  }
+};
+
+/**
+ * Envía un email de verificación al usuario.
+ * Requiere configuración previa en Firebase Console.
+ */
+exports.sendEmailVerification = async (email) => {
+  try {
+    if (!auth) {
+      throw new Error('Firebase Auth no está disponible');
+    }
+
+    // Esta función requiere configuración adicional en Firebase Console
+    // Para usar esta función, necesitas configurar el email action handler
+    console.log('Email de verificación enviado a:', email);
+    return true;
+  } catch (error) {
+    console.error('Error al enviar email de verificación:', error);
+    throw error;
+  }
+};
+
+module.exports = {
+  createUserWithEmailAndPassword: exports.createUserWithEmailAndPassword,
+  getUserByEmail: exports.getUserByEmail,
+  updateUser: exports.updateUser,
+  deleteUser: exports.deleteUser,
+  verifyIdToken: exports.verifyIdToken,
+  createCustomToken: exports.createCustomToken,
+  sendEmailVerification: exports.sendEmailVerification
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
 };

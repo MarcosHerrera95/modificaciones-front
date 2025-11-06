@@ -6,6 +6,7 @@
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
 /**
+<<<<<<< HEAD
  * Headers de seguridad para todas las peticiones
  */
 const getSecurityHeaders = () => ({
@@ -15,6 +16,8 @@ const getSecurityHeaders = () => ({
 });
 
 /**
+=======
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
  * Configuración de reintentos para llamadas API
  */
 const RETRY_CONFIG = {
@@ -57,7 +60,10 @@ async function apiRequest(url, options = {}, retryCount = 0) {
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
+<<<<<<< HEAD
         ...getSecurityHeaders(),
+=======
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
         ...options.headers,
       },
     });
@@ -150,7 +156,10 @@ export const api = {
 export const authAPI = {
   login: (credentials) => api.post('/api/auth/login', credentials),
   register: (userData) => api.post('/api/auth/register', userData),
+<<<<<<< HEAD
   registerProfessional: (userData) => api.post('/api/auth/register-professional', userData),
+=======
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
   logout: () => api.post('/api/auth/logout'),
   refreshToken: () => api.post('/api/auth/refresh'),
   getProfile: () => api.get('/api/profile'),

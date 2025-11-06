@@ -31,6 +31,16 @@ if (import.meta.env.PROD && typeof window !== 'undefined') {
   }).catch(error => {
     console.warn('FCM no disponible:', error.message);
   });
+<<<<<<< HEAD
+=======
+}
+
+// Ejecutar diagnóstico básico en desarrollo
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  setTimeout(() => {
+    console.log('🔍 Diagnóstico básico: App cargada correctamente');
+  }, 1000);
+>>>>>>> 7adf1cea4c40cf2dec1bc402fffa6bc1d5cc2acc
 }
 
 // Ejecutar diagnóstico básico en desarrollo
