@@ -60,8 +60,8 @@ const Header = () => {
             {user ? (
               <>
                 <NotificationBell />
-                <span className="text-gray-700 hidden lg:inline font-medium bg-emerald-50 px-3 py-1 rounded-full">Hola, {user.name}</span>
-                <button onClick={() => smartNavigate('/mi-cuenta')} type="button" className="bg-white text-black font-medium transition-all duration-300 px-4 py-2 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2 min-h-[44px] touch-manipulation">
+                <span className="text-gray-700 hidden lg:inline font-medium bg-emerald-50 px-3 py-1 rounded-full">Hola, {user.nombre}</span>
+                <button onClick={() => smartNavigate('/mi-cuenta')} type="button" data-tutorial="mi-cuenta" className="bg-white text-black font-medium transition-all duration-300 px-4 py-2 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] flex items-center space-x-2 min-h-[44px] touch-manipulation">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>

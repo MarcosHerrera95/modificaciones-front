@@ -116,7 +116,7 @@ const ProfessionalDashboard = ({ user }) => {
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          ¡Hola, {user.name}!
+          ¡Hola, {user.nombre}!
         </h1>
         <p className="text-gray-600">
           Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.

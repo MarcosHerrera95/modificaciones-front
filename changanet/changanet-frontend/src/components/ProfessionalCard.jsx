@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import QuoteRequestModal from './modals/QuoteRequestModal';
 import VerifiedBadge from './VerifiedBadge';
+import RatingDisplay from './RatingDisplay';
 
 const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
@@ -18,7 +19,7 @@ const ProfessionalCard = ({ professional }) => {
   };
 
   return (
-    <div className="card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll">
+    <div className="professional-card card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll">
       {/* Background gradient on hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-cyan-50/50 opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
 
@@ -62,14 +63,12 @@ const ProfessionalCard = ({ professional }) => {
             </div>
 
             <div className="mt-4 md:mt-0 md:text-right">
-              <div className="flex items-center justify-start md:justify-end mb-3">
-                <div className="flex items-center bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2 rounded-2xl shadow-md">
-                  <svg className="w-6 h-6 text-amber-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                  </svg>
-                  <span className="font-bold text-gray-800 text-lg">{professional.calificacion_promedio ? professional.calificacion_promedio.toFixed(1) : 'N/A'}</span>
-                  <span className="text-gray-500 ml-2">(Calificación)</span>
-                </div>
+              <div className="mb-3">
+                <RatingDisplay
+                  rating={professional.calificacion_promedio || 0}
+                  size="sm"
+                  showLabel={false}
+                />
               </div>
               <p className="text-3xl font-black text-gradient">
                 ${professional.tarifa_hora}

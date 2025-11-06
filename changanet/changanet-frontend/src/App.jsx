@@ -22,6 +22,7 @@ import ProfessionalSignupPage from './pages/ProfessionalSignupPage';
 import VerifyIdentity from './pages/VerifyIdentity';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import OnboardingTutorial from './components/OnboardingTutorial';
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -78,6 +79,9 @@ function App() {
                 </main>
                 <Footer />
               </div>
+
+              {/* Tutorial para primeros usuarios */}
+              <OnboardingTutorial />
             </Router>
           </ModalProvider>
         </ChatProvider>

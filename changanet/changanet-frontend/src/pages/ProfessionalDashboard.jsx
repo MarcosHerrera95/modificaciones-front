@@ -254,7 +254,7 @@ const ProfessionalDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard Profesional</h1>
           <p className="mt-2 text-gray-600">
-            ¡Hola, {user.name}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
+            ¡Hola, {user.nombre}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
           </p>
         </div>
 

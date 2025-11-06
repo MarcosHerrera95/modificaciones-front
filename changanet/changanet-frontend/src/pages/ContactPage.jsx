@@ -26,7 +26,7 @@ const ContactPage = () => {
     if (user) {
       setFormData(prev => ({
         ...prev,
-        name: user.name || '',
+        name: user.nombre || '',
         email: user.email || ''
       }));
     }

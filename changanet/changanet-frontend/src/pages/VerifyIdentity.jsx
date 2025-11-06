@@ -1,30 +1,79 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const VerifyIdentity = () => {
   const { user } = useAuth();
-  const [documentUrl, setDocumentUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [preview, setPreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('Solo se permiten archivos JPG, PNG o PDF');
+        return;
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        setError('El archivo no puede superar los 5MB');
+        return;
+      }
+
+      setSelectedFile(file);
+      setError('');
+
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setPreview('📄 ' + file.name);
+      }
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current.click();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    if (!selectedFile) {
+      setError('Por favor selecciona un documento');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const formData = new FormData();
+      formData.append('document', selectedFile);
+
       const response = await fetch('/api/verification/request', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
-        body: JSON.stringify({ url_documento: documentUrl })
+        body: formData
       });
 
       const data = await response.json();
 
       if (response.ok) {
         alert('Documento enviado exitosamente. Será revisado en las próximas 24-48 horas.');
+        setSelectedFile(null);
+        setPreview('');
       } else {
         setError(data.error || 'Error al enviar documento');
       }
@@ -66,19 +115,70 @@ const VerifyIdentity = () => {
             <form onSubmit={handleSubmit}>
               <div className="mb-6">
                 <label className="block text-gray-700 font-medium mb-2">
-                  URL del Documento
+                  Subir Documento de Identidad
                 </label>
+
+                {/* File Upload Area */}
+                <div
+                  onClick={handleUploadClick}
+                  className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition-all duration-300 min-h-[200px] flex flex-col items-center justify-center"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleUploadClick();
+                    }
+                  }}
+                  aria-label="Seleccionar archivo de documento"
+                >
+                  {preview ? (
+                    <div className="space-y-4">
+                      {preview.startsWith('data:') ? (
+                        <img
+                          src={preview}
+                          alt="Vista previa del documento"
+                          className="max-w-full max-h-32 mx-auto rounded-lg shadow-md"
+                        />
+                      ) : (
+                        <div className="text-4xl">{preview.split(' ')[0]}</div>
+                      )}
+                      <div className="text-sm text-gray-600">
+                        {selectedFile?.name} ({(selectedFile?.size / 1024 / 1024).toFixed(2)} MB)
+                      </div>
+                      <div className="text-emerald-600 font-medium">Haz clic para cambiar el archivo</div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                        <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="text-lg font-medium text-gray-700 mb-1">Arrastra tu documento aquí</div>
+                        <div className="text-gray-500">o haz clic para seleccionar</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <input
-                  type="url"
-                  value={documentUrl}
-                  onChange={(e) => setDocumentUrl(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700"
-                  placeholder="https://ejemplo.com/mi-documento.jpg"
-                  required
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/jpeg,image/jpg,image/png,application/pdf"
+                  className="hidden"
+                  aria-label="Seleccionar archivo de documento"
                 />
-                <p className="text-sm text-gray-500 mt-2">
-                  Sube tu documento a un servicio como Google Drive, Dropbox o Imgur y pega el enlace aquí.
-                </p>
+
+                <div className="mt-4 text-sm text-gray-600">
+                  <div className="font-medium mb-2">Formatos aceptados:</div>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Imágenes: JPG, PNG (máx. 5MB)</li>
+                    <li>Documentos: PDF (máx. 5MB)</li>
+                  </ul>
+                </div>
               </div>
 
               <button
@@ -94,7 +194,7 @@ const VerifyIdentity = () => {
                 ) : (
                   <>
                     <span className="mr-2">📤</span>
-                    Enviar Documento
+                    {selectedFile ? 'Enviar Documento' : 'Seleccionar Documento Primero'}
                   </>
                 )}
               </button>

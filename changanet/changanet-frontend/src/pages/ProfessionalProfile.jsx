@@ -35,7 +35,7 @@ const ProfessionalProfile = () => {
       if (response.ok) {
         const data = await response.json();
         setProfile({
-          nombre: data.usuario?.nombre || user.name || '',
+          nombre: data.usuario?.nombre || user.nombre || '',
           email: data.usuario?.email || user.email || '',
           telefono: data.usuario?.telefono || '',
           especialidad: data.especialidad || '',

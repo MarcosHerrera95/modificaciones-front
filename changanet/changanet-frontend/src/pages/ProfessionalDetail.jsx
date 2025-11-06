@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChatWidget from '../components/ChatWidget';
 import QuoteRequestForm from '../components/QuoteRequestForm';
+import RatingDisplay from '../components/RatingDisplay';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -46,7 +47,7 @@ const ProfessionalDetail = () => {
       if (response.ok) {
         const data = await response.json();
         setProfile({
-          nombre: data.nombre || user.name || '',
+          nombre: data.nombre || user.nombre || '',
           email: data.email || user.email || '',
           especialidad: data.especialidad || '',
           anos_experiencia: data.anos_experiencia || '',
@@ -173,9 +174,6 @@ const ProfessionalDetail = () => {
     setShowQuoteForm(false);
   };
 
-  const renderStars = (rating) => {
-    return '★'.repeat(Math.round(rating || 0)).padEnd(5, '☆');
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
@@ -377,16 +375,18 @@ const ProfessionalDetail = () => {
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Reseñas de Clientes</h2>
 
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 mb-8">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-4xl font-bold text-gray-800 mb-2">4.8</div>
-                      <div className="flex text-amber-400 mb-2 text-2xl">
-                        {renderStars(4.8)}
-                      </div>
-                      <p className="text-gray-600">Basado en {reviews.length} reseñas</p>
-                    </div>
-                  </div>
-                </div>
+                   <div className="flex items-center justify-between">
+                     <div className="flex-1">
+                       <RatingDisplay
+                         rating={4.8}
+                         size="lg"
+                         showLabel={true}
+                         showPercentage={true}
+                       />
+                       <p className="text-gray-600 mt-2">Basado en {reviews.length} reseñas</p>
+                     </div>
+                   </div>
+                 </div>
 
                 <div className="space-y-6">
                   {reviews.map(review => (
@@ -400,9 +400,11 @@ const ProfessionalDetail = () => {
                           </div>
                           <div>
                             <h4 className="font-semibold text-gray-800">{review.cliente.nombre}</h4>
-                            <div className="flex text-amber-400">
-                              {renderStars(review.calificacion)}
-                            </div>
+                            <RatingDisplay
+                              rating={review.calificacion}
+                              size="sm"
+                              showLabel={false}
+                            />
                           </div>
                         </div>
                         <span className="text-gray-500 text-sm">
@@ -569,7 +571,7 @@ const ProfessionalDetail = () => {
                 </div>
               </div>
               <div className="p-6">
-                <QuoteRequestForm onClose={handleCloseQuoteForm} />
+                <QuoteRequestForm onClose={handleCloseQuoteForm} professionalName={profile.nombre} />
               </div>
             </div>
           </div>

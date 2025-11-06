@@ -13,7 +13,7 @@ const SearchBar = () => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col md:flex-row gap-4">
+    <form onSubmit={handleSubmit} className="search-bar flex flex-col md:flex-row gap-4">
       <div className="flex-1 relative group">
         <div className="absolute left-5 top-1/2 transform -translate-y-1/2 text-emerald-500 z-10">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,14 +23,16 @@ const SearchBar = () => {
         </div>
         <input
           type="text"
-          placeholder="Ejemplos: Plomero, Electricista, Pintor, Jardinería..."
+          placeholder="¿Qué necesitas? (ej: plomero, electricista, pintor)"
           value={service}
           onChange={(e) => setService(e.target.value)}
-          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg"
+          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg min-h-[44px]"
           required
           aria-label="Buscar servicio profesional"
+          aria-describedby="service-help"
           list="services-list"
         />
+        <div id="service-help" className="sr-only">Ingresa el tipo de servicio que necesitas, por ejemplo: plomero, electricista, pintor</div>
         <datalist id="services-list">
           <option value="Plomero" />
           <option value="Electricista" />
@@ -54,14 +56,16 @@ const SearchBar = () => {
         </div>
         <input
           type="text"
-          placeholder="Ejemplos: Buenos Aires, Palermo, CABA, La Plata..."
+          placeholder="¿Dónde? (ej: Palermo, CABA, La Plata)"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg"
+          className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg min-h-[44px]"
           required
           aria-label="Buscar ubicación geográfica"
+          aria-describedby="location-help"
           list="locations-list"
         />
+        <div id="location-help" className="sr-only">Ingresa tu ubicación o zona donde necesitas el servicio</div>
         <datalist id="locations-list">
           <option value="Buenos Aires" />
           <option value="CABA" />
@@ -78,7 +82,7 @@ const SearchBar = () => {
 
       <button
         type="submit"
-        className="bg-emerald-500 text-black px-10 py-5 rounded-2xl hover:bg-emerald-600 transition-all duration-300 font-bold shadow-xl hover:shadow-glow transform hover:scale-105 flex items-center justify-center space-x-3 text-lg shimmer"
+        className="bg-emerald-500 text-black px-10 py-5 rounded-2xl hover:bg-emerald-600 transition-all duration-300 font-bold shadow-xl hover:shadow-glow transform hover:scale-105 flex items-center justify-center space-x-3 text-lg shimmer min-h-[44px] touch-manipulation"
         aria-label="Buscar profesionales"
       >
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

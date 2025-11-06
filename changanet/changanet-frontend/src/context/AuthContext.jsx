@@ -19,25 +19,25 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Recupera datos de usuario del localStorage al inicializar
-    const token = localStorage.getItem('changanet_token');
+    // Recupera datos de usuario del sessionStorage al inicializar
+    const token = sessionStorage.getItem('changanet_token');
     if (token) {
       try {
-        const userData = JSON.parse(localStorage.getItem('changanet_user'));
+        const userData = JSON.parse(sessionStorage.getItem('changanet_user'));
         setUser(userData);
       } catch (error) {
-        console.error('Error parsing user data from localStorage:', error);
+        console.error('Error parsing user data from sessionStorage:', error);
         // Limpiar datos corruptos
-        localStorage.removeItem('changanet_token');
-        localStorage.removeItem('changanet_user');
+        sessionStorage.removeItem('changanet_token');
+        sessionStorage.removeItem('changanet_user');
       }
     }
     setLoading(false);
   }, []);
 
   const login = (userData, token) => {
-    localStorage.setItem('changanet_token', token);
-    localStorage.setItem('changanet_user', JSON.stringify(userData));
+    sessionStorage.setItem('changanet_token', token);
+    sessionStorage.setItem('changanet_user', JSON.stringify(userData));
     setUser(userData);
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY (solo si está disponible)
@@ -108,8 +108,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('changanet_token');
-    localStorage.removeItem('changanet_user');
+    sessionStorage.removeItem('changanet_token');
+    sessionStorage.removeItem('changanet_user');
     setUser(null);
   };
 

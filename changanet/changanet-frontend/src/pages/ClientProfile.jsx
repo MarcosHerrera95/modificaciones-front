@@ -31,7 +31,7 @@ const ClientProfile = () => {
       if (response.ok) {
         const data = await response.json();
         setProfile({
-          nombre: data.nombre || user.name || '',
+          nombre: data.nombre || user.nombre || '',
           email: data.email || user.email || '',
           telefono: data.telefono || '',
           direccion: data.direccion || '',

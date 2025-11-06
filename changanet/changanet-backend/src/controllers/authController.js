@@ -29,7 +29,7 @@ exports.register = async (req, res) => {
       data: {
         nombre,
         email,
-        password: hashedPassword,
+        hash_contrasena: hashedPassword,
         telefono,
         rol: 'cliente',
       },
@@ -63,7 +63,7 @@ exports.login = async (req, res) => {
     }
 
     // Verificar contraseña
-    const isValidPassword = await bcrypt.compare(password, user.password);
+    const isValidPassword = await bcrypt.compare(password, user.hash_contrasena);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
@@ -112,7 +112,7 @@ exports.registerProfessional = async (req, res) => {
       data: {
         nombre,
         email,
-        password: hashedPassword,
+        hash_contrasena: hashedPassword,
         telefono,
         rol: 'profesional',
       },
@@ -142,4 +142,35 @@ exports.registerProfessional = async (req, res) => {
     console.error(error);
     res.status(500).json({ error: 'Error al registrar el profesional.' });
   }
+};
+
+/**
+ * Obtiene los datos del usuario actualmente autenticado
+ */
+exports.getCurrentUser = async (req, res) => {
+  try {
+    // Los datos del usuario ya están disponibles en req.user gracias al middleware authenticateToken
+    const user = req.user;
+
+    res.status(200).json({
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol,
+        esta_verificado: user.esta_verificado
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo usuario actual:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+module.exports = {
+  register: exports.register,
+  login: exports.login,
+  googleCallback: exports.googleCallback,
+  registerProfessional: exports.registerProfessional,
+  getCurrentUser: exports.getCurrentUser
 };
