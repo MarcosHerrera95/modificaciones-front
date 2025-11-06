@@ -42,13 +42,28 @@ const ClientSignupPage = () => {
     }
 
     try {
-      // Llamar al método signup del AuthContext con rol explícito
-      const result = await signup(formData.name, formData.email, formData.password, 'cliente');
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          name: formData.name,
+          rol: "cliente"
+        })
+      });
+      const data = await response.json();
 
-      if (result.success) {
+      if (response.ok) {
+        // Login automático después del registro exitoso
+        if (data.token && data.user) {
+          // Usar el método login del AuthContext
+          const { login } = useAuth();
+          login(data.user, data.token);
+        }
         navigate('/mi-cuenta');
       } else {
-        setError(result.error || 'Error al crear la cuenta');
+        setError(data.error || 'Error al crear la cuenta');
       }
     } catch (error) {
       console.error('Error:', error);

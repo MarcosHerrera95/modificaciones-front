@@ -12,7 +12,7 @@ const prisma = new PrismaClient();
  * Registro de usuario cliente
  */
 exports.register = async (req, res) => {
-  const { nombre, email, password, telefono, rol } = req.body;
+  const { name, email, password, rol } = req.body;
 
   try {
     // Validar que el rol sea especificado y válido
@@ -36,11 +36,11 @@ exports.register = async (req, res) => {
     // Crear usuario
     const user = await prisma.usuarios.create({
       data: {
-        nombre,
+        nombre: name,
         email,
         hash_contrasena: hashedPassword,
-        telefono,
         rol,
+        esta_verificado: false
       },
     });
 
