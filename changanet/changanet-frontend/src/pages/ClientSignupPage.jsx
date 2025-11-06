@@ -1,0 +1,224 @@
+/**
+ * @page ClientSignupPage - Página de registro para clientes
+ * @descripción Formulario simplificado para registro de clientes (REQ-01)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Frontend] Implementar Registro Cliente
+ * @impacto Social: Facilita el acceso de clientes al sistema
+ */
+
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+
+const ClientSignupPage = () => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    telefono: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const { signup } = useAuth();
+  const navigate = useNavigate();
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    if (!formData.name || !formData.email || !formData.password) {
+      setError('Por favor, completa todos los campos requeridos');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Llamar al método signup del AuthContext con rol explícito
+      const result = await signup(formData.name, formData.email, formData.password, 'cliente');
+
+      if (result.success) {
+        navigate('/mi-cuenta');
+      } else {
+        setError(result.error || 'Error al crear la cuenta');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('Error de conexión. Inténtalo de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md mx-auto bg-white rounded-3xl shadow-2xl p-8">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-4xl">👤</span>
+          </div>
+          <h2 className="text-3xl font-bold text-gray-900">Únete como Cliente</h2>
+          <p className="mt-2 text-gray-600">
+            Encuentra los mejores profesionales para tus necesidades
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex items-center">
+            <span className="text-red-500 mr-3">⚠️</span>
+            <span className="text-sm">{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="name" className="block text-gray-700 font-medium mb-2">
+              Nombre Completo *
+            </label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                👤
+              </div>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                value={formData.name}
+                onChange={handleInputChange}
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                placeholder="Tu nombre completo"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
+              Correo electrónico *
+            </label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                📧
+              </div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={handleInputChange}
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                placeholder="tu@email.com"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="telefono" className="block text-gray-700 font-medium mb-2">
+              Teléfono
+            </label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                📱
+              </div>
+              <input
+                id="telefono"
+                name="telefono"
+                type="tel"
+                value={formData.telefono}
+                onChange={handleInputChange}
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                placeholder="+54 11 1234-5678"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-gray-700 font-medium mb-2">
+              Contraseña *
+            </label>
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                🔒
+              </div>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                required
+                value={formData.password}
+                onChange={handleInputChange}
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                placeholder="Mínimo 6 caracteres"
+                minLength="6"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-h-[44px] touch-manipulation"
+          >
+            {loading ? (
+              <>
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                Creando cuenta...
+              </>
+            ) : (
+              <>
+                <span className="mr-2">🎉</span>
+                Crear Cuenta de Cliente
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-8 text-center">
+          <p className="text-gray-600 mb-4">
+            ¿Ya tienes cuenta?
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors duration-200 underline underline-offset-2"
+          >
+            Inicia sesión aquí
+          </button>
+        </div>
+
+        {/* Benefits */}
+        <div className="mt-8 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6">
+          <h3 className="font-semibold text-gray-800 mb-3 text-center">Beneficios para Clientes</h3>
+          <div className="space-y-2 text-sm text-gray-600">
+            <div className="flex items-center">
+              <span className="text-emerald-500 mr-2">✓</span>
+              Acceso a miles de profesionales verificados
+            </div>
+            <div className="flex items-center">
+              <span className="text-emerald-500 mr-2">✓</span>
+              Solicitudes de presupuesto gratuitas
+            </div>
+            <div className="flex items-center">
+              <span className="text-emerald-500 mr-2">✓</span>
+              Pagos seguros con custodia
+            </div>
+            <div className="flex items-center">
+              <span className="text-emerald-500 mr-2">✓</span>
+              Sistema de reseñas y calificaciones
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ClientSignupPage;

@@ -12,9 +12,18 @@ const prisma = new PrismaClient();
  * Registro de usuario cliente
  */
 exports.register = async (req, res) => {
-  const { nombre, email, password, telefono } = req.body;
+  const { nombre, email, password, telefono, rol } = req.body;
 
   try {
+    // Validar que el rol sea especificado y válido
+    if (!rol) {
+      return res.status(400).json({ error: 'El rol es requerido. Use "cliente" o "profesional".' });
+    }
+
+    if (!['cliente', 'profesional'].includes(rol)) {
+      return res.status(400).json({ error: 'Rol inválido. Use "cliente" o "profesional".' });
+    }
+
     // Verificar si el usuario ya existe
     const existingUser = await prisma.usuarios.findUnique({ where: { email } });
     if (existingUser) {
@@ -31,7 +40,7 @@ exports.register = async (req, res) => {
         email,
         hash_contrasena: hashedPassword,
         telefono,
-        rol: 'cliente',
+        rol,
       },
     });
 

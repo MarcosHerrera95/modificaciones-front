@@ -23,16 +23,17 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
     }
 
     try {
-      // INTEGRACIÓN CON FIREBASE: Usar Firebase Authentication para registro
-      const result = await registerWithEmail(email, password);
+      // Usar el método signup del AuthContext que maneja tanto Firebase como backend
+      const result = await signup(name, email, password, role);
 
       if (result.success) {
-        alert('Cuenta creada exitosamente. Revisa tu correo para verificar tu cuenta.');
-        onSwitchToLogin();
+        alert('Cuenta creada exitosamente. ¡Bienvenido a Changánet!');
+        onClose();
       } else {
-        setError(result.error);
+        setError(result.error || 'Error al crear la cuenta');
       }
     } catch (err) {
+      console.error('Error en registro:', err);
       setError('Error al crear la cuenta. Intenta nuevamente.');
     } finally {
       setLoading(false);

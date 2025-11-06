@@ -23,7 +23,7 @@ const ProfessionalSignupPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -60,31 +60,12 @@ const ProfessionalSignupPage = () => {
     setError('');
 
     try {
-      // Crear FormData para envío de archivo
-      const submitData = new FormData();
-      Object.keys(formData).forEach(key => {
-        if (formData[key] !== null && formData[key] !== '') {
-          submitData.append(key, formData[key]);
-        }
-      });
-
-      const response = await fetch('/api/auth/register-professional', {
-        method: 'POST',
-        body: submitData
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Login automático después del registro
-        login(data.user, data.token);
-        navigate('/dashboard-profesional');
-      } else {
-        setError(data.error || 'Error al registrar profesional');
-      }
+      // Usar el método signup del AuthContext con rol 'profesional'
+      await signup(formData.name, formData.email, formData.password, 'profesional');
+      navigate('/dashboard-profesional');
     } catch (error) {
       console.error('Error:', error);
-      setError('Error de conexión. Inténtalo de nuevo.');
+      setError(error.message || 'Error al registrar profesional');
     } finally {
       setLoading(false);
     }

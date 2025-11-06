@@ -19,6 +19,7 @@ import Custody from './pages/Custody';
 import Ranking from './pages/Ranking';
 import ContactPage from './pages/ContactPage';
 import ProfessionalSignupPage from './pages/ProfessionalSignupPage';
+import ClientSignupPage from './pages/ClientSignupPage';
 import VerifyIdentity from './pages/VerifyIdentity';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -67,6 +68,7 @@ function App() {
                     <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
                     <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
                     <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
+                    <Route path="/registro-cliente" element={<ClientSignupPage />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/terminos" element={<Terms />} />
                     <Route path="/privacidad" element={<Privacy />} />

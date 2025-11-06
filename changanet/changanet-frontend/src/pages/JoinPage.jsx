@@ -22,11 +22,11 @@ const JoinPage = () => {
             <h2 className="text-2xl font-bold text-white mb-3">Soy Cliente</h2>
             <p className="text-white/90 mb-6 text-lg">Necesito contratar un servicio</p>
             <Link
-              to="/profesionales"
+              to="/registro-cliente"
               className="inline-block bg-white text-emerald-600 px-8 py-4 rounded-2xl font-semibold text-lg hover:bg-emerald-50 hover:shadow-xl hover:scale-105 transition-all duration-300 w-full text-center min-h-[44px] touch-manipulation"
-              aria-label="Buscar profesionales como cliente"
+              aria-label="Registrarme como cliente"
             >
-              Buscar Profesionales
+              Registrarme como Cliente
             </Link>
           </div>
 
