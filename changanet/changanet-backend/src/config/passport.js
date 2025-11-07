@@ -50,18 +50,10 @@ passport.use(
             });
           }
         } else {
-          // Crear nuevo usuario con datos de Google
-          user = await prisma.usuarios.create({
-            data: {
-              email: profile.emails[0].value,
-              nombre: profile.displayName,
-              google_id: profile.id,
-              url_foto_perfil: profile.photos[0].value,
-              rol: 'cliente', // Por defecto, puede cambiarse después
-              esta_verificado: true, // Los usuarios de Google están verificados
-            }
-          });
-          console.log('Google OAuth: Created new user:', user.id);
+          // Crear nuevo usuario con datos de Google - SIN rol por defecto
+          // El rol se asignará durante el proceso de registro normal
+          console.log('Google OAuth: New user detected, will need role assignment');
+          return done(null, false, { message: 'Usuario no registrado. Complete el registro primero.' });
         }
 
         console.log('Google OAuth: User authenticated:', user.nombre, '(', user.rol, ')');

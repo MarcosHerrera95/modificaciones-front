@@ -24,6 +24,8 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: 'Rol inválido. Use "cliente" o "profesional".' });
     }
 
+    console.log('AuthController - Register: Received rol:', rol);
+
     // Verificar si el usuario ya existe
     const existingUser = await prisma.usuarios.findUnique({ where: { email } });
     if (existingUser) {
@@ -33,16 +35,18 @@ exports.register = async (req, res) => {
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear usuario
+    // Crear usuario con rol explícito
     const user = await prisma.usuarios.create({
       data: {
         nombre: name,
         email,
         hash_contrasena: hashedPassword,
-        rol,
+        rol, // Rol asignado explícitamente desde el frontend
         esta_verificado: false
       },
     });
+
+    console.log('AuthController - Register: Created user with rol:', user.rol);
 
     // Generar token JWT
     const token = jwt.sign(

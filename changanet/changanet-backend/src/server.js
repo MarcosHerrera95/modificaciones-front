@@ -92,11 +92,6 @@ const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 });
 
-// Configurar monitoreo de queries en desarrollo/producción
-if (process.env.NODE_ENV !== 'test') {
-  console.log('📊 Monitoreo de queries activado');
-}
-
 // Inicializar servicio de backup
 backupService.initialize().then(success => {
   if (success) {
@@ -107,6 +102,11 @@ backupService.initialize().then(success => {
 });
 const app = express();
 const server = http.createServer(app);
+
+// Configurar monitoreo de queries en desarrollo/producción
+if (process.env.NODE_ENV !== 'test') {
+  console.log('📊 Monitoreo de queries activado');
+}
 const io = new Server(server, {
   cors: {
     origin: ["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://localhost:5175"],

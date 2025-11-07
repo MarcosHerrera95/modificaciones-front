@@ -17,10 +17,10 @@ exports.createReview = async (req, res) => {
       return res.status(403).json({ error: 'No puedes dejar una reseña para este servicio.' });
     }
 
-    // Check if review already exists
+    // Check if review already exists - RB-02: Solo 1 reseña por servicio
     const existingReview = await prisma.resenas.findUnique({ where: { servicio_id } });
     if (existingReview) {
-      return res.status(400).json({ error: 'Ya has dejado una reseña para este servicio.' });
+      return res.status(400).json({ error: 'Ya se ha dejado una reseña para este servicio. Solo se permite una reseña por servicio.' });
     }
 
     let url_foto = null;

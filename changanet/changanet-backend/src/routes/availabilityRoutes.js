@@ -1,11 +1,12 @@
 // src/routes/availabilityRoutes.js
 const express = require('express');
-const { createAvailability, getAvailability } = require('../controllers/availabilityController');
+const { createAvailability, getAvailability, updateAvailability } = require('../controllers/availabilityController');
 
 const router = express.Router();
 
 router.post('/', createAvailability);
 router.get('/:professionalId', getAvailability);
+router.put('/:slotId', updateAvailability);
 router.delete('/:slotId', async (req, res) => {
   const { PrismaClient } = require('@prisma/client');
   const prisma = new PrismaClient();

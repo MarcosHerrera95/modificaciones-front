@@ -40,10 +40,21 @@ exports.createQuoteRequest = async (req, res) => {
     });
 
     // Enviar notificación al profesional
-    await sendNotification(profesional_id, 'nueva_cotizacion', `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`);
+    await sendNotification(profesional_id, 'cotizacion', `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`);
+
+    console.log({ event: 'quote_request_created', clientId, professionalId: profesional_id, quoteId: quote.id });
 
     // Enviar email al profesional
-    await sendQuoteRequestEmail(quote.profesional, quote.cliente, quote);
+    try {
+      const { sendEmail } = require('../services/emailService');
+      await sendEmail(
+        quote.profesional.email,
+        'Nueva solicitud de presupuesto en Changánet',
+        `Hola ${quote.profesional.nombre},\n\nHas recibido una nueva solicitud de presupuesto de ${quote.cliente.nombre}:\n\n"${quote.descripcion}"\n\nZona: ${quote.zona_cobertura || 'No especificada'}\n\nPuedes responder desde tu panel profesional.\n\nSaludos,\nEquipo Changánet`
+      );
+    } catch (emailError) {
+      console.warn('Error enviando email de cotización:', emailError);
+    }
 
     res.status(201).json(quote);
   } catch (error) {
@@ -129,12 +140,25 @@ exports.respondToQuote = async (req, res) => {
     });
 
     // Enviar notificación al cliente
-    const notificationType = action === 'accept' ? 'servicio_agendado' : 'nueva_cotizacion';
+    const notificationType = action === 'accept' ? 'cotizacion_aceptada' : 'cotizacion_rechazada';
     const message = action === 'accept'
-      ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}`
+      ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`
       : `Tu cotización ha sido rechazada por ${quote.profesional.nombre}`;
 
     await sendNotification(quote.cliente_id, notificationType, message);
+
+    // Enviar email al cliente
+    try {
+      const { sendEmail } = require('../services/emailService');
+      const emailSubject = action === 'accept' ? 'Cotización aceptada en Changánet' : 'Cotización rechazada en Changánet';
+      const emailBody = action === 'accept'
+        ? `Hola ${quote.cliente.nombre},\n\n¡Buenas noticias! Tu cotización ha sido aceptada por ${quote.profesional.nombre}.\n\nPrecio acordado: $${precio}\nComentario: ${comentario || 'Sin comentario adicional'}\n\nYa puedes agendar tu servicio desde la plataforma.\n\nSaludos,\nEquipo Changánet`
+        : `Hola ${quote.cliente.nombre},\n\nTu cotización ha sido rechazada por ${quote.profesional.nombre}.\n\nPuedes buscar otros profesionales o contactar directamente a este profesional para negociar.\n\nSaludos,\nEquipo Changánet`;
+
+      await sendEmail(quote.cliente.email, emailSubject, emailBody);
+    } catch (emailError) {
+      console.warn('Error enviando email de respuesta a cotización:', emailError);
+    }
 
     res.status(200).json(updatedQuote);
   } catch (error) {

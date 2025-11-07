@@ -37,6 +37,25 @@ exports.scheduleService = async (req, res) => {
        return res.status(400).json({ error: 'La fecha agendada debe ser futura.' });
      }
 
+     // Check if the time slot is available
+     const requestedDateTime = new Date(fecha_agendada);
+     const availability = await prisma.disponibilidad.findFirst({
+       where: {
+         profesional_id,
+         fecha: {
+           gte: new Date(requestedDateTime.toDateString()),
+           lt: new Date(new Date(requestedDateTime).setDate(requestedDateTime.getDate() + 1))
+         },
+         hora_inicio: { lte: requestedDateTime },
+         hora_fin: { gt: requestedDateTime },
+         esta_disponible: true
+       }
+     });
+
+     if (!availability) {
+       return res.status(400).json({ error: 'El horario seleccionado no está disponible.' });
+     }
+
      // Check if there's an accepted quote between client and professional
      const acceptedQuote = await prisma.cotizaciones.findFirst({
        where: {
@@ -58,6 +77,29 @@ exports.scheduleService = async (req, res) => {
         estado: 'agendado',
         fecha_agendada: new Date(fecha_agendada)
       }
+    });
+
+    // Crear notificaciones para ambas partes
+    const { createNotification } = require('../services/notificationService');
+    await createNotification(
+      clientId,
+      'servicio_agendado',
+      `Servicio agendado con el profesional para el ${new Date(fecha_agendada).toLocaleDateString()}`,
+      { serviceId: service.id }
+    );
+    await createNotification(
+      profesional_id,
+      'servicio_agendado',
+      `Nuevo servicio agendado con cliente para el ${new Date(fecha_agendada).toLocaleDateString()}`,
+      { serviceId: service.id }
+    );
+
+    console.log({ event: 'service_scheduled', clientId, professionalId: profesional_id, serviceId: service.id, fecha_agendada });
+
+    // Mark the availability slot as booked
+    await prisma.disponibilidad.update({
+      where: { id: availability.id },
+      data: { esta_disponible: false }
     });
 
     // REGISTRAR MÉTRICA DE SERVICIO AGENDADO EN SENTRY
