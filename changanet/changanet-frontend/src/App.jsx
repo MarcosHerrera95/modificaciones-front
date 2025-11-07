@@ -24,6 +24,7 @@ import VerifyIdentity from './pages/VerifyIdentity';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import OnboardingTutorial from './components/OnboardingTutorial';
+import ContextualHelp from './components/ContextualHelp';
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -84,6 +85,9 @@ function App() {
 
               {/* Tutorial para primeros usuarios */}
               <OnboardingTutorial />
+
+              {/* Ayuda contextual disponible en toda la app */}
+              <ContextualHelp />
             </Router>
           </ModalProvider>
         </ChatProvider>
