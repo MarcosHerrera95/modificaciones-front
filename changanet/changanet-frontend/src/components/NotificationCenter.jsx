@@ -5,6 +5,28 @@ const NotificationCenter = ({ isOpen, onClose }) => {
   const { notifications, markAsRead, markAllAsRead, deleteNotification, unreadCount } = useContext(NotificationContext);
   const [filter, setFilter] = useState('all'); // all, unread, read
 
+  const handleNotificationClick = (notification) => {
+    // Navegar según el tipo de notificación
+    switch (notification.tipo) {
+      case 'mensaje':
+        // Navegar al chat
+        window.location.href = `/chat?user=${notification.datos?.senderId}`;
+        break;
+      case 'cotizacion':
+        // Navegar a cotizaciones
+        window.location.href = '/mis-cotizaciones';
+        break;
+      case 'servicio_agendado':
+        // Navegar a servicios
+        window.location.href = '/mis-servicios';
+        break;
+      default:
+        // Mantener en la misma página
+        break;
+    }
+    onClose();
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isOpen && !event.target.closest('.notification-center')) {
@@ -92,9 +114,16 @@ const NotificationCenter = ({ isOpen, onClose }) => {
             filteredNotifications.map(notification => (
               <div
                 key={notification.id}
-                className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors ${
+                className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
                   !notification.leida ? 'bg-emerald-50' : ''
                 }`}
+                onClick={() => {
+                  if (!notification.leida) {
+                    markAsRead(notification.id);
+                  }
+                  // Aquí puedes agregar navegación según el tipo de notificación
+                  handleNotificationClick(notification);
+                }}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1 min-w-0">
@@ -104,6 +133,20 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                     <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                       {notification.mensaje}
                     </p>
+                    <div className="flex items-center mt-2">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        notification.tipo === 'mensaje' ? 'bg-blue-100 text-blue-800' :
+                        notification.tipo === 'cotizacion' ? 'bg-green-100 text-green-800' :
+                        notification.tipo === 'servicio_agendado' ? 'bg-purple-100 text-purple-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {notification.tipo === 'mensaje' && '💬 Mensaje'}
+                        {notification.tipo === 'cotizacion' && '📋 Cotización'}
+                        {notification.tipo === 'servicio_agendado' && '📅 Servicio'}
+                        {notification.tipo === 'bienvenida' && '🎉 Bienvenida'}
+                        {!['mensaje', 'cotizacion', 'servicio_agendado', 'bienvenida'].includes(notification.tipo) && notification.tipo}
+                      </span>
+                    </div>
                     <p className="text-xs text-gray-400 mt-2">
                       {new Date(notification.creado_en).toLocaleString()}
                     </p>

@@ -6,6 +6,7 @@ import ProfessionalCard from '../components/ProfessionalCard';
 const Professionals = () => {
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchTime, setSearchTime] = useState(null);
   const [sortBy, setSortBy] = useState('rating');
   const [filterVerified, setFilterVerified] = useState(false);
   const [zonaCobertura, setZonaCobertura] = useState('');
@@ -15,6 +16,7 @@ const Professionals = () => {
 
   useEffect(() => {
     const fetchProfessionals = async () => {
+      const startTime = performance.now();
       setLoading(true);
       try {
         // Construir query string con filtros adicionales
@@ -28,6 +30,8 @@ const Professionals = () => {
         const data = await response.json();
         if (response.ok) {
           setProfessionals(data.professionals);
+          const endTime = performance.now();
+          setSearchTime((endTime - startTime).toFixed(2));
         } else {
           console.error('Error al buscar profesionales:', data.error);
         }
@@ -79,6 +83,11 @@ const Professionals = () => {
           </h1>
           <p className="text-gray-600 text-xl font-medium">
             {filteredProfessionals.length} profesionales encontrados para ti
+            {searchTime && (
+              <span className="text-sm text-emerald-600 ml-2">
+                (búsqueda en {searchTime}ms)
+              </span>
+            )}
           </p>
         </div>
 
