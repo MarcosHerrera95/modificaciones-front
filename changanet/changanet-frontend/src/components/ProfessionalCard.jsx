@@ -9,6 +9,7 @@ import RatingDisplay from './RatingDisplay';
 const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
   const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [distance, setDistance] = useState('Calculando...');
 
   const handleQuoteRequest = () => {
     if (!user) {
@@ -17,6 +18,55 @@ const ProfessionalCard = ({ professional }) => {
     }
     setShowQuoteModal(true);
   };
+
+  // Calcular distancia usando Haversine formula (alternativa liviana)
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Simular coordenadas para demostración (en producción usar geolocalización real)
+  useEffect(() => {
+    // Coordenadas simuladas de Buenos Aires (cliente)
+    const clientLat = -34.6037;
+    const clientLon = -58.3816;
+
+    // Coordenadas simuladas del profesional (basado en zona_cobertura)
+    const professionalCoords = {
+      'Palermo': [-34.5889, -58.4306],
+      'Recoleta': [-34.5875, -58.3978],
+      'Belgrano': [-34.5631, -58.4564],
+      'CABA': [-34.6037, -58.3816],
+      'La Plata': [-34.9214, -57.9544],
+      'Mar del Plata': [-38.0055, -57.5426],
+      'Córdoba': [-31.4201, -64.1888],
+      'Rosario': [-32.9468, -60.6393],
+      'Mendoza': [-32.8895, -68.8458]
+    };
+
+    // Buscar coordenadas basadas en zona_cobertura
+    let profLat, profLon;
+    for (const [zone, coords] of Object.entries(professionalCoords)) {
+      if (professional.zona_cobertura && professional.zona_cobertura.toLowerCase().includes(zone.toLowerCase())) {
+        [profLat, profLon] = coords;
+        break;
+      }
+    }
+
+    if (profLat && profLon) {
+      const dist = calculateDistance(clientLat, clientLon, profLat, profLon);
+      setDistance(`${dist.toFixed(1)} km`);
+    } else {
+      setDistance('Distancia no disponible');
+    }
+  }, [professional.zona_cobertura]);
 
   return (
     <div className="professional-card card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll">
@@ -58,7 +108,7 @@ const ProfessionalCard = ({ professional }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                {professional.zona_cobertura}
+                {professional.zona_cobertura} • {distance}
               </p>
             </div>
 

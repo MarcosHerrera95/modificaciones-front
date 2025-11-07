@@ -23,7 +23,7 @@ const SearchBar = () => {
         </div>
         <input
           type="text"
-          placeholder="¿Qué necesitas? (ej: plomero, electricista, pintor)"
+          placeholder="Ej: Plomero, Electricista..."
           value={service}
           onChange={(e) => setService(e.target.value)}
           className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg min-h-[44px]"

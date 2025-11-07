@@ -8,14 +8,23 @@ const Professionals = () => {
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('rating');
   const [filterVerified, setFilterVerified] = useState(false);
+  const [zonaCobertura, setZonaCobertura] = useState('');
+  const [precioMin, setPrecioMin] = useState('');
+  const [precioMax, setPrecioMax] = useState('');
   const location = useLocation();
 
   useEffect(() => {
     const fetchProfessionals = async () => {
       setLoading(true);
       try {
+        // Construir query string con filtros adicionales
+        const urlParams = new URLSearchParams(location.search);
+        if (zonaCobertura) urlParams.set('zona_cobertura', zonaCobertura);
+        if (precioMin) urlParams.set('precio_min', precioMin);
+        if (precioMax) urlParams.set('precio_max', precioMax);
+
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
-        const response = await fetch(`/api/professionals${location.search}`);
+        const response = await fetch(`/api/search?${urlParams.toString()}`);
         const data = await response.json();
         if (response.ok) {
           setProfessionals(data.professionals);
@@ -30,7 +39,7 @@ const Professionals = () => {
     };
 
     fetchProfessionals();
-  }, [location.search]);
+  }, [location.search, zonaCobertura, precioMin, precioMax]);
 
   const sortedProfessionals = [...professionals].sort((a, b) => {
     switch (sortBy) {
@@ -75,8 +84,9 @@ const Professionals = () => {
 
         {/* Filters and Sort */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+            {/* Verified Filter */}
+            <div className="flex items-center space-x-2">
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -89,6 +99,44 @@ const Professionals = () => {
               </label>
             </div>
 
+            {/* Location Filter */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Zona/Barrio</label>
+              <input
+                type="text"
+                placeholder="Ej: Palermo, CABA"
+                value={zonaCobertura}
+                onChange={(e) => setZonaCobertura(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Price Filters */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Precio mínimo</label>
+              <input
+                type="number"
+                placeholder="Min $"
+                value={precioMin}
+                onChange={(e) => setPrecioMin(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Precio máximo</label>
+              <input
+                type="number"
+                placeholder="Max $"
+                value={precioMax}
+                onChange={(e) => setPrecioMax(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* Sort Options */}
+          <div className="flex items-center justify-center mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center space-x-4">
               <span className="text-gray-700 font-medium">Ordenar por:</span>
               <select
