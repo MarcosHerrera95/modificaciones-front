@@ -1,13 +1,18 @@
 // src/components/RankingDisplay.jsx
 import { useState, useEffect } from 'react';
 
-const RankingDisplay = () => {
-  const [ranking, setRanking] = useState([]);
-  const [loading, setLoading] = useState(true);
+const RankingDisplay = ({ ranking: propRanking, loading: propLoading }) => {
+  const [ranking, setRanking] = useState(propRanking || []);
+  const [loading, setLoading] = useState(propLoading !== undefined ? propLoading : true);
 
   useEffect(() => {
-    fetchRanking();
-  }, []);
+    if (propRanking !== undefined) {
+      setRanking(propRanking);
+      setLoading(propLoading || false);
+    } else {
+      fetchRanking();
+    }
+  }, [propRanking, propLoading]);
 
   const fetchRanking = async () => {
     setLoading(true);
@@ -21,6 +26,15 @@ const RankingDisplay = () => {
       console.error('Error fetching ranking:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const getMedalIcon = (medal) => {
+    switch (medal) {
+      case 'oro': return '🥇';
+      case 'plata': return '🥈';
+      case 'bronce': return '🥉';
+      default: return null;
     }
   };
 
@@ -51,7 +65,7 @@ const RankingDisplay = () => {
 
       <div className="space-y-4">
         {ranking.map((item) => (
-          <div key={item.profesional.usuario_id} className="flex items-center space-x-4 p-4 rounded-xl hover:bg-gray-50 transition-colors duration-200">
+          <div key={item.profesional.id} className="flex items-center space-x-4 p-4 rounded-xl hover:bg-gray-50 transition-colors duration-200">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
               item.posicion === 1 ? 'bg-yellow-500' :
               item.posicion === 2 ? 'bg-gray-400' :
@@ -62,8 +76,26 @@ const RankingDisplay = () => {
             </div>
 
             <div className="flex-1">
-              <h4 className="font-semibold text-gray-800">{item.profesional.usuario.nombre}</h4>
+              <div className="flex items-center gap-2">
+                <h4 className="font-semibold text-gray-800">{item.profesional.nombre}</h4>
+                {item.profesional.estado_verificacion === 'verificado' && (
+                  <span className="bg-emerald-100 text-emerald-800 text-xs px-2 py-1 rounded-full font-medium">
+                    ✅ Verificado
+                  </span>
+                )}
+                {item.medallas?.calidad && (
+                  <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full font-medium">
+                    {getMedalIcon(item.medallas.calidad)} Calidad
+                  </span>
+                )}
+                {item.medallas?.experiencia && (
+                  <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-medium">
+                    {getMedalIcon(item.medallas.experiencia)} Experiencia
+                  </span>
+                )}
+              </div>
               <p className="text-sm text-gray-600">{item.profesional.especialidad}</p>
+              <p className="text-xs text-gray-500">{item.total_resenas} reseñas</p>
             </div>
 
             <div className="text-right">

@@ -88,6 +88,13 @@ const ProfessionalCard = ({ professional }) => {
                 </svg>
               </div>
             )}
+            {professional.estado_verificacion === 'pendiente' && (
+              <div className="absolute -top-3 -right-3 bg-yellow-500 text-white rounded-full p-2 shadow-xl">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            )}
           </div>
         </div>
 
@@ -139,10 +146,35 @@ const ProfessionalCard = ({ professional }) => {
             )}
             <span className="bg-gradient-to-r from-cyan-100 to-teal-100 text-cyan-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
               </svg>
-              Top Profesional
+              {professional.zona_cobertura}
             </span>
+            {professional.estado_verificacion === 'verificado' && (
+              <span className="bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Verificado
+              </span>
+            )}
+            {professional.estado_verificacion === 'pendiente' && (
+              <span className="bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                En revisión
+              </span>
+            )}
+            {professional.estado_verificacion === 'rechazado' && (
+              <span className="bg-gradient-to-r from-red-100 to-pink-100 text-red-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
+                <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                </svg>
+                Rechazado
+              </span>
+            )}
             <span className="bg-gradient-to-r from-amber-100 to-orange-100 text-amber-800 text-sm px-4 py-2 rounded-full font-semibold flex items-center shadow-md">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />

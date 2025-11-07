@@ -97,8 +97,34 @@ const VerificationForm = () => {
     }
   };
 
+  // Función para verificar estado de verificación periódicamente
+  const checkVerificationStatus = async () => {
+    try {
+      const response = await fetch('/api/verification/status', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setStatus(data.data);
+      }
+    } catch (error) {
+      console.error('Error verificando estado:', error);
+    }
+  };
+
+  // Verificar estado cada 30 segundos si está pendiente
+  useEffect(() => {
+    if (status?.estado === 'pendiente') {
+      const interval = setInterval(checkVerificationStatus, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [status?.estado]);
+
   // Solo mostrar para profesionales
-  if (user?.role !== 'profesional') {
+  if (user?.rol !== 'profesional') {
     return null;
   }
 

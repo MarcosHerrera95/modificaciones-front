@@ -1,7 +1,29 @@
 // src/pages/Ranking.jsx
+import { useState, useEffect } from 'react';
 import RankingDisplay from '../components/RankingDisplay';
 
 const Ranking = () => {
+  const [ranking, setRanking] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadRanking();
+  }, []);
+
+  const loadRanking = async () => {
+    try {
+      const response = await fetch('/api/ranking');
+      if (response.ok) {
+        const data = await response.json();
+        setRanking(data);
+      }
+    } catch (error) {
+      console.error('Error cargando ranking:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
       <div className="container mx-auto px-4 py-12">
@@ -17,7 +39,7 @@ const Ranking = () => {
 
         {/* Ranking Display */}
         <div className="max-w-4xl mx-auto">
-          <RankingDisplay />
+          <RankingDisplay ranking={ranking} loading={loading} />
         </div>
 
         {/* Info Section */}
