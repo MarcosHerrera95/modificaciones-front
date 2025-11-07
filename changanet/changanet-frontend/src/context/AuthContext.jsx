@@ -40,12 +40,41 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
+  // Función para obtener datos actualizados del usuario desde el backend
+  const fetchCurrentUser = async () => {
+    try {
+      const token = sessionStorage.getItem('changanet_token');
+      if (!token) return;
+
+      const response = await fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('AuthContext - Fetched current user:', data.user);
+        setUser(data.user);
+        sessionStorage.setItem('changanet_user', JSON.stringify(data.user));
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error);
+    }
+  };
+
   const login = (userData, token) => {
     console.log('Login called with userData:', userData);
     console.log('User role:', userData.rol || userData.role);
+    console.log('User name:', userData.nombre || userData.name);
+
+    // Asegurar que el nombre esté disponible
+    const userWithName = {
+      ...userData,
+      nombre: userData.nombre || userData.name || 'Usuario'
+    };
+
     sessionStorage.setItem('changanet_token', token);
-    sessionStorage.setItem('changanet_user', JSON.stringify(userData));
-    setUser(userData);
+    sessionStorage.setItem('changanet_user', JSON.stringify(userWithName));
+    setUser(userWithName);
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY (solo si está disponible)
     try {
@@ -62,9 +91,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Método para manejar login con Google (puede ser usado por el GoogleLoginButton)
-  const loginWithGoogle = (userData, token) => {
+  const loginWithGoogle = async (userData, token) => {
     // El login con Google funciona igual que el login regular
     login(userData, token);
+
+    // Después del login, obtener datos actualizados del usuario
+    setTimeout(() => {
+      fetchCurrentUser();
+    }, 100);
   };
 
   const signup = async (name, email, password, role) => {
@@ -121,7 +155,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, loginWithGoogle, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, loginWithGoogle, fetchCurrentUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

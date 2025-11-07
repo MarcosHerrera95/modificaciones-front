@@ -54,7 +54,7 @@ const JoinPage = () => {
           email: formData.email,
           password: formData.password,
           name: formData.name,
-          rol: selectedRole
+          rol: selectedRole // Enviando explícitamente 'cliente' o 'profesional'
         })
       });
       const data = await response.json();
