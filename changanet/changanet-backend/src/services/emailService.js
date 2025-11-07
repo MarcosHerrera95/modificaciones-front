@@ -71,6 +71,50 @@ exports.sendContactMessage = async (contactData) => {
   // await exports.sendEmail(email, confirmationSubject, confirmationHtml);
 };
 
+/**
+ * Envía email de bienvenida al newsletter
+ * @param {string} email - Email del suscriptor
+ */
+exports.sendNewsletterWelcomeEmail = async (email) => {
+  const subject = '¡Bienvenido al newsletter de Changánet!';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">¡Bienvenido a Changánet!</h1>
+      </div>
+      <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h2 style="color: #333; margin-bottom: 20px;">¡Gracias por suscribirte!</h2>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Te mantendremos informado sobre las últimas novedades, ofertas exclusivas y consejos útiles para encontrar los mejores servicios.
+        </p>
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin-bottom: 20px;">
+          <h3 style="margin-top: 0; color: #333;">¿Qué recibirás en nuestro newsletter?</h3>
+          <ul style="color: #666; line-height: 1.6;">
+            <li>✨ Novedades y actualizaciones de la plataforma</li>
+            <li>💡 Consejos para contratar servicios de calidad</li>
+            <li>🎯 Ofertas exclusivas para suscriptores</li>
+            <li>📈 Historias de éxito de nuestros usuarios</li>
+          </ul>
+        </div>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+          Si tienes alguna pregunta o sugerencia, no dudes en contactarnos. ¡Estamos aquí para ayudarte!
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/"
+             style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Explorar Servicios
+          </a>
+        </div>
+        <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
+          Puedes darte de baja en cualquier momento haciendo clic en el enlace correspondiente al final de nuestros emails.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await exports.sendEmail(email, subject, html);
+};
+
 exports.sendNotificationEmail = async (email, type, message, userName) => {
   let subject;
   let html;
