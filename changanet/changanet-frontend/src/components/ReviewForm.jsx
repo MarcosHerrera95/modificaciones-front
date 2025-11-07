@@ -39,6 +39,7 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
         setRating(5);
         setComment('');
         setPhoto(null);
+        alert('Reseña enviada exitosamente');
       } else {
         const data = await response.json();
         setError(data.error || 'Error al enviar la reseña');

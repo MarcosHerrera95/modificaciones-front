@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useChatHook } from '../hooks/useChat';
+import { uploadChatImage } from '../services/storageService';
 
 const ChatWidget = ({ otherUserId }) => {
   const { user } = useAuth();
@@ -16,7 +17,10 @@ const ChatWidget = ({ otherUserId }) => {
   } = useChatHook(otherUserId);
 
   const [newMessage, setNewMessage] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,9 +37,40 @@ const ChatWidget = ({ otherUserId }) => {
     }
   }, [otherUserId, unreadCount, markAsRead]);
 
-  const handleSendMessage = () => {
-    if (sendMessage(newMessage)) {
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() && !selectedImage) return;
+
+    let imageUrl = null;
+
+    // Subir imagen si hay una seleccionada
+    if (selectedImage) {
+      setUploadingImage(true);
+      try {
+        // Crear nombre único para la imagen del chat
+        const fileName = `chat-${user.id}-${otherUserId}-${Date.now()}.${selectedImage.name.split('.').pop()}`;
+        const result = await uploadChatImage(user.id, otherUserId, selectedImage, fileName);
+        if (result.success) {
+          imageUrl = result.url;
+        } else {
+          console.error('Error uploading image:', result.error);
+          alert('Error al subir la imagen. Inténtalo de nuevo.');
+          setUploadingImage(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        alert('Error al subir la imagen. Inténtalo de nuevo.');
+        setUploadingImage(false);
+        return;
+      }
+      setUploadingImage(false);
+    }
+
+    // Enviar mensaje con o sin imagen
+    const messageContent = newMessage.trim() || (imageUrl ? '📷 Imagen' : '');
+    if (sendMessage(messageContent, imageUrl)) {
       setNewMessage('');
+      setSelectedImage(null);
     }
   };
 
@@ -104,6 +139,14 @@ const ChatWidget = ({ otherUserId }) => {
                     : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'
                 }`}
               >
+                {message.url_imagen && (
+                  <img
+                    src={message.url_imagen}
+                    alt="Imagen del mensaje"
+                    className="max-w-full h-auto rounded-lg mb-2 cursor-pointer"
+                    onClick={() => window.open(message.url_imagen, '_blank')}
+                  />
+                )}
                 <p className="break-words">{message.contenido}</p>
                 <span className={`text-xs mt-1 block ${
                   message.remitente_id === user.id ? 'text-emerald-100' : 'text-gray-500'
@@ -119,7 +162,57 @@ const ChatWidget = ({ otherUserId }) => {
 
       {/* Input de Mensaje */}
       <div className="p-4 bg-white border-t border-gray-200">
+        {/* Vista previa de imagen seleccionada */}
+        {selectedImage && (
+          <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <img
+                  src={URL.createObjectURL(selectedImage)}
+                  alt="Vista previa"
+                  className="w-10 h-10 object-cover rounded"
+                />
+                <span className="text-sm text-gray-600">{selectedImage.name}</span>
+              </div>
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-2">
+          {/* Botón para seleccionar imagen */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={(e) => {
+              const file = e.target.files[0];
+              if (file && file.type.startsWith('image/')) {
+                setSelectedImage(file);
+              } else if (file) {
+                alert('Por favor selecciona solo archivos de imagen (JPG, PNG)');
+              }
+            }}
+            accept="image/*"
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingImage}
+            className="bg-gray-100 text-gray-600 p-3 rounded-full hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center"
+            aria-label="Adjuntar imagen"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+
           <input
             type="text"
             value={newMessage}
@@ -127,18 +220,22 @@ const ChatWidget = ({ otherUserId }) => {
             onKeyPress={handleKeyPress}
             className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             placeholder="Escribe tu mensaje..."
-            disabled={!isConnected}
+            disabled={!isConnected || uploadingImage}
             maxLength={500}
           />
           <button
             onClick={handleSendMessage}
-            disabled={!newMessage.trim() || !isConnected}
+            disabled={(!newMessage.trim() && !selectedImage) || !isConnected || uploadingImage}
             className="bg-emerald-500 text-white p-3 rounded-full hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center shadow-sm hover:shadow-md"
             aria-label="Enviar mensaje"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            {uploadingImage ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+            ) : (
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            )}
           </button>
         </div>
         {newMessage.length > 400 && (

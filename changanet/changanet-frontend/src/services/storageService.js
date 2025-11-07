@@ -50,6 +50,18 @@ export const uploadVerificationDocument = async (userId, file) => {
   }
 };
 
+// Subir imagen de chat
+export const uploadChatImage = async (userId, otherUserId, file, fileName) => {
+  try {
+    const storageRef = ref(storage, `chats/${userId}-${otherUserId}/${fileName}`);
+    const snapshot = await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return { success: true, url: downloadURL };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+};
+
 // Eliminar archivo
 export const deleteFile = async (path) => {
   try {
