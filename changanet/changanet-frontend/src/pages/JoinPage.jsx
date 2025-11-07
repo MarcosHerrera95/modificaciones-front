@@ -68,7 +68,17 @@ const JoinPage = () => {
         }
         console.log('Selected role:', selectedRole);
         console.log('Navigation path:', selectedRole === 'cliente' ? '/mi-cuenta' : '/dashboard-profesional');
-        navigate(selectedRole === 'cliente' ? '/mi-cuenta' : '/dashboard-profesional');
+
+        // Force navigation with a small delay to ensure state is updated
+        setTimeout(() => {
+          if (selectedRole === 'cliente') {
+            console.log('Navigating to /dashboard-cliente');
+            navigate('/dashboard-cliente', { replace: true });
+          } else {
+            console.log('Navigating to /dashboard-profesional');
+            navigate('/dashboard-profesional', { replace: true });
+          }
+        }, 100);
       } else {
         console.error('Registration failed:', data.error);
         setError(data.error || 'Error al crear la cuenta');

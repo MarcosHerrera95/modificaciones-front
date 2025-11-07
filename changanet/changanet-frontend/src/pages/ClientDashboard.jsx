@@ -1,16 +1,16 @@
 /**
- * @page ProfessionalDashboard - Dashboard principal para profesionales
- * @descripción Panel de control completo para gestión profesional (REQ-06 a REQ-45)
+ * @page ClientDashboard - Dashboard principal para clientes
+ * @descripción Panel de control completo para gestión de servicios y cotizaciones (REQ-01 a REQ-45)
  * @sprint Sprint 2 – Dashboard y Gestión
- * @tarjeta Tarjeta 3: [Frontend] Implementar Dashboard Profesional
- * @impacto Social: Herramientas para que profesionales gestionen su negocio de triple impacto
+ * @tarjeta Tarjeta 3: [Frontend] Implementar Dashboard Cliente
+ * @impacto Social: Herramientas para que clientes encuentren servicios de triple impacto
  */
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const ProfessionalDashboard = () => {
+const ClientDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
@@ -18,22 +18,22 @@ const ProfessionalDashboard = () => {
     totalServices: 0,
     pendingQuotes: 0,
     completedServices: 0,
-    totalEarnings: 0
+    totalSpent: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
 
   // Verificar permisos
   useEffect(() => {
-    console.log('ProfessionalDashboard - User:', user);
-    console.log('ProfessionalDashboard - User role:', user?.role || user?.rol);
-    if (!user || (user.role !== 'profesional' && user.rol !== 'profesional')) {
-      console.log('ProfessionalDashboard - Redirecting because user is not profesional');
+    console.log('ClientDashboard - User:', user);
+    console.log('ClientDashboard - User role:', user?.role || user?.rol);
+    if (!user || (user.role !== 'cliente' && user.rol !== 'cliente')) {
+      console.log('ClientDashboard - Redirecting because user is not cliente');
       navigate('/');
       return;
     }
     // Don't load data immediately, wait for user to be fully set
     const timer = setTimeout(() => {
-      if (user && (user.role === 'profesional' || user.rol === 'profesional')) {
+      if (user && (user.role === 'cliente' || user.rol === 'cliente')) {
         loadDashboardData();
       }
     }, 100); // Small delay to ensure user state is fully updated
@@ -43,7 +43,7 @@ const ProfessionalDashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      console.log('Loading professional dashboard data for user:', user);
+      console.log('Loading client dashboard data for user:', user);
       const token = sessionStorage.getItem('changanet_token');
       console.log('Token from sessionStorage:', token ? 'present' : 'missing');
 
@@ -53,51 +53,51 @@ const ProfessionalDashboard = () => {
       }
 
       // For now, just set default stats since the API endpoints don't exist yet
-      console.log('Setting default professional stats (API endpoints not implemented yet)');
+      console.log('Setting default client stats (API endpoints not implemented yet)');
       setStats({
         totalServices: 0,
         pendingQuotes: 0,
         completedServices: 0,
-        totalEarnings: 0
+        totalSpent: 0
       });
       setRecentActivity([]);
 
       // TODO: Uncomment when API endpoints are implemented
       /*
-      // Cargar estadísticas
-      const statsResponse = await fetch('/api/professionals/stats', {
+      // Cargar estadísticas del cliente
+      const statsResponse = await fetch('/api/client/stats', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      console.log('Stats response:', statsResponse.status);
+      console.log('Client stats response:', statsResponse.status);
 
       if (statsResponse.ok) {
         const statsData = await statsResponse.json();
-        console.log('Stats data:', statsData);
-        setStats(statsData.data);
+        console.log('Client stats data:', statsData);
+        setStats(statsData.data || stats);
       } else {
-        console.error('Failed to load stats:', statsResponse.status);
+        console.error('Failed to load client stats:', statsResponse.status);
       }
 
       // Cargar actividad reciente
-      const activityResponse = await fetch('/api/professionals/activity', {
+      const activityResponse = await fetch('/api/client/activity', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      console.log('Activity response:', activityResponse.status);
+      console.log('Client activity response:', activityResponse.status);
 
       if (activityResponse.ok) {
         const activityData = await activityResponse.json();
-        console.log('Activity data:', activityData);
-        setRecentActivity(activityData.data);
+        console.log('Client activity data:', activityData);
+        setRecentActivity(activityData.data || []);
       } else {
-        console.error('Failed to load activity:', activityResponse.status);
+        console.error('Failed to load client activity:', activityResponse.status);
       }
       */
     } catch (error) {
-      console.error('Error cargando datos del dashboard:', error);
+      console.error('Error cargando datos del dashboard cliente:', error);
     }
   };
 
@@ -106,8 +106,8 @@ const ProfessionalDashboard = () => {
     { id: 'profile', name: 'Mi Perfil', icon: '👤' },
     { id: 'services', name: 'Mis Servicios', icon: '🔧' },
     { id: 'quotes', name: 'Cotizaciones', icon: '💰' },
-    { id: 'schedule', name: 'Mi Agenda', icon: '📅' },
-    { id: 'verification', name: 'Verificación', icon: '✅' },
+    { id: 'professionals', name: 'Profesionales', icon: '👥' },
+    { id: 'reviews', name: 'Mis Reseñas', icon: '⭐' },
     { id: 'payments', name: 'Pagos', icon: '💳' }
   ];
 
@@ -160,8 +160,8 @@ const ProfessionalDashboard = () => {
                     <span className="text-2xl">💰</span>
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">Ganancias Totales</p>
-                    <p className="text-2xl font-bold text-gray-900">${stats.totalEarnings}</p>
+                    <p className="text-sm font-medium text-gray-600">Total Gastado</p>
+                    <p className="text-2xl font-bold text-gray-900">${stats.totalSpent}</p>
                   </div>
                 </div>
               </div>
@@ -203,9 +203,9 @@ const ProfessionalDashboard = () => {
       case 'profile':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Mi Perfil Profesional</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mi Perfil de Cliente</h3>
             <button
-              onClick={() => navigate('/mi-perfil-profesional')}
+              onClick={() => navigate('/mi-perfil-cliente')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Editar Perfil
@@ -216,9 +216,9 @@ const ProfessionalDashboard = () => {
       case 'services':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Servicios</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Servicios Contratados</h3>
             <button
-              onClick={() => navigate('/mis-servicios')}
+              onClick={() => navigate('/mis-servicios-cliente')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Ver Servicios
@@ -229,9 +229,9 @@ const ProfessionalDashboard = () => {
       case 'quotes':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Cotizaciones Recibidas</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Cotizaciones</h3>
             <button
-              onClick={() => navigate('/cotizaciones-profesional')}
+              onClick={() => navigate('/cotizaciones-cliente')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Cotizaciones
@@ -239,28 +239,28 @@ const ProfessionalDashboard = () => {
           </div>
         );
 
-      case 'schedule':
+      case 'professionals':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Mi Agenda</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Profesionales Favoritos</h3>
             <button
-              onClick={() => navigate('/agenda-profesional')}
+              onClick={() => navigate('/profesionales')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
-              Ver Agenda
+              Explorar Profesionales
             </button>
           </div>
         );
 
-      case 'verification':
+      case 'reviews':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Verificación de Identidad</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Reseñas</h3>
             <button
-              onClick={() => navigate('/verificacion-profesional')}
+              onClick={() => navigate('/mis-resenas')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
-              Gestionar Verificación
+              Ver Reseñas
             </button>
           </div>
         );
@@ -270,7 +270,7 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Historial de Pagos</h3>
             <button
-              onClick={() => navigate('/pagos-profesional')}
+              onClick={() => navigate('/pagos-cliente')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Ver Pagos
@@ -283,9 +283,9 @@ const ProfessionalDashboard = () => {
     }
   };
 
-  if (!user || (user.role !== 'profesional' && user.rol !== 'profesional')) {
-    console.log('ProfessionalDashboard - Not rendering because user is not profesional:', user);
-    return null; // No renderizar si no es profesional
+  if (!user || (user.role !== 'cliente' && user.rol !== 'cliente')) {
+    console.log('ClientDashboard - Not rendering because user is not cliente:', user);
+    return null; // No renderizar si no es cliente
   }
 
   return (
@@ -293,9 +293,9 @@ const ProfessionalDashboard = () => {
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard Profesional</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard de Cliente</h1>
           <p className="mt-2 text-gray-600">
-            ¡Hola, {user.nombre}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
+            ¡Hola, {user.nombre}! Gestiona tus servicios y encuentra los mejores profesionales.
           </p>
         </div>
 
@@ -328,4 +328,4 @@ const ProfessionalDashboard = () => {
   );
 };
 
-export default ProfessionalDashboard;
+export default ClientDashboard;
