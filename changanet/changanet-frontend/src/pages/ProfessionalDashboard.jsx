@@ -9,10 +9,13 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useOnboarding } from '../hooks/useOnboarding';
+import '../styles/onboarding.css';
 
 const ProfessionalDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { startOnboarding } = useOnboarding();
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState({
     totalServices: 0,
@@ -144,6 +147,11 @@ const ProfessionalDashboard = () => {
     { id: 'verification', name: 'Verificación', icon: '✅' },
     { id: 'payments', name: 'Pagos', icon: '💳' }
   ];
+
+  // Función para iniciar onboarding manualmente (para testing)
+  const handleStartOnboarding = () => {
+    startOnboarding('profesional');
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -326,15 +334,24 @@ const ProfessionalDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-8" id="professional-dashboard-header">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard Profesional</h1>
           <p className="mt-2 text-gray-600">
             ¡Hola, {user.nombre || user.name || 'Profesional'}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
           </p>
+          {/* Botón para testing - remover en producción */}
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={handleStartOnboarding}
+              className="mt-2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+            >
+              🔄 Reiniciar Onboarding
+            </button>
+          )}
         </div>
 
         {/* Tabs */}
-        <div className="mb-6">
+        <div className="mb-6" id="professional-dashboard-tabs">
           <nav className="flex space-x-1 bg-white p-1 rounded-lg shadow">
             {tabs.map((tab) => (
               <button

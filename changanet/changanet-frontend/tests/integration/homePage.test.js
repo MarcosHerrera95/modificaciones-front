@@ -1,4 +1,4 @@
-// tests/unit/App.test.js
+// tests/integration/homePage.test.js
 import { render, screen } from '@testing-library/react';
 import App from '../../src/App';
 

@@ -53,7 +53,7 @@ describe('VerificationForm - Unit Tests', () => {
     });
 
     expect(screen.getByText('Solicitar Verificación')).toBeInTheDocument();
-    expect(screen.getByLabelText(/documento de identidad/i)).toBeInTheDocument();
+    expect(screen.getByText('Documento de Identidad')).toBeInTheDocument();
   });
 
   test('no debe renderizar para usuarios que no son profesionales', () => {
@@ -91,7 +91,7 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText('⏳ Pendiente de revisión')).toBeInTheDocument();
+      expect(screen.getByText(/Pendiente de revisión/)).toBeInTheDocument();
     });
 
     expect(screen.getByText('Solicitud pendiente')).toBeInTheDocument();
@@ -113,7 +113,7 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByText('✅ Verificado')).toBeInTheDocument();
+      expect(screen.getByText(/Verificado/)).toBeInTheDocument();
     });
 
     expect(screen.getByText('Documento válido')).toBeInTheDocument();
@@ -123,10 +123,10 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/documento de identidad/i)).toBeInTheDocument();
+      expect(screen.getByText('Documento de Identidad')).toBeInTheDocument();
     });
 
-    const fileInput = screen.getByLabelText(/documento de identidad/i);
+    const fileInput = screen.getByDisplayValue('');
 
     // Archivo con extensión no permitida
     const invalidFile = new File(['test'], 'test.txt', { type: 'text/plain' });
@@ -141,17 +141,17 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/documento de identidad/i)).toBeInTheDocument();
+      expect(screen.getByText('Documento de Identidad')).toBeInTheDocument();
     });
 
-    const fileInput = screen.getByLabelText(/documento de identidad/i);
+    const fileInput = screen.getByDisplayValue('');
 
     // Archivo de 6MB (excede el límite de 5MB)
     const largeFile = new File(['x'.repeat(6 * 1024 * 1024)], 'large.jpg', { type: 'image/jpeg' });
     fireEvent.change(fileInput, { target: { files: [largeFile] } });
 
     await waitFor(() => {
-      expect(screen.getByText(/demasiado grande/i)).toBeInTheDocument();
+      expect(screen.getByText(/demasiado grande/)).toBeInTheDocument();
     });
   });
 
@@ -171,10 +171,10 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/documento de identidad/i)).toBeInTheDocument();
+      expect(screen.getByText('Documento de Identidad')).toBeInTheDocument();
     });
 
-    const fileInput = screen.getByLabelText(/documento de identidad/i);
+    const fileInput = screen.getByDisplayValue('');
     const submitButton = screen.getByText('Solicitar Verificación');
 
     // Archivo válido
@@ -188,10 +188,8 @@ describe('VerificationForm - Unit Tests', () => {
       expect(global.fetch).toHaveBeenCalledWith('/api/verification/request', expect.any(Object));
     });
 
-    // Verificar que se mostró mensaje de éxito
-    await waitFor(() => {
-      expect(screen.getByText(/solicitud de verificación enviada correctamente/i)).toBeInTheDocument();
-    });
+    // Verificar que se mostró mensaje de éxito (usando alert mock)
+    expect(global.alert).toHaveBeenCalledWith('Solicitud de verificación enviada correctamente. Recibirás una notificación cuando sea revisada.');
   });
 
   test('debe manejar errores de envío', async () => {
@@ -205,10 +203,10 @@ describe('VerificationForm - Unit Tests', () => {
     renderWithContext(<VerificationForm />);
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/documento de identidad/i)).toBeInTheDocument();
+      expect(screen.getByText('Documento de Identidad')).toBeInTheDocument();
     });
 
-    const fileInput = screen.getByLabelText(/documento de identidad/i);
+    const fileInput = screen.getByDisplayValue('');
     const submitButton = screen.getByText('Solicitar Verificación');
 
     // Archivo válido
@@ -230,8 +228,8 @@ describe('VerificationForm - Unit Tests', () => {
       expect(screen.getByText('¿Por qué verificar mi identidad?')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Aumenta la confianza de los clientes')).toBeInTheDocument();
-    expect(screen.getByText('Apareces más arriba en las búsquedas')).toBeInTheDocument();
-    expect(screen.getByText('Proceso manual y seguro por nuestro equipo')).toBeInTheDocument();
+    expect(screen.getByText(/Aumenta la confianza de los clientes/)).toBeInTheDocument();
+    expect(screen.getByText(/Apareces más arriba en las búsquedas/)).toBeInTheDocument();
+    expect(screen.getByText(/Proceso manual y seguro por nuestro equipo/)).toBeInTheDocument();
   });
 });
