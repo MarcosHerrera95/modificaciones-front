@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import ChatWidget from '../components/ChatWidget';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import RatingDisplay from '../components/RatingDisplay';
+import AvailabilityCalendar from '../components/AvailabilityCalendar';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -167,7 +168,7 @@ const ProfessionalDetail = () => {
       return;
     }
     // Navigate to scheduling page or show scheduling modal
-    alert('Funcionalidad de agendamiento próximamente disponible');
+    navigate(`/agendar/${professionalId}`);
   };
 
   const handleCloseQuoteForm = () => {
@@ -266,6 +267,7 @@ const ProfessionalDetail = () => {
             <nav className="flex flex-wrap">
               {user && user.rol === 'cliente' ? [
                 { id: 'about', label: 'Sobre Mí', icon: '👤' },
+                { id: 'availability', label: 'Disponibilidad', icon: '📅' },
                 { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
                 { id: 'reviews', label: 'Reseñas', icon: '⭐' },
                 { id: 'chat', label: 'Chat', icon: '💬' }
@@ -292,6 +294,13 @@ const ProfessionalDetail = () => {
           </div>
 
           <div className="p-8">
+            {activeTab === 'availability' && user && user.rol === 'cliente' && (
+              <div className="animate-fade-in">
+                <h2 className="text-3xl font-bold mb-6 text-gray-800">Disponibilidad de {profile.nombre}</h2>
+                <AvailabilityCalendar professionalId={professionalId} />
+              </div>
+            )}
+
             {activeTab === 'about' && (
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Sobre Mí</h2>
@@ -571,7 +580,7 @@ const ProfessionalDetail = () => {
                 </div>
               </div>
               <div className="p-6">
-                <QuoteRequestForm onClose={handleCloseQuoteForm} professionalName={profile.nombre} />
+                <QuoteRequestForm onClose={handleCloseQuoteForm} professionalName={profile.nombre} professionalId={professionalId} />
               </div>
             </div>
           </div>

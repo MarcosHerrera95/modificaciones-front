@@ -6,6 +6,7 @@ const AvailabilityCalendar = ({ professionalId }) => {
   const [availabilities, setAvailabilities] = useState([]);
   const [newSlot, setNewSlot] = useState({ hora_inicio: '', hora_fin: '' });
   const [loading, setLoading] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState(null);
 
   useEffect(() => {
     const fetchAvailability = async () => {
@@ -38,8 +39,9 @@ const AvailabilityCalendar = ({ professionalId }) => {
         },
         body: JSON.stringify({
           fecha: selectedDate,
-          hora_inicio: `${selectedDate}T${newSlot.hora_inicio}`,
-          hora_fin: `${selectedDate}T${newSlot.hora_fin}`
+          hora_inicio: `${selectedDate}T${newSlot.hora_inicio}:00`,
+          hora_fin: `${selectedDate}T${newSlot.hora_fin}:00`,
+          esta_disponible: true
         })
       });
       const data = await response.json();
@@ -55,6 +57,35 @@ const AvailabilityCalendar = ({ professionalId }) => {
       alert('Error de red. Intenta nuevamente.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleAvailability = async (slotId, currentStatus) => {
+    setToggleLoading(slotId);
+    try {
+      const response = await fetch(`/api/availability/${slotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({
+          esta_disponible: !currentStatus
+        })
+      });
+
+      if (response.ok) {
+        setAvailabilities(prev => prev.map(slot =>
+          slot.id === slotId ? { ...slot, esta_disponible: !currentStatus } : slot
+        ));
+      } else {
+        alert('Error al actualizar disponibilidad');
+      }
+    } catch (error) {
+      console.error('Error al actualizar disponibilidad:', error);
+      alert('Error de red. Intenta nuevamente.');
+    } finally {
+      setToggleLoading(null);
     }
   };
 
@@ -128,9 +159,17 @@ const AvailabilityCalendar = ({ professionalId }) => {
               <div key={slot.id} className="flex justify-between items-center p-3 border rounded-md">
                 <span>{new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                 <div className="flex items-center space-x-2">
-                  <span className={`px-2 py-1 rounded-full text-xs ${slot.está_disponible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {slot.está_disponible ? 'Disponible' : 'Ocupado'}
+                  <span className={`px-2 py-1 rounded-full text-xs ${slot.esta_disponible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {slot.esta_disponible ? 'Disponible' : 'Ocupado'}
                   </span>
+                  <button
+                    onClick={() => handleToggleAvailability(slot.id, slot.esta_disponible)}
+                    disabled={toggleLoading === slot.id}
+                    className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50"
+                    title={slot.esta_disponible ? 'Marcar como no disponible' : 'Marcar como disponible'}
+                  >
+                    {toggleLoading === slot.id ? '⏳' : (slot.esta_disponible ? '❌' : '✅')}
+                  </button>
                   <button
                     onClick={() => handleDeleteSlot(slot.id)}
                     className="text-red-600 hover:text-red-800 text-sm"

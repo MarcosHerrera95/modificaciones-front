@@ -18,7 +18,7 @@ import QuickMessageModal from './QuickMessageModal';
  * @impacto Económico: Interfaz intuitiva para conectar demanda y oferta de servicios
  * @returns {JSX.Element} Formulario de solicitud de presupuesto
  */
-const QuoteRequestForm = ({ onClose, professionalName }) => {
+const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
   const [formData, setFormData] = useState({
     descripción: '',
     zona_cobertura: ''
@@ -57,13 +57,17 @@ const QuoteRequestForm = ({ onClose, professionalName }) => {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/quotes/request', {
+      const response = await fetch('/api/quotes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          profesional_id: professionalId, // This needs to be passed as prop
+          descripcion: formData.descripción,
+          zona_cobertura: formData.zona_cobertura
+        })
       });
       const data = await response.json();
 
