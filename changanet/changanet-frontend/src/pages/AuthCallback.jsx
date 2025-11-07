@@ -14,29 +14,41 @@ const AuthCallback = () => {
         const urlParams = new URLSearchParams(window.location.search);
         const token = urlParams.get('token');
         const userData = urlParams.get('user');
+        const error = urlParams.get('error');
+
+        console.log('AuthCallback: Processing callback with params:', { token: !!token, userData: !!userData, error });
+
+        if (error) {
+          console.error('AuthCallback: Authentication error:', error);
+          navigate('/?error=' + error);
+          return;
+        }
 
         if (token && userData) {
-          // Parsear datos del usuario
-          const user = JSON.parse(decodeURIComponent(userData));
+          try {
+            // Parsear datos del usuario
+            const user = JSON.parse(decodeURIComponent(userData));
+            console.log('AuthCallback: Parsed user data:', user);
 
-          // Autenticar al usuario en el contexto
-          login(user, token);
+            // Autenticar al usuario en el contexto
+            login(user, token);
 
-          // Redirigir al dashboard
-          navigate('/mi-cuenta');
-        } else {
-          // Si no hay parámetros, verificar si estamos en una ventana popup
-          if (window.opener) {
-            // Redirigir al backend para iniciar OAuth
-            window.location.href = '/api/auth/google';
-          } else {
-            // Si no hay parámetros y no estamos en popup, redirigir a home
-            navigate('/');
+            // Redirigir al dashboard apropiado según el rol
+            const dashboardRoute = user.rol === 'profesional' ? '/dashboard-profesional' : '/mi-cuenta';
+            console.log('AuthCallback: User role:', user.rol, 'redirecting to:', dashboardRoute);
+            console.log('AuthCallback: Redirecting to:', dashboardRoute);
+            navigate(dashboardRoute);
+          } catch (parseError) {
+            console.error('AuthCallback: Error parsing user data:', parseError);
+            navigate('/?error=parse_error');
           }
+        } else {
+          console.warn('AuthCallback: Missing token or user data, redirecting to home');
+          navigate('/');
         }
       } catch (error) {
-        console.error('Error en callback de autenticación:', error);
-        navigate('/');
+        console.error('AuthCallback: Unexpected error:', error);
+        navigate('/?error=unexpected_error');
       }
     };
 

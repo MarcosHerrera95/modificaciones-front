@@ -24,6 +24,9 @@ export const AuthProvider = ({ children }) => {
     if (token) {
       try {
         const userData = JSON.parse(sessionStorage.getItem('changanet_user'));
+        console.log('AuthContext - Loaded user from sessionStorage:', userData);
+        console.log('AuthContext - User name:', userData?.nombre || 'NO NAME');
+        console.log('AuthContext - User role:', userData?.rol || userData?.role || 'NO ROLE');
         setUser(userData);
       } catch (error) {
         console.error('Error parsing user data from sessionStorage:', error);
@@ -31,6 +34,8 @@ export const AuthProvider = ({ children }) => {
         sessionStorage.removeItem('changanet_token');
         sessionStorage.removeItem('changanet_user');
       }
+    } else {
+      console.log('AuthContext - No token found in sessionStorage');
     }
     setLoading(false);
   }, []);
@@ -83,14 +88,14 @@ export const AuthProvider = ({ children }) => {
             captureMessage('Usuario registrado desde frontend', 'info', {
               tags: {
                 event: 'user_registration_frontend',
-                user_role: data.user.role,
+                user_role: data.user.rol,
                 source: 'frontend_signup',
                 business_metric: 'user_acquisition'
               },
               extra: {
                 user_id: data.user.id,
                 email: data.user.email,
-                role: data.user.role,
+                role: data.user.rol,
                 timestamp: new Date().toISOString(),
                 business_impact: 'social_economic_environmental'
               }

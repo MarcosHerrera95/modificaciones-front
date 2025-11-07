@@ -274,8 +274,10 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 // Rutas de métricas y backup (antes de otras rutas para evitar interferencias)
 const metricsRoutes = require('./routes/metricsRoutes');
 const backupRoutes = backupService.getBackupRoutes();
+const statsRoutes = require('./routes/statsRoutes');
 app.use('/api', metricsRoutes);
 app.use('/api', backupRoutes);
+app.use('/api', statsRoutes);
 
 /**
  * Configuración de rutas de la API REST.

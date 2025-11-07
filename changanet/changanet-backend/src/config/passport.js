@@ -26,6 +26,9 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3002/api/auth/google/callback',
+      scope: ['profile', 'email'],
+      accessType: 'offline',
+      prompt: 'consent'
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -58,7 +61,10 @@ passport.use(
               esta_verificado: true, // Los usuarios de Google están verificados
             }
           });
+          console.log('Google OAuth: Created new user:', user.id);
         }
+
+        console.log('Google OAuth: User authenticated:', user.nombre, '(', user.rol, ')');
 
         // Generar token JWT
         const token = jwt.sign(

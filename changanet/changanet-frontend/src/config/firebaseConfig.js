@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -11,7 +11,17 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
-const app = initializeApp(firebaseConfig);
+let app;
+try {
+  app = initializeApp(firebaseConfig);
+} catch (error) {
+  if (error.code === 'app/duplicate-app') {
+    console.warn('Firebase app already exists, using existing instance');
+    app = getApps()[0];
+  } else {
+    throw error;
+  }
+}
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

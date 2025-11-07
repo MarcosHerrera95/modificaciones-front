@@ -52,15 +52,49 @@ const ProfessionalDashboard = () => {
         return;
       }
 
-      // For now, just set default stats since the API endpoints don't exist yet
-      console.log('Setting default professional stats (API endpoints not implemented yet)');
-      setStats({
-        totalServices: 0,
-        pendingQuotes: 0,
-        completedServices: 0,
-        totalEarnings: 0
+      // Load real stats from API
+      const statsResponse = await fetch('/api/professionals/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
-      setRecentActivity([]);
+      console.log('Professional stats response:', statsResponse.status);
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        console.log('Professional stats data:', statsData);
+        setStats(statsData.data || {
+          totalServices: 0,
+          pendingQuotes: 0,
+          completedServices: 0,
+          totalEarnings: 0
+        });
+      } else {
+        console.error('Failed to load professional stats:', statsResponse.status);
+        setStats({
+          totalServices: 0,
+          pendingQuotes: 0,
+          completedServices: 0,
+          totalEarnings: 0
+        });
+      }
+
+      // Load recent activity
+      const activityResponse = await fetch('/api/professionals/activity', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      console.log('Professional activity response:', activityResponse.status);
+
+      if (activityResponse.ok) {
+        const activityData = await activityResponse.json();
+        console.log('Professional activity data:', activityData);
+        setRecentActivity(activityData.data || []);
+      } else {
+        console.error('Failed to load professional activity:', activityResponse.status);
+        setRecentActivity([]);
+      }
 
       // TODO: Uncomment when API endpoints are implemented
       /*
@@ -295,7 +329,7 @@ const ProfessionalDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard Profesional</h1>
           <p className="mt-2 text-gray-600">
-            ¡Hola, {user.nombre}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
+            ¡Hola, {user.nombre || user.name || 'Profesional'}! Bienvenido a tu panel profesional. Gestiona tus servicios y cotizaciones.
           </p>
         </div>
 

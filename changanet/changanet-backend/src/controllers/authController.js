@@ -95,9 +95,30 @@ exports.login = async (req, res) => {
  * Callback de Google OAuth
  */
 exports.googleCallback = (req, res) => {
-  // El token ya fue generado en la estrategia de Passport
-  const { token, user } = req.user;
-  res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}`);
+  try {
+    // El token ya fue generado en la estrategia de Passport
+    const { token, user } = req.user;
+
+    if (!token || !user) {
+      console.error('Google callback: Missing token or user data');
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=auth_failed`);
+    }
+
+    // Codificar datos del usuario para pasar por URL
+    const userData = encodeURIComponent(JSON.stringify({
+      id: user.id,
+      nombre: user.nombre,
+      email: user.email,
+      rol: user.rol,
+      esta_verificado: user.esta_verificado
+    }));
+
+    console.log('Google callback: Redirecting to frontend with token and user data');
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}&user=${userData}`);
+  } catch (error) {
+    console.error('Error in Google callback:', error);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=auth_error`);
+  }
 };
 
 /**

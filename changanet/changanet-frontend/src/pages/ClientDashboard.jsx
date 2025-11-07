@@ -52,15 +52,49 @@ const ClientDashboard = () => {
         return;
       }
 
-      // For now, just set default stats since the API endpoints don't exist yet
-      console.log('Setting default client stats (API endpoints not implemented yet)');
-      setStats({
-        totalServices: 0,
-        pendingQuotes: 0,
-        completedServices: 0,
-        totalSpent: 0
+      // Load real stats from API
+      const statsResponse = await fetch('/api/client/stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
-      setRecentActivity([]);
+      console.log('Client stats response:', statsResponse.status);
+
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        console.log('Client stats data:', statsData);
+        setStats(statsData.data || {
+          totalServices: 0,
+          pendingQuotes: 0,
+          completedServices: 0,
+          totalSpent: 0
+        });
+      } else {
+        console.error('Failed to load client stats:', statsResponse.status);
+        setStats({
+          totalServices: 0,
+          pendingQuotes: 0,
+          completedServices: 0,
+          totalSpent: 0
+        });
+      }
+
+      // Load recent activity
+      const activityResponse = await fetch('/api/client/activity', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      console.log('Client activity response:', activityResponse.status);
+
+      if (activityResponse.ok) {
+        const activityData = await activityResponse.json();
+        console.log('Client activity data:', activityData);
+        setRecentActivity(activityData.data || []);
+      } else {
+        console.error('Failed to load client activity:', activityResponse.status);
+        setRecentActivity([]);
+      }
 
       // TODO: Uncomment when API endpoints are implemented
       /*
@@ -295,7 +329,7 @@ const ClientDashboard = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard de Cliente</h1>
           <p className="mt-2 text-gray-600">
-            ¡Hola, {user.nombre}! Gestiona tus servicios y encuentra los mejores profesionales.
+            ¡Hola, {user.nombre || user.name || 'Usuario'}! Gestiona tus servicios y encuentra los mejores profesionales.
           </p>
         </div>
 

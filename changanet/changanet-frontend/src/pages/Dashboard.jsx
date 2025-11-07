@@ -35,7 +35,7 @@ const Dashboard = () => {
     case '/mis-presupuestos':
       return <Quotes />;
     case '/mi-perfil':
-      return user.role === 'cliente' ? <ClientSettings /> : <Profile />;
+      return user.rol === 'cliente' ? <ClientSettings /> : <Profile />;
     case '/disponibilidad':
       return <Availability />;
     case '/configuracion':
@@ -47,7 +47,7 @@ const Dashboard = () => {
         <div className="container mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold mb-6">Mi Cuenta</h1>
 
-          {user.role === 'cliente' ? (
+          {user.rol === 'cliente' ? (
             <ClientDashboard user={user} />
           ) : (
             <ProfessionalDashboard user={user} />
