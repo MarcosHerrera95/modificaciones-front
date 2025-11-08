@@ -1,7 +1,24 @@
 // src/routes/galleryRoutes.js
 const express = require('express');
-const { upload } = require('../services/storageService');
 const galleryController = require('../controllers/galleryController');
+
+// Configurar multer para subida de imágenes de galería
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(), // Almacenar en memoria para procesar con Cloudinary
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB máximo
+  },
+  fileFilter: (req, file, cb) => {
+    // Validar tipos de archivo permitidos
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo se aceptan imágenes (JPG, PNG).'), false);
+    }
+  }
+});
 
 const router = express.Router();
 
