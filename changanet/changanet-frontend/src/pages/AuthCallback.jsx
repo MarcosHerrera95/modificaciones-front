@@ -33,11 +33,9 @@ const AuthCallback = () => {
             // Autenticar al usuario en el contexto
             login(user, token);
 
-            // Redirigir al dashboard apropiado según el rol
-            const dashboardRoute = user.rol === 'profesional' ? '/dashboard-profesional' : '/mi-cuenta';
-            console.log('AuthCallback: User role:', user.rol, 'redirecting to:', dashboardRoute);
-            console.log('AuthCallback: Redirecting to:', dashboardRoute);
-            navigate(dashboardRoute);
+            // Redirigir a /dashboard según requisitos
+            console.log('AuthCallback: User role:', user.rol, 'redirecting to /dashboard');
+            navigate('/dashboard');
           } catch (parseError) {
             console.error('AuthCallback: Error parsing user data:', parseError);
             navigate('/?error=parse_error');

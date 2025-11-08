@@ -37,11 +37,11 @@ exports.scheduleService = async (req, res) => {
        return res.status(400).json({ error: 'La fecha agendada debe ser futura.' });
      }
 
-     // Check if the time slot is available
+     // Verificar que el horario esté disponible
      const requestedDateTime = new Date(fecha_agendada);
      const availability = await prisma.disponibilidad.findFirst({
        where: {
-         profesional_id,
+         profesional_id: parseInt(profesional_id),
          fecha: {
            gte: new Date(requestedDateTime.toDateString()),
            lt: new Date(new Date(requestedDateTime).setDate(requestedDateTime.getDate() + 1))
@@ -56,100 +56,47 @@ exports.scheduleService = async (req, res) => {
        return res.status(400).json({ error: 'El horario seleccionado no está disponible.' });
      }
 
-     // Check if there's an accepted quote between client and professional
-     const acceptedQuote = await prisma.cotizaciones.findFirst({
-       where: {
+     // Para Sprint 4, permitimos agendar sin cotización previa (REQ-29)
+     // Los profesionales pueden rechazar si no hay cotización
+
+     const service = await prisma.servicios.create({
+       data: {
          cliente_id: clientId,
-         profesional_id,
-         estado: 'aceptado'
+         profesional_id: parseInt(profesional_id),
+         descripcion,
+         estado: 'agendado',
+         fecha_agendada: new Date(fecha_agendada)
        }
      });
 
-     if (!acceptedQuote) {
-       return res.status(400).json({ error: 'Debes tener una cotización aceptada para agendar un servicio.' });
-     }
+     // Crear notificaciones para ambas partes (REQ-30)
+     const { createNotification } = require('../services/notificationService');
+     await createNotification(
+       clientId,
+       'servicio_agendado',
+       `Servicio agendado exitosamente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}`,
+       { serviceId: service.id }
+     );
+     await createNotification(
+       parseInt(profesional_id),
+       'servicio_agendado',
+       `Nuevo servicio agendado con cliente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}`,
+       { serviceId: service.id }
+     );
 
-    const service = await prisma.servicios.create({
-      data: {
-        cliente_id: clientId,
-        profesional_id,
-        descripcion,
-        estado: 'agendado',
-        fecha_agendada: new Date(fecha_agendada)
-      }
-    });
+     console.log({ event: 'service_scheduled', clientId, professionalId: profesional_id, serviceId: service.id, fecha_agendada });
 
-    // Crear notificaciones para ambas partes
-    const { createNotification } = require('../services/notificationService');
-    await createNotification(
-      clientId,
-      'servicio_agendado',
-      `Servicio agendado con el profesional para el ${new Date(fecha_agendada).toLocaleDateString()}`,
-      { serviceId: service.id }
-    );
-    await createNotification(
-      profesional_id,
-      'servicio_agendado',
-      `Nuevo servicio agendado con cliente para el ${new Date(fecha_agendada).toLocaleDateString()}`,
-      { serviceId: service.id }
-    );
+     // Marcar el horario como ocupado
+     await prisma.disponibilidad.update({
+       where: { id: availability.id },
+       data: { esta_disponible: false }
+     });
 
-    console.log({ event: 'service_scheduled', clientId, professionalId: profesional_id, serviceId: service.id, fecha_agendada });
-
-    // Mark the availability slot as booked
-    await prisma.disponibilidad.update({
-      where: { id: availability.id },
-      data: { esta_disponible: false }
-    });
-
-    // REGISTRAR MÉTRICA DE SERVICIO AGENDADO EN SENTRY
-    const { captureMessage } = require('../services/sentryService');
-    captureMessage('Servicio agendado en Changánet', 'info', {
-      tags: {
-        event: 'service_scheduled',
-        business_metric: 'service_booking',
-        user_role: 'client'
-      },
-      extra: {
-        service_id: service.id,
-        client_id: clientId,
-        professional_id: profesional_id,
-        scheduled_date: fecha_agendada,
-        description: descripcion,
-        timestamp: new Date().toISOString(),
-        business_impact: 'economic_environmental'
-      }
-    });
-
-    // INCREMENTAR MÉTRICA DE PROMETHEUS PARA SERVICIO AGENDADO
-    const { incrementServiceScheduled, incrementTripleImpactActivity } = require('../services/metricsService');
-    incrementServiceScheduled('general', 'economic');
-    incrementTripleImpactActivity('economic', 'servicio_agendado');
-
-    // Send notification to professional
-    await sendNotification(profesional_id, 'servicio_agendado', `Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString()}`);
-
-    // Send SMS to professional if they have SMS enabled
-    try {
-      const professional = await prisma.usuarios.findUnique({
-        where: { id: profesional_id },
-        select: { telefono: true, sms_enabled: true, nombre: true }
-      });
-
-      if (professional && professional.telefono && professional.sms_enabled) {
-        const smsMessage = `Changánet: ¡Hola ${professional.nombre}! Nuevo servicio agendado para ${new Date(fecha_agendada).toLocaleDateString('es-AR')}. Descripción: ${descripcion}`;
-        await sendSMS(professional.telefono, smsMessage);
-      }
-    } catch (smsError) {
-      console.error('Error sending SMS notification:', smsError);
-      // No fallar la operación principal por error en SMS
-    }
-
-    res.status(201).json(service);
-  } catch (error) {
-    console.error('Error scheduling service:', error);
-    res.status(500).json({ error: 'Error al agendar el servicio.' });
-  }
+     res.status(201).json(service);
+   } catch (error) {
+     console.error('Error scheduling service:', error);
+     res.status(500).json({ error: 'Error al agendar el servicio.' });
+   }
 };
 
 exports.getClientServices = async (req, res) => {

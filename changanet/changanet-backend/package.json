@@ -21,6 +21,7 @@
     "prepare": "husky install"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.17.3",
     "@prisma/client": "^6.17.0",
     "@sendgrid/mail": "^8.1.6",
     "@sentry/node": "^10.22.0",

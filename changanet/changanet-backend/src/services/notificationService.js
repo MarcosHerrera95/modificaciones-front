@@ -8,7 +8,7 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { sendPushNotification, sendMulticastPushNotification } = require('../config/firebaseAdmin');
-const { sendNotificationEmail } = require('./emailService');
+const { sendEmail } = require('./emailService');
 
 const prisma = new PrismaClient();
 
@@ -18,6 +18,9 @@ const prisma = new PrismaClient();
 const NOTIFICATION_TYPES = {
   BIENVENIDA: 'bienvenida',
   COTIZACION: 'cotizacion',
+  COTIZACION_ACEPTADA: 'cotizacion_aceptada',
+  COTIZACION_RECHAZADA: 'cotizacion_rechazada',
+  SERVICIO_AGENDADO: 'servicio_agendado',
   MENSAJE: 'mensaje',
   TURNO_AGENDADO: 'turno_agendado',
   RESENA_RECIBIDA: 'resena_recibida',
@@ -62,14 +65,16 @@ exports.createNotification = async (userId, type, message, metadata = {}) => {
         await sendPushNotification(user.fcm_token, getNotificationTitle(type), message);
       }
 
-      // Programar email de respaldo (24 horas)
-      setTimeout(async () => {
-        try {
-          await sendNotificationEmail(user.email, type, message, user.nombre);
-        } catch (emailError) {
-          console.error('Error enviando email de respaldo:', emailError);
-        }
-      }, 24 * 60 * 60 * 1000); // 24 horas
+      // Enviar email inmediatamente
+      try {
+        await sendEmail(
+          user.email,
+          getNotificationTitle(type),
+          `Hola ${user.nombre},\n\n${message}\n\nPuedes revisar esta notificación desde la plataforma.\n\nSaludos,\nEquipo Changánet`
+        );
+      } catch (emailError) {
+        console.warn('Error enviando email de notificación:', emailError);
+      }
 
     } catch (pushError) {
       console.error('Error enviando notificación push:', pushError);
@@ -89,7 +94,7 @@ exports.createNotification = async (userId, type, message, metadata = {}) => {
  */
 exports.getUserNotifications = async (userId, filter = 'all') => {
   try {
-    let whereClause = { usuario_id: userId };
+    const whereClause = { usuario_id: userId };
 
     if (filter === 'unread') {
       whereClause.esta_leido = false;
@@ -193,6 +198,9 @@ function getNotificationTitle(type) {
   const titles = {
     [NOTIFICATION_TYPES.BIENVENIDA]: '¡Bienvenido a Changánet!',
     [NOTIFICATION_TYPES.COTIZACION]: 'Nueva solicitud de presupuesto',
+    [NOTIFICATION_TYPES.COTIZACION_ACEPTADA]: 'Cotización aceptada',
+    [NOTIFICATION_TYPES.COTIZACION_RECHAZADA]: 'Cotización rechazada',
+    [NOTIFICATION_TYPES.SERVICIO_AGENDADO]: 'Servicio agendado',
     [NOTIFICATION_TYPES.MENSAJE]: 'Nuevo mensaje',
     [NOTIFICATION_TYPES.TURNO_AGENDADO]: 'Servicio agendado',
     [NOTIFICATION_TYPES.RESENA_RECIBIDA]: 'Nueva reseña',

@@ -54,8 +54,12 @@ exports.searchProfessionals = async (req, res) => {
         orderBy = [{ tarifa_hora: 'asc' }, { calificacion_promedio: 'desc' }];
         break;
       case 'distancia':
-        // Para distancia necesitaríamos coordenadas, por ahora ordenar por zona_cobertura
+        // Para distancia: ordenar por zona_cobertura alfabéticamente (aproximación)
         orderBy = [{ zona_cobertura: 'asc' }, { calificacion_promedio: 'desc' }];
+        break;
+      case 'disponibilidad':
+        // Para disponibilidad: ordenar por estado de verificación (verificado primero)
+        orderBy = [{ estado_verificacion: 'asc' }, { calificacion_promedio: 'desc' }];
         break;
       default:
         orderBy = [{ calificacion_promedio: 'desc' }, { usuario: { nombre: 'asc' } }];
@@ -75,11 +79,48 @@ exports.searchProfessionals = async (req, res) => {
       },
     });
 
+    // Optimizar consultas: precargar datos relacionados para evitar N+1
+    const professionalIds = professionals.map(p => p.usuario_id);
+    const [reviews, services] = await Promise.all([
+      prisma.resenas.groupBy({
+        by: ['profesional_id'],
+        where: { profesional_id: { in: professionalIds } },
+        _count: { calificacion: true },
+        _avg: { calificacion: true }
+      }),
+      prisma.servicios.groupBy({
+        by: ['profesional_id'],
+        where: { profesional_id: { in: professionalIds }, estado: 'completado' },
+        _count: { id: true }
+      })
+    ]);
+
+    // Crear mapa de estadísticas para acceso rápido
+    const statsMap = new Map();
+    professionalIds.forEach(id => {
+      const reviewStats = reviews.find(r => r.profesional_id === id);
+      const serviceStats = services.find(s => s.profesional_id === id);
+
+      statsMap.set(id, {
+        calificacion_promedio: reviewStats?._avg.calificacion || 0,
+        total_resenas: reviewStats?._count.calificacion || 0,
+        servicios_completados: serviceStats?._count.id || 0
+      });
+    });
+
+    // Enriquecer resultados con estadísticas calculadas
+    const enrichedProfessionals = professionals.map(prof => ({
+      ...prof,
+      calificacion_promedio: statsMap.get(prof.usuario_id)?.calificacion_promedio || 0,
+      total_resenas: statsMap.get(prof.usuario_id)?.total_resenas || 0,
+      servicios_completados: statsMap.get(prof.usuario_id)?.servicios_completados || 0
+    }));
+
     const total = await prisma.perfiles_profesionales.count({ where });
     const totalPages = Math.ceil(total / limit);
 
     const results = {
-      professionals,
+      professionals: enrichedProfessionals,
       total,
       page: parseInt(page),
       totalPages,

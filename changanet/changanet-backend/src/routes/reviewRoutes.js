@@ -1,7 +1,7 @@
 // src/routes/reviewRoutes.js
 const express = require('express');
 const multer = require('multer');
-const { createReview, getReviewsByProfessional } = require('../controllers/reviewController');
+const { createReview, getReviewsByProfessional, checkReviewEligibility } = require('../controllers/reviewController');
 
 const router = express.Router();
 
@@ -30,5 +30,6 @@ const upload = multer({
 
 router.post('/', upload.single('url_foto'), createReview);
 router.get('/professional/:professionalId', getReviewsByProfessional);
+router.get('/check/:servicioId', checkReviewEligibility);
 
 module.exports = router;

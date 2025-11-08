@@ -26,6 +26,8 @@ exports.register = async (req, res) => {
 
     console.log('AuthController - Register: Received rol:', rol);
 
+    console.log('AuthController - Register: Received rol:', rol);
+
     // Verificar si el usuario ya existe
     const existingUser = await prisma.usuarios.findUnique({ where: { email } });
     if (existingUser) {
@@ -35,24 +37,24 @@ exports.register = async (req, res) => {
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear usuario con rol explícito
+    // Crear usuario con rol explícitamente asignado
     const user = await prisma.usuarios.create({
       data: {
         nombre: name,
         email,
         hash_contrasena: hashedPassword,
-        rol, // Rol asignado explícitamente desde el frontend
+        rol: rol, // Rol explícitamente asignado desde el frontend
         esta_verificado: false
       },
     });
 
     console.log('AuthController - Register: Created user with rol:', user.rol);
 
-    // Generar token JWT
+    // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '24h', algorithm: 'HS256' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     res.status(201).json({ message: 'Usuario registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } });
@@ -81,11 +83,11 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
 
-    // Generar token JWT
+    // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '24h', algorithm: 'HS256' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     res.status(200).json({ message: 'Login exitoso.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } });
@@ -164,11 +166,11 @@ exports.registerProfessional = async (req, res) => {
       },
     });
 
-    // Generar token JWT
+    // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '24h', algorithm: 'HS256' }
+      { expiresIn: '7d', algorithm: 'HS256' }
     );
 
     res.status(201).json({ message: 'Profesional registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol }, profile });
@@ -201,10 +203,74 @@ exports.getCurrentUser = async (req, res) => {
   }
 };
 
+/**
+ * Endpoint para login con Google desde el frontend
+ */
+exports.googleLogin = async (req, res) => {
+  try {
+    const { uid, email, nombre, foto, rol } = req.body;
+
+    // Buscar usuario existente por email
+    let user = await prisma.usuarios.findUnique({
+      where: { email }
+    });
+
+    if (user) {
+      // Usuario existe, actualizar información si es necesario
+      if (!user.google_id) {
+        user = await prisma.usuarios.update({
+          where: { id: user.id },
+          data: {
+            google_id: uid,
+            url_foto_perfil: foto,
+            esta_verificado: true, // Los usuarios de Google están verificados
+          }
+        });
+      }
+    } else {
+      // Crear nuevo usuario con rol por defecto "cliente" (REQ-02)
+      user = await prisma.usuarios.create({
+        data: {
+          nombre: nombre,
+          email: email,
+          google_id: uid,
+          url_foto_perfil: foto,
+          rol: rol || 'cliente', // Rol por defecto según REQ-02
+          esta_verificado: true, // Los usuarios de Google están verificados
+        }
+      });
+      console.log('Google OAuth: New user created with role "cliente":', user.nombre);
+    }
+
+    // Generar token JWT con expiresIn: '7d' según requisitos
+    const token = jwt.sign(
+      { userId: user.id, role: user.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d', algorithm: 'HS256' }
+    );
+
+    res.status(200).json({
+      message: 'Login exitoso con Google',
+      token,
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol,
+        esta_verificado: user.esta_verificado
+      }
+    });
+  } catch (error) {
+    console.error('Error en googleLogin:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
 module.exports = {
   register: exports.register,
   login: exports.login,
   googleCallback: exports.googleCallback,
+  googleLogin: exports.googleLogin,
   registerProfessional: exports.registerProfessional,
   getCurrentUser: exports.getCurrentUser
 };

@@ -1,10 +1,11 @@
 // src/components/ProfessionalCard.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import QuoteRequestModal from './modals/QuoteRequestModal';
 import VerifiedBadge from './VerifiedBadge';
 import RatingDisplay from './RatingDisplay';
+import { getDistanceMatrix, getSimulatedCoordinates, calculateHaversineDistance } from '../services/mapService';
 
 const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
@@ -19,53 +20,58 @@ const ProfessionalCard = ({ professional }) => {
     setShowQuoteModal(true);
   };
 
-  // Calcular distancia usando Haversine formula (alternativa liviana)
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radio de la Tierra en km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a =
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  // Simular coordenadas para demostración (en producción usar geolocalización real)
+  // Calcular distancia usando Google Maps API o fallback
   useEffect(() => {
-    // Coordenadas simuladas de Buenos Aires (cliente)
-    const clientLat = -34.6037;
-    const clientLon = -58.3816;
+    const calculateDistance = async () => {
+      try {
+        // Intentar obtener ubicación del usuario
+        let clientLat, clientLon;
 
-    // Coordenadas simuladas del profesional (basado en zona_cobertura)
-    const professionalCoords = {
-      'Palermo': [-34.5889, -58.4306],
-      'Recoleta': [-34.5875, -58.3978],
-      'Belgrano': [-34.5631, -58.4564],
-      'CABA': [-34.6037, -58.3816],
-      'La Plata': [-34.9214, -57.9544],
-      'Mar del Plata': [-38.0055, -57.5426],
-      'Córdoba': [-31.4201, -64.1888],
-      'Rosario': [-32.9468, -60.6393],
-      'Mendoza': [-32.8895, -68.8458]
+        if (navigator.geolocation) {
+          try {
+            const position = await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                timeout: 10000,
+                enableHighAccuracy: false
+              });
+            });
+            clientLat = position.coords.latitude;
+            clientLon = position.coords.longitude;
+          } catch (geoError) {
+            console.warn('Geolocalización no disponible, usando Buenos Aires por defecto');
+            // Fallback: Buenos Aires
+            clientLat = -34.6037;
+            clientLon = -58.3816;
+          }
+        } else {
+          // Fallback: Buenos Aires
+          clientLat = -34.6037;
+          clientLon = -58.3816;
+        }
+
+        // Obtener coordenadas del profesional
+        const profCoords = getSimulatedCoordinates(professional.zona_cobertura);
+
+        // Intentar usar Google Distance Matrix API
+        try {
+          const result = await getDistanceMatrix(
+            { lat: clientLat, lng: clientLon },
+            { lat: profCoords.lat, lng: profCoords.lng }
+          );
+          setDistance(`${result.distance} (${result.duration})`);
+        } catch (apiError) {
+          console.warn('Distance Matrix API no disponible, usando cálculo alternativo');
+          // Fallback: fórmula de Haversine
+          const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
+          setDistance(`${dist.toFixed(1)} km`);
+        }
+      } catch (error) {
+        console.error('Error calculando distancia:', error);
+        setDistance('Distancia no disponible');
+      }
     };
 
-    // Buscar coordenadas basadas en zona_cobertura
-    let profLat, profLon;
-    for (const [zone, coords] of Object.entries(professionalCoords)) {
-      if (professional.zona_cobertura && professional.zona_cobertura.toLowerCase().includes(zone.toLowerCase())) {
-        [profLat, profLon] = coords;
-        break;
-      }
-    }
-
-    if (profLat && profLon) {
-      const dist = calculateDistance(clientLat, clientLon, profLat, profLon);
-      setDistance(`${dist.toFixed(1)} km`);
-    } else {
-      setDistance('Distancia no disponible');
-    }
+    calculateDistance();
   }, [professional.zona_cobertura]);
 
   return (
@@ -82,9 +88,16 @@ const ProfessionalCard = ({ professional }) => {
               className="w-28 h-28 md:w-32 md:h-32 rounded-3xl object-cover shadow-xl group-hover:shadow-2xl transition-all duration-300 border-4 border-white/50"
             />
             {professional.estado_verificacion === 'verificado' && (
-              <div className="absolute -top-3 -right-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full p-2 shadow-xl animate-pulse">
+              <div className="absolute -top-3 -right-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full p-2 shadow-xl animate-pulse" title="Profesional Verificado">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+            )}
+            {professional.estado_verificacion === 'pendiente' && (
+              <div className="absolute -top-3 -right-3 bg-yellow-500 text-white rounded-full p-2 shadow-xl" title="Verificación en proceso">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
             )}

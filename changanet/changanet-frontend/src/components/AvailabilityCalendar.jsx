@@ -1,7 +1,7 @@
 // src/components/AvailabilityCalendar.jsx
 import { useState, useEffect } from 'react';
 
-const AvailabilityCalendar = ({ professionalId }) => {
+const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [availabilities, setAvailabilities] = useState([]);
   const [newSlot, setNewSlot] = useState({ hora_inicio: '', hora_fin: '' });
@@ -16,17 +16,29 @@ const AvailabilityCalendar = ({ professionalId }) => {
         const data = await response.json();
         if (response.ok) {
           setAvailabilities(data);
+        } else {
+          console.error('Error al cargar disponibilidad:', data.error);
+          setAvailabilities([]);
         }
       } catch (error) {
         console.error('Error al cargar disponibilidad:', error);
+        setAvailabilities([]);
       }
     };
 
-    fetchAvailability();
+    if (professionalId && selectedDate) {
+      fetchAvailability();
+    }
   }, [professionalId, selectedDate]);
 
   const handleCreateSlot = async () => {
     if (!newSlot.hora_inicio || !newSlot.hora_fin) return;
+
+    // Validar que la hora de fin sea posterior a la hora de inicio
+    if (newSlot.hora_inicio >= newSlot.hora_fin) {
+      alert('La hora de fin debe ser posterior a la hora de inicio');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -79,7 +91,8 @@ const AvailabilityCalendar = ({ professionalId }) => {
           slot.id === slotId ? { ...slot, esta_disponible: !currentStatus } : slot
         ));
       } else {
-        alert('Error al actualizar disponibilidad');
+        const data = await response.json();
+        alert(data.error || 'Error al actualizar disponibilidad');
       }
     } catch (error) {
       console.error('Error al actualizar disponibilidad:', error);
@@ -103,7 +116,8 @@ const AvailabilityCalendar = ({ professionalId }) => {
       if (response.ok) {
         setAvailabilities(prev => prev.filter(slot => slot.id !== slotId));
       } else {
-        alert('Error al eliminar el horario');
+        const data = await response.json();
+        alert(data.error || 'Error al eliminar el horario');
       }
     } catch (error) {
       console.error('Error al eliminar disponibilidad:', error);
@@ -162,21 +176,33 @@ const AvailabilityCalendar = ({ professionalId }) => {
                   <span className={`px-2 py-1 rounded-full text-xs ${slot.esta_disponible ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                     {slot.esta_disponible ? 'Disponible' : 'Ocupado'}
                   </span>
-                  <button
-                    onClick={() => handleToggleAvailability(slot.id, slot.esta_disponible)}
-                    disabled={toggleLoading === slot.id}
-                    className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50"
-                    title={slot.esta_disponible ? 'Marcar como no disponible' : 'Marcar como disponible'}
-                  >
-                    {toggleLoading === slot.id ? '⏳' : (slot.esta_disponible ? '❌' : '✅')}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteSlot(slot.id)}
-                    className="text-red-600 hover:text-red-800 text-sm"
-                    title="Eliminar horario"
-                  >
-                    🗑️
-                  </button>
+                  {onScheduleService && slot.esta_disponible ? (
+                    <button
+                      onClick={() => onScheduleService(slot)}
+                      className="bg-emerald-500 text-white px-3 py-1 rounded text-sm hover:bg-emerald-600 transition-colors"
+                      title="Agendar servicio en este horario"
+                    >
+                      📅 Agendar
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleToggleAvailability(slot.id, slot.esta_disponible)}
+                        disabled={toggleLoading === slot.id}
+                        className="text-blue-600 hover:text-blue-800 text-sm disabled:opacity-50"
+                        title={slot.esta_disponible ? 'Marcar como no disponible' : 'Marcar como disponible'}
+                      >
+                        {toggleLoading === slot.id ? '⏳' : (slot.esta_disponible ? '❌' : '✅')}
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSlot(slot.id)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                        title="Eliminar horario"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

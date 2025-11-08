@@ -1,16 +1,42 @@
 // src/components/SearchBar.jsx
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { initAutocomplete } from '../services/mapService';
 
 const SearchBar = () => {
   const [service, setService] = useState('');
   const [location, setLocation] = useState('');
+  const [selectedLocation, setSelectedLocation] = useState(null);
   const navigate = useNavigate();
+  const locationInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    navigate(`/profesionales?especialidad=${encodeURIComponent(service)}&zona_cobertura=${encodeURIComponent(location)}`);
+
+    // Usar coordenadas si están disponibles, sino usar texto
+    const locationParam = selectedLocation
+      ? `${selectedLocation.lat},${selectedLocation.lng}`
+      : location;
+
+    navigate(`/profesionales?especialidad=${encodeURIComponent(service)}&zona_cobertura=${encodeURIComponent(locationParam)}`);
   };
+
+  // Inicializar autocompletado cuando el componente se monta
+  useEffect(() => {
+    if (locationInputRef.current) {
+      initAutocomplete(locationInputRef.current, (placeData) => {
+        setLocation(placeData.address);
+        setSelectedLocation({
+          lat: placeData.lat,
+          lng: placeData.lng,
+          address: placeData.address
+        });
+      }).catch(error => {
+        console.warn('Autocompletado no disponible:', error.message);
+        // El componente seguirá funcionando sin autocompletado
+      });
+    }
+  }, []);
 
   return (
     <form onSubmit={handleSubmit} className="search-bar flex flex-col md:flex-row gap-4">
@@ -44,6 +70,11 @@ const SearchBar = () => {
           <option value="Cerrajero" />
           <option value="Limpieza del hogar" />
           <option value="Mudanzas" />
+          <option value="Gasista" />
+          <option value="Albañil" />
+          <option value="Herrero" />
+          <option value="Instalador de pisos" />
+          <option value="Decorador" />
         </datalist>
       </div>
 
@@ -55,8 +86,9 @@ const SearchBar = () => {
           </svg>
         </div>
         <input
+          ref={locationInputRef}
           type="text"
-          placeholder="¿Dónde? (ej: Palermo, CABA, La Plata)"
+          placeholder="Ej: Palermo, CABA"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
           className="w-full pl-14 pr-4 py-5 rounded-2xl bg-white/90 backdrop-blur-sm border-2 border-gray-200/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all duration-300 text-gray-700 placeholder-gray-500 shadow-lg hover:shadow-xl text-lg min-h-[44px]"
@@ -65,7 +97,7 @@ const SearchBar = () => {
           aria-describedby="location-help"
           list="locations-list"
         />
-        <div id="location-help" className="sr-only">Ingresa tu ubicación o zona donde necesitas el servicio</div>
+        <div id="location-help" className="sr-only">Ingresa tu ubicación o zona donde necesitas el servicio. El autocompletado te ayudará a encontrar direcciones precisas.</div>
         <datalist id="locations-list">
           <option value="Buenos Aires" />
           <option value="CABA" />
@@ -77,6 +109,13 @@ const SearchBar = () => {
           <option value="Córdoba" />
           <option value="Rosario" />
           <option value="Mendoza" />
+          <option value="San Miguel de Tucumán" />
+          <option value="Salta" />
+          <option value="Santa Fe" />
+          <option value="San Juan" />
+          <option value="Resistencia" />
+          <option value="Neuquén" />
+          <option value="Bahía Blanca" />
         </datalist>
       </div>
 

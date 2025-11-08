@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useChatHook } from '../hooks/useChat';
 import { uploadChatImage } from '../services/storageService';
 
-const ChatWidget = ({ otherUserId }) => {
+const ChatWidget = ({ otherUserId, servicioId }) => {
   const { user } = useAuth();
   const {
     messages,
@@ -68,7 +68,7 @@ const ChatWidget = ({ otherUserId }) => {
 
     // Enviar mensaje con o sin imagen
     const messageContent = newMessage.trim() || (imageUrl ? '📷 Imagen' : '');
-    if (sendMessage(messageContent, imageUrl)) {
+    if (sendMessage(messageContent, imageUrl, servicioId)) {
       setNewMessage('');
       setSelectedImage(null);
     }
@@ -81,10 +81,10 @@ const ChatWidget = ({ otherUserId }) => {
     }
   };
 
-  if (!user || !otherUserId) {
+  if (!user || !otherUserId || !servicioId) {
     return (
       <div className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm border">
-        <span className="text-gray-600">Selecciona un usuario para chatear</span>
+        <span className="text-gray-600">Selecciona un servicio para iniciar el chat</span>
       </div>
     );
   }

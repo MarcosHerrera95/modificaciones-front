@@ -1,6 +1,6 @@
 // src/controllers/messageController.js
 const { PrismaClient } = require('@prisma/client');
-const { sendNotification } = require('../services/notificationService');
+const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
 const { getMessageHistory: getHistory, markMessagesAsRead } = require('../services/chatService');
 const prisma = new PrismaClient();
 
@@ -63,7 +63,12 @@ exports.sendMessage = async (req, res) => {
     });
 
     // VERIFICACIÓN: Enviar notificación push al destinatario usando VAPID key verificada
-    await sendNotification(recipientId, 'mensaje', `Tienes un nuevo mensaje de ${senderId}`);
+    try {
+      const sender = await prisma.usuarios.findUnique({ where: { id: senderId }, select: { nombre: true } });
+      await createNotification(recipientId, NOTIFICATION_TYPES.MENSAJE, `Tienes un nuevo mensaje de ${sender?.nombre || 'un usuario'}`);
+    } catch (notificationError) {
+      console.warn('Error enviando notificación push:', notificationError);
+    }
 
     console.log({ event: 'message_sent', senderId, recipientId, messageId: message.id, servicio_id });
 

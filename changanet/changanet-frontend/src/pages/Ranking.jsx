@@ -12,10 +12,16 @@ const Ranking = () => {
 
   const loadRanking = async () => {
     try {
-      const response = await fetch('/api/ranking');
+      const response = await fetch('/api/ranking', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setRanking(data);
+      } else {
+        console.error('Error en respuesta del ranking:', response.status);
       }
     } catch (error) {
       console.error('Error cargando ranking:', error);

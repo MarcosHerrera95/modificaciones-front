@@ -115,13 +115,12 @@ const NotificationCenter = ({ isOpen, onClose }) => {
               <div
                 key={notification.id}
                 className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
-                  !notification.leida ? 'bg-emerald-50' : ''
+                  !notification.esta_leido ? 'bg-emerald-50' : ''
                 }`}
                 onClick={() => {
-                  if (!notification.leida) {
+                  if (!notification.esta_leido) {
                     markAsRead(notification.id);
                   }
-                  // Aquí puedes agregar navegación según el tipo de notificación
                   handleNotificationClick(notification);
                 }}
               >
@@ -160,7 +159,10 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                     <div className="flex space-x-1">
                       {!notification.esta_leido && (
                         <button
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notification.id);
+                          }}
                           className="text-emerald-600 hover:text-emerald-700 p-1"
                           title="Marcar como leída"
                         >
@@ -171,7 +173,10 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                       )}
 
                       <button
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
                         className="text-red-500 hover:text-red-700 p-1"
                         title="Eliminar notificación"
                       >

@@ -2,7 +2,7 @@ const express = require('express');
 const passport = require('../config/passport');
 const { authenticateToken } = require('../middleware/authenticate');
 // Importar los controladores que contienen la lógica de negocio para registro y login.
-const { register, login, googleCallback, registerProfessional, getCurrentUser } = require('../controllers/authController');
+const { register, login, googleCallback, googleLogin, registerProfessional, getCurrentUser } = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -19,5 +19,8 @@ router.get('/google', passport.authenticate('google', {
   prompt: 'consent'
 }));
 router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), googleCallback);
+
+// Nueva ruta para login con Google desde frontend
+router.post('/google-login', googleLogin);
 
 module.exports = router;

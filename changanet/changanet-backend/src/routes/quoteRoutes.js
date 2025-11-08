@@ -9,8 +9,12 @@
 
 const express = require('express');
 const { createQuoteRequest, getQuotesForProfessional, respondToQuote, getClientQuotes } = require('../controllers/quoteController');
+const { authenticateToken } = require('../middleware/authenticate');
 
 const router = express.Router();
+
+// Todas las rutas requieren autenticación
+router.use(authenticateToken);
 
 /**
  * @ruta POST / - Crear solicitud de cotización

@@ -171,6 +171,46 @@ const ProfessionalDetail = () => {
     navigate(`/agendar/${professionalId}`);
   };
 
+  const handleScheduleServiceFromCalendar = async (slot) => {
+    if (!user) {
+      navigate('/registro-cliente');
+      return;
+    }
+
+    // Confirmar agendamiento
+    const confirmMessage = `¿Confirmas agendar el servicio para el ${new Date(slot.fecha).toLocaleDateString()} de ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} a ${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const response = await fetch('/api/services', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({
+          profesional_id: professionalId,
+          descripcion: `Servicio agendado para ${new Date(slot.fecha).toLocaleDateString()}`,
+          fecha_agendada: new Date(slot.hora_inicio).toISOString()
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('Servicio agendado exitosamente. Recibirás una confirmación por email.');
+        // Refresh availability to show the slot as booked
+        window.location.reload();
+      } else {
+        alert(data.error || 'Error al agendar el servicio');
+      }
+    } catch (error) {
+      console.error('Error scheduling service:', error);
+      alert('Error de red. Intenta nuevamente.');
+    }
+  };
+
   const handleCloseQuoteForm = () => {
     setShowQuoteForm(false);
   };
@@ -297,7 +337,10 @@ const ProfessionalDetail = () => {
             {activeTab === 'availability' && user && user.rol === 'cliente' && (
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Disponibilidad de {profile.nombre}</h2>
-                <AvailabilityCalendar professionalId={professionalId} />
+                <div className="bg-white rounded-lg shadow p-6">
+                  <p className="text-gray-600 mb-4">Horarios disponibles para agendar servicios. Haz clic en un horario disponible para agendar:</p>
+                  <AvailabilityCalendar professionalId={professionalId} onScheduleService={handleScheduleServiceFromCalendar} />
+                </div>
               </div>
             )}
 

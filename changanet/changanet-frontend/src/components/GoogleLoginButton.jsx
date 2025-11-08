@@ -10,7 +10,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { loginWithGoogle } from '../services/authService';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../config/firebaseConfig';
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
@@ -31,22 +32,55 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
     setLoading(true);
 
     try {
-      // INTEGRACIÓN CON BACKEND: Usar flujo OAuth del backend (redirección)
-      const result = await loginWithGoogle();
+      // Crear provider de Google
+      const provider = new GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
 
-      // Si el método retorna redirecting: true, la redirección ya está en proceso
-      if (result.redirecting) {
-        // La redirección al backend OAuth ya está ocurriendo
-        // El callback se manejará en AuthCallback.jsx
-        return;
+      // Iniciar sesión con popup
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      console.log('Google login successful:', user);
+
+      // Enviar datos al backend para crear/verificar usuario
+      const response = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          nombre: user.displayName,
+          foto: user.photoURL,
+          rol: 'cliente' // Por defecto cliente según REQ-02
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.token && data.user) {
+        // Login exitoso
+        login(data.user, data.token);
+
+        // Redirigir según rol
+        const dashboardRoute = data.user.rol === 'profesional' ? '/dashboard-profesional' : '/mi-cuenta';
+        navigate(dashboardRoute);
+      } else {
+        throw new Error(data.error || 'Error en autenticación');
       }
-
-      // Este código ya no debería ejecutarse con el nuevo flujo
-      console.error('Flujo inesperado en loginWithGoogle');
-      alert('Error inesperado en la autenticación.');
     } catch (error) {
       console.error('Error en autenticación con Google:', error);
-      alert('Error al iniciar sesión con Google. Inténtalo de nuevo.');
+
+      // Manejar errores específicos de Firebase
+      let errorMessage = 'Error al iniciar sesión con Google.';
+
+      if (error.code === 'auth/popup-closed-by-user') {
+        errorMessage = 'Inicio de sesión cancelado.';
+      } else if (error.code === 'auth/popup-blocked') {
+        errorMessage = 'Popup bloqueado. Permite popups para este sitio.';
+      }
+
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

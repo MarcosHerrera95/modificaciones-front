@@ -7,7 +7,7 @@ const Professionals = () => {
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTime, setSearchTime] = useState(null);
-  const [sortBy, setSortBy] = useState('rating');
+  const [sortBy, setSortBy] = useState('calificacion_promedio');
   const [filterVerified, setFilterVerified] = useState(false);
   const [zonaCobertura, setZonaCobertura] = useState('');
   const [precioMin, setPrecioMin] = useState('');
@@ -26,6 +26,9 @@ const Professionals = () => {
         if (precioMax) urlParams.set('precio_max', precioMax);
 
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
+        const sortParam = sortBy === 'rating' ? 'calificacion_promedio' : sortBy;
+        urlParams.set('sort_by', sortParam);
+
         const response = await fetch(`/api/search?${urlParams.toString()}`);
         const data = await response.json();
         if (response.ok) {
@@ -45,18 +48,8 @@ const Professionals = () => {
     fetchProfessionals();
   }, [location.search, zonaCobertura, precioMin, precioMax]);
 
-  const sortedProfessionals = [...professionals].sort((a, b) => {
-    switch (sortBy) {
-      case 'rating':
-        return (b.rating || 0) - (a.rating || 0);
-      case 'price':
-        return a.tarifa_hora - b.tarifa_hora;
-      case 'name':
-        return a.usuario.nombre.localeCompare(b.usuario.nombre);
-      default:
-        return 0;
-    }
-  });
+  // El ordenamiento ahora se hace en el backend, así que solo usamos los resultados tal cual
+  const sortedProfessionals = professionals;
 
   const filteredProfessionals = filterVerified
     ? sortedProfessionals.filter(p => p.estado_verificacion === 'verificado')
@@ -153,9 +146,10 @@ const Professionals = () => {
                 onChange={(e) => setSortBy(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
               >
-                <option value="rating">⭐ Mejor calificación</option>
-                <option value="price">💰 Precio más bajo</option>
-                <option value="name">📝 Nombre (A-Z)</option>
+                <option value="calificacion_promedio">⭐ Mejor calificación</option>
+                <option value="tarifa_hora">💰 Precio más bajo</option>
+                <option value="distancia">📍 Más cercano</option>
+                <option value="disponibilidad">✅ Más disponible</option>
               </select>
             </div>
           </div>

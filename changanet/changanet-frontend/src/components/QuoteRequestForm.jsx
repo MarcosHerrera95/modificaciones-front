@@ -64,7 +64,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({
-          profesional_id: professionalId, // This needs to be passed as prop
+          profesional_id: professionalId,
           descripcion: formData.descripción,
           zona_cobertura: formData.zona_cobertura
         })
@@ -72,27 +72,11 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
       const data = await response.json();
 
       if (response.ok) {
-        // REGISTRAR MÉTRICA DE SOLICITUD DE PRESUPUESTO
-        const { captureMessage } = require('../config/sentryConfig');
-        captureMessage('Solicitud de presupuesto enviada desde frontend', 'info', {
-          tags: {
-            event: 'quote_request_frontend',
-            business_metric: 'quote_request',
-            component: 'QuoteRequestForm'
-          },
-          extra: {
-            description: formData.descripción,
-            coverage_area: formData.zona_cobertura,
-            timestamp: new Date().toISOString(),
-            business_impact: 'economic_environmental'
-          }
-        });
-
         // Cerrar modal y mostrar mensaje de éxito
         if (onClose) {
           onClose();
         }
-        alert('Solicitud de cotización enviada. Recibirás respuestas pronto.');
+        alert('Solicitud de cotización enviada exitosamente. El profesional recibirá una notificación y podrás ver las respuestas en tu panel.');
         navigate('/mi-cuenta/presupuestos');
       } else {
         setError(data.error || 'Error al enviar solicitud');

@@ -80,6 +80,11 @@ const VerificationForm = () => {
         body: formData
       });
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al subir el documento');
+      }
+
       const data = await response.json();
 
       if (response.ok) {

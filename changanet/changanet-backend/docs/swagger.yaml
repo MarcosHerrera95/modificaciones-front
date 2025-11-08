@@ -278,6 +278,124 @@ paths:
         200:
           description: Todas las notificaciones marcadas como leídas
 
+  /messages:
+    post:
+      summary: Enviar mensaje
+      tags: [Mensajes]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - recipientId
+                - content
+              properties:
+                recipientId:
+                  type: integer
+                  description: ID del destinatario
+                content:
+                  type: string
+                  description: Contenido del mensaje
+                url_imagen:
+                  type: string
+                  description: URL de imagen opcional
+                servicio_id:
+                  type: integer
+                  description: ID del servicio relacionado
+      responses:
+        201:
+          description: Mensaje enviado exitosamente
+
+  /quotes:
+    post:
+      summary: Crear solicitud de cotización
+      tags: [Cotizaciones]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - profesional_id
+                - descripcion
+                - zona_cobertura
+              properties:
+                profesional_id:
+                  type: integer
+                  description: ID del profesional
+                descripcion:
+                  type: string
+                  description: Descripción del trabajo
+                zona_cobertura:
+                  type: string
+                  description: Zona donde se necesita el servicio
+      responses:
+        201:
+          description: Cotización creada exitosamente
+
+  /quotes/professional:
+    get:
+      summary: Obtener cotizaciones para profesional
+      tags: [Cotizaciones]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Lista de cotizaciones del profesional
+
+  /quotes/client:
+    get:
+      summary: Obtener cotizaciones del cliente
+      tags: [Cotizaciones]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Lista de cotizaciones del cliente
+
+  /quotes/{quoteId}/respond:
+    put:
+      summary: Responder a cotización
+      tags: [Cotizaciones]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quoteId
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID de la cotización
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum: [accept, reject]
+                  description: Acción a realizar
+                precio:
+                  type: number
+                  description: Precio acordado (solo para accept)
+                comentario:
+                  type: string
+                  description: Comentario adicional
+      responses:
+        200:
+          description: Respuesta procesada exitosamente
+
   /ranking:
     get:
       summary: Obtener ranking de profesionales

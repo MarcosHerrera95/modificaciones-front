@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import ImageUpload from './ImageUpload';
 
@@ -9,6 +9,37 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
   const [photo, setPhoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [canReview, setCanReview] = useState(false);
+  const [checkingReview, setCheckingReview] = useState(true);
+
+  // Verificar si el usuario puede dejar reseña al cargar el componente
+  useEffect(() => {
+    const checkReviewEligibility = async () => {
+      if (!user || !servicio_id) return;
+
+      try {
+        const response = await fetch(`/api/reviews/check/${servicio_id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCanReview(data.canReview);
+        } else {
+          setCanReview(false);
+        }
+      } catch (error) {
+        console.error('Error verificando elegibilidad para reseña:', error);
+        setCanReview(false);
+      } finally {
+        setCheckingReview(false);
+      }
+    };
+
+    checkReviewEligibility();
+  }, [user, servicio_id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,6 +71,7 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
         setComment('');
         setPhoto(null);
         alert('Reseña enviada exitosamente');
+        setCanReview(false); // Ya no puede reseñar más
       } else {
         const data = await response.json();
         setError(data.error || 'Error al enviar la reseña');
@@ -51,6 +83,28 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
     }
   };
 
+
+  if (checkingReview) {
+    return (
+      <div className="flex items-center justify-center p-4">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500 mr-2"></div>
+        <span className="text-gray-600">Verificando elegibilidad...</span>
+      </div>
+    );
+  }
+
+  if (!canReview) {
+    return (
+      <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-4 rounded-2xl">
+        <div className="flex items-center">
+          <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+          </svg>
+          Ya has dejado una reseña para este servicio. Solo se permite una reseña por servicio.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

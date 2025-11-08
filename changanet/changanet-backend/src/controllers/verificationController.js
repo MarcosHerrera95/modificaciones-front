@@ -4,7 +4,7 @@
  */
 
 const verificationService = require('../services/verificationService');
-const { storageService } = require('../services/storageService');
+const { uploadVerificationDocument, getSignedUrl, validateFile } = require('../services/storageService');
 
 /**
  * Solicita verificación de identidad subiendo un documento
@@ -22,22 +22,16 @@ async function requestVerification(req, res) {
 
     const { buffer, originalname, mimetype } = req.file;
 
-    // Validar tipo de archivo
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowedTypes.includes(mimetype)) {
+    // Validar archivo usando el servicio de storage
+    try {
+      validateFile(buffer, mimetype, originalname);
+    } catch (validationError) {
       return res.status(400).json({
-        error: 'Tipo de archivo no permitido. Solo se aceptan imágenes (JPG, PNG) y PDF.'
+        error: validationError.message
       });
     }
 
-    // Validar tamaño del archivo (máximo 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (buffer.length > maxSize) {
-      return res.status(400).json({
-        error: 'El archivo es demasiado grande. Máximo 5MB permitido.'
-      });
-    }
-
+    // Crear solicitud de verificación con subida a GCS
     const verificationRequest = await verificationService.createVerificationRequest(
       userId,
       buffer,
@@ -89,7 +83,7 @@ async function getVerificationStatus(req, res) {
 async function getPendingVerifications(req, res) {
   try {
     // Verificar que el usuario sea administrador
-    if (req.user.role !== 'admin') {
+    if (req.user.rol !== 'admin') {
       return res.status(403).json({
         error: 'Acceso denegado. Se requieren permisos de administrador.'
       });
@@ -115,7 +109,7 @@ async function getPendingVerifications(req, res) {
 async function approveVerification(req, res) {
   try {
     // Verificar que el usuario sea administrador
-    if (req.user.role !== 'admin') {
+    if (req.user.rol !== 'admin') {
       return res.status(403).json({
         error: 'Acceso denegado. Se requieren permisos de administrador.'
       });
@@ -177,10 +171,48 @@ async function rejectVerification(req, res) {
   }
 }
 
+/**
+ * Obtiene URL firmada para acceder a un documento de verificación
+ * Solo el propietario del documento o administradores pueden acceder
+ */
+async function getDocumentUrl(req, res) {
+  try {
+    const userId = req.user.id;
+    const { requestId } = req.params;
+
+    // Verificar que el usuario tenga acceso al documento
+    const request = await require('../services/verificationService').getVerificationStatus(userId);
+
+    if (!request || request.id !== requestId) {
+      // Si no es el propietario, verificar si es admin
+      if (req.user.rol !== 'admin') {
+        return res.status(403).json({
+          error: 'No tienes permisos para acceder a este documento'
+        });
+      }
+    }
+
+    // Obtener URL firmada
+    const signedUrl = await getSignedUrl(request.documento_url);
+
+    res.json({
+      success: true,
+      signedUrl: signedUrl,
+      expiresIn: '15 minutos'
+    });
+  } catch (error) {
+    console.error('Error obteniendo URL del documento:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+}
+
 module.exports = {
   requestVerification,
   getVerificationStatus,
   getPendingVerifications,
   approveVerification,
-  rejectVerification
+  rejectVerification,
+  getDocumentUrl
 };

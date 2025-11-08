@@ -8,8 +8,12 @@
 
 const express = require('express');
 const { scheduleService, getClientServices, getProfessionalServices, updateServiceStatus } = require('../controllers/serviceController');
+const { authenticateToken } = require('../middleware/authenticate');
 
 const router = express.Router();
+
+// Todas las rutas requieren autenticación
+router.use(authenticateToken);
 
 /**
  * @ruta POST / - Agendar nuevo servicio

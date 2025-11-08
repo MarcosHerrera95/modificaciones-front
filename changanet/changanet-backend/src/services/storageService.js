@@ -1,193 +1,141 @@
-// src/services/storageService.js
-// Servicio de almacenamiento usando Firebase Storage
-// Proporciona funciones para subir, descargar y gestionar archivos con credenciales reales de Firebase
+/**
+ * Servicio de almacenamiento seguro usando Google Cloud Storage
+ * Gestiona subida y acceso seguro a documentos de verificación
+ * REQ-36, REQ-40 - Almacenamiento seguro de documentos sensibles
+ */
 
-const { storage } = require('../config/firebaseAdmin');
-const multer = require('multer');
-const { v4: uuidv4 } = require('uuid');
+const { Storage } = require('@google-cloud/storage');
+const path = require('path');
 
-// Configurar Multer para memoria (necesario para Firebase Storage)
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB límite
-  },
-  fileFilter: (req, file, cb) => {
-    // Verificar tipos de archivo permitidos
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Tipo de archivo no permitido. Solo imágenes JPG, PNG, GIF.'), false);
-    }
-  }
+// Configurar Google Cloud Storage
+const storage = new Storage({
+  keyFilename: path.join(__dirname, '../keys/gcs-key.json'),
+  projectId: 'changanet-notifications-477520'
 });
 
-// Función para subir archivo a Firebase Storage
-const uploadFile = async (fileBuffer, fileName, folder = 'changanet', metadata = {}) => {
+const bucketName = 'changanet-docs';
+const bucket = storage.bucket(bucketName);
+
+/**
+ * Sube documento de verificación a Google Cloud Storage
+ * @param {Buffer} fileBuffer - Buffer del archivo
+ * @param {string} originalName - Nombre original del archivo
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<string>} Nombre del archivo subido
+ */
+const uploadVerificationDocument = async (fileBuffer, originalName, userId) => {
   try {
-    if (!storage) {
-      throw new Error('Firebase Storage no está disponible');
-    }
+    // Sanitizar nombre de archivo
+    const sanitizedName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const timestamp = Date.now();
+    const fileName = `${userId}/${timestamp}_${sanitizedName}`;
 
-    const bucket = storage.bucket();
-    const fileNameWithUUID = `${uuidv4()}_${fileName}`;
-    const filePath = folder ? `${folder}/${fileNameWithUUID}` : fileNameWithUUID;
-
-    const file = bucket.file(filePath);
+    const file = bucket.file(fileName);
 
     // Configurar metadata
-    const fileMetadata = {
+    const metadata = {
       metadata: {
-        contentType: metadata.contentType || 'image/jpeg',
-        metadata: {
-          originalName: metadata.originalName || fileName,
-          uploadedAt: new Date().toISOString(),
-          ...metadata
-        }
+        originalName: originalName,
+        uploadedBy: userId,
+        uploadedAt: new Date().toISOString(),
+        contentType: getContentType(originalName)
       }
     };
 
     // Subir archivo
-    await file.save(fileBuffer, fileMetadata);
+    await file.save(fileBuffer, metadata);
 
-    // Hacer el archivo público
-    await file.makePublic();
-
-    // Obtener URL pública
-    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-    console.log('✅ Archivo subido exitosamente a Firebase Storage:', publicUrl);
-
-    return {
-      url: publicUrl,
-      fileName: fileNameWithUUID,
-      path: filePath,
-      bucket: bucket.name,
-      size: fileBuffer.length
-    };
+    console.log(`✅ Documento subido a GCS: ${fileName}`);
+    return fileName;
   } catch (error) {
-    console.error('❌ Error al subir archivo a Firebase Storage:', error);
-    throw error;
+    console.error('❌ Error subiendo documento a GCS:', error);
+    throw new Error('Error al subir el documento de verificación');
   }
 };
 
-// Función para eliminar archivo de Firebase Storage
-const deleteFile = async (filePath) => {
+/**
+ * Genera URL firmada para acceder al documento (válida 15 minutos)
+ * @param {string} fileName - Nombre del archivo en GCS
+ * @returns {Promise<string>} URL firmada
+ */
+const getSignedUrl = async (fileName) => {
   try {
-    if (!storage) {
-      throw new Error('Firebase Storage no está disponible');
-    }
+    const file = bucket.file(fileName);
 
-    const bucket = storage.bucket();
-    const file = bucket.file(filePath);
-
-    await file.delete();
-    console.log('✅ Archivo eliminado exitosamente:', filePath);
-    return true;
-  } catch (error) {
-    console.error('❌ Error al eliminar archivo:', error);
-    throw error;
-  }
-};
-
-// Función para obtener URL firmada (temporal) para archivos privados
-const getSignedUrl = async (filePath, expiresIn = 3600) => { // 1 hora por defecto
-  try {
-    if (!storage) {
-      throw new Error('Firebase Storage no está disponible');
-    }
-
-    const bucket = storage.bucket();
-    const file = bucket.file(filePath);
-
+    // URL válida por 15 minutos
     const [url] = await file.getSignedUrl({
+      version: 'v4',
       action: 'read',
-      expires: Date.now() + expiresIn * 1000,
+      expires: Date.now() + 15 * 60 * 1000, // 15 minutos
     });
 
     return url;
   } catch (error) {
-    console.error('❌ Error al obtener URL firmada:', error);
-    throw error;
+    console.error('❌ Error generando URL firmada:', error);
+    throw new Error('Error al generar URL de acceso al documento');
   }
 };
 
-// Función para obtener metadata de archivo
-const getFileMetadata = async (filePath) => {
-  try {
-    if (!storage) {
-      throw new Error('Firebase Storage no está disponible');
-    }
-
-    const bucket = storage.bucket();
-    const file = bucket.file(filePath);
-
-    const [metadata] = await file.getMetadata();
-    return metadata;
-  } catch (error) {
-    console.error('❌ Error al obtener metadata del archivo:', error);
-    throw error;
-  }
-};
-
-// Función para listar archivos en una carpeta
-const listFiles = async (folder = 'changanet', maxResults = 100) => {
-  try {
-    if (!storage) {
-      throw new Error('Firebase Storage no está disponible');
-    }
-
-    const bucket = storage.bucket();
-    const [files] = await bucket.getFiles({
-      prefix: folder,
-      maxResults
-    });
-
-    return files.map(file => ({
-      name: file.name,
-      size: file.metadata.size,
-      created: file.metadata.timeCreated,
-      updated: file.metadata.updated,
-      contentType: file.metadata.contentType
-    }));
-  } catch (error) {
-    console.error('❌ Error al listar archivos:', error);
-    throw error;
-  }
-};
-
-// Función para subir imagen con optimización
-const uploadImage = async (fileBuffer, fileName, options = {}) => {
-  const folder = options.folder || 'changanet/images';
-  const metadata = {
-    contentType: options.contentType || 'image/jpeg',
-    originalName: fileName,
-    ...options.metadata
+/**
+ * Obtiene el tipo de contenido basado en la extensión del archivo
+ * @param {string} fileName - Nombre del archivo
+ * @returns {string} Tipo MIME
+ */
+const getContentType = (fileName) => {
+  const ext = path.extname(fileName).toLowerCase();
+  const contentTypes = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.pdf': 'application/pdf'
   };
-
-  return await uploadFile(fileBuffer, fileName, folder, metadata);
+  return contentTypes[ext] || 'application/octet-stream';
 };
 
-// Función para subir archivo de reseña (con foto adjunta)
-const uploadReviewFile = async (fileBuffer, fileName, reviewId) => {
-  const folder = `changanet/reviews/${reviewId}`;
-  const metadata = {
-    contentType: 'image/jpeg',
-    originalName: fileName,
-    reviewId
-  };
+/**
+ * Valida archivo antes de subir
+ * @param {Buffer} buffer - Buffer del archivo
+ * @param {string} mimeType - Tipo MIME
+ * @param {string} originalName - Nombre original
+ * @returns {boolean} true si es válido
+ */
+const validateFile = (buffer, mimeType, originalName) => {
+  // Tipos permitidos
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
+  if (!allowedTypes.includes(mimeType)) {
+    throw new Error('Tipo de archivo no permitido. Solo se aceptan imágenes (JPG, PNG) y PDF.');
+  }
 
-  return await uploadFile(fileBuffer, fileName, folder, metadata);
+  // Tamaño máximo: 5MB
+  const maxSize = 5 * 1024 * 1024;
+  if (buffer.length > maxSize) {
+    throw new Error('El archivo es demasiado grande. Máximo 5MB permitido.');
+  }
+
+  return true;
+};
+
+/**
+ * Sube documento genérico a Google Cloud Storage
+ * @param {Buffer} fileBuffer - Buffer del archivo
+ * @param {string} fileName - Nombre del archivo
+ * @param {string} mimeType - Tipo MIME
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<string>} Nombre del archivo subido
+ */
+const uploadDocument = async (fileBuffer, fileName, mimeType, userId) => {
+  try {
+    // Usar la nueva función específica para verificación
+    return await uploadVerificationDocument(fileBuffer, fileName, userId);
+  } catch (error) {
+    console.error('❌ Error subiendo documento:', error);
+    throw error;
+  }
 };
 
 module.exports = {
-  upload,
-  uploadFile,
-  deleteFile,
+  uploadVerificationDocument,
   getSignedUrl,
-  getFileMetadata,
-  listFiles,
-  uploadImage,
-  uploadReviewFile
+  validateFile,
+  uploadDocument
 };

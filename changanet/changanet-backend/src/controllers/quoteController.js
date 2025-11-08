@@ -26,11 +26,30 @@ exports.createQuoteRequest = async (req, res) => {
   const { profesional_id, descripcion, zona_cobertura } = req.body;
 
   try {
+    // Validar que el profesional existe y está verificado
+    const professional = await prisma.usuarios.findUnique({
+      where: { id: parseInt(profesional_id) },
+      select: { id: true, nombre: true, email: true, esta_verificado: true, rol: true }
+    });
+
+    if (!professional) {
+      return res.status(404).json({ error: 'Profesional no encontrado.' });
+    }
+
+    if (professional.rol !== 'profesional') {
+      return res.status(400).json({ error: 'El usuario especificado no es un profesional.' });
+    }
+
+    if (!professional.esta_verificado) {
+      return res.status(400).json({ error: 'Solo puedes solicitar cotizaciones a profesionales verificados.' });
+    }
+
     const quote = await prisma.cotizaciones.create({
       data: {
         cliente_id: clientId,
-        profesional_id,
+        profesional_id: parseInt(profesional_id),
         descripcion,
+        zona_cobertura,
         estado: 'pendiente'
       },
       include: {
@@ -39,8 +58,13 @@ exports.createQuoteRequest = async (req, res) => {
       }
     });
 
-    // Enviar notificación al profesional
-    await sendNotification(profesional_id, 'cotizacion', `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`);
+    // Enviar notificación al profesional (REQ-35)
+    await createNotification(
+      parseInt(profesional_id),
+      NOTIFICATION_TYPES.COTIZACION,
+      `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
+      { quoteId: quote.id }
+    );
 
     console.log({ event: 'quote_request_created', clientId, professionalId: profesional_id, quoteId: quote.id });
 
@@ -140,12 +164,12 @@ exports.respondToQuote = async (req, res) => {
     });
 
     // Enviar notificación al cliente
-    const notificationType = action === 'accept' ? 'cotizacion_aceptada' : 'cotizacion_rechazada';
+    const notificationType = action === 'accept' ? NOTIFICATION_TYPES.COTIZACION_ACEPTADA : NOTIFICATION_TYPES.COTIZACION_RECHAZADA;
     const message = action === 'accept'
       ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`
       : `Tu cotización ha sido rechazada por ${quote.profesional.nombre}`;
 
-    await sendNotification(quote.cliente_id, notificationType, message);
+    await createNotification(quote.cliente_id, notificationType, message);
 
     // Enviar email al cliente
     try {

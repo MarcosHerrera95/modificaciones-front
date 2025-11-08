@@ -14,7 +14,7 @@ const AdminVerificationPage = () => {
 
   const loadPendingRequests = async () => {
     try {
-      const response = await fetch('/api/verification/pending', {
+      const response = await fetch('/api/admin/verification-requests', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }
@@ -39,7 +39,7 @@ const AdminVerificationPage = () => {
     setProcessing(requestId);
 
     try {
-      const response = await fetch(`/api/verification/${requestId}/approve`, {
+      const response = await fetch(`/api/admin/verification/${requestId}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -72,7 +72,7 @@ const AdminVerificationPage = () => {
     setProcessing(requestId);
 
     try {
-      const response = await fetch(`/api/verification/${requestId}/reject`, {
+      const response = await fetch(`/api/admin/verification/${requestId}/reject`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

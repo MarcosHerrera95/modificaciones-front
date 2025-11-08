@@ -13,6 +13,32 @@ exports.createAvailability = async (req, res) => {
       return res.status(403).json({ error: 'Solo los profesionales pueden gestionar disponibilidad.' });
     }
 
+    // Validar que no haya solapamiento de horarios
+    const existingSlots = await prisma.disponibilidad.findMany({
+      where: {
+        profesional_id: userId,
+        fecha: new Date(fecha),
+        OR: [
+          {
+            AND: [
+              { hora_inicio: { lte: new Date(hora_inicio) } },
+              { hora_fin: { gt: new Date(hora_inicio) } }
+            ]
+          },
+          {
+            AND: [
+              { hora_inicio: { lt: new Date(hora_fin) } },
+              { hora_fin: { gte: new Date(hora_fin) } }
+            ]
+          }
+        ]
+      }
+    });
+
+    if (existingSlots.length > 0) {
+      return res.status(400).json({ error: 'Ya existe un horario que se solapa con el horario seleccionado.' });
+    }
+
     const availability = await prisma.disponibilidad.create({
       data: {
         profesional_id: userId,
@@ -78,5 +104,26 @@ exports.updateAvailability = async (req, res) => {
   } catch (error) {
     console.error('Error updating availability:', error);
     res.status(500).json({ error: 'Error al actualizar disponibilidad.' });
+  }
+};
+
+exports.deleteAvailability = async (req, res) => {
+  const { id: userId } = req.user;
+  const { slotId } = req.params;
+
+  try {
+    const slot = await prisma.disponibilidad.findUnique({ where: { id: slotId } });
+    if (!slot || slot.profesional_id !== userId) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar este horario.' });
+    }
+
+    await prisma.disponibilidad.delete({
+      where: { id: slotId }
+    });
+
+    res.status(200).json({ message: 'Horario eliminado exitosamente.' });
+  } catch (error) {
+    console.error('Error deleting availability:', error);
+    res.status(500).json({ error: 'Error al eliminar disponibilidad.' });
   }
 };

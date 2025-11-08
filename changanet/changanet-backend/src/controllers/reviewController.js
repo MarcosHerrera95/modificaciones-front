@@ -18,7 +18,9 @@ exports.createReview = async (req, res) => {
     }
 
     // Check if review already exists - RB-02: Solo 1 reseña por servicio
-    const existingReview = await prisma.resenas.findUnique({ where: { servicio_id } });
+    const existingReview = await prisma.resenas.findUnique({
+      where: { servicio_id: servicio_id }
+    });
     if (existingReview) {
       return res.status(400).json({ error: 'Ya se ha dejado una reseña para este servicio. Solo se permite una reseña por servicio.' });
     }
@@ -62,6 +64,47 @@ exports.createReview = async (req, res) => {
   } catch (error) {
     console.error('Error creating review:', error);
     res.status(500).json({ error: 'Error al crear la reseña.' });
+  }
+};
+
+// Nuevo endpoint para verificar si un usuario puede reseñar un servicio
+exports.checkReviewEligibility = async (req, res) => {
+  const { id: userId } = req.user;
+  const { servicioId } = req.params;
+
+  try {
+    const service = await prisma.servicios.findUnique({
+      where: { id: servicioId },
+      include: { cliente: true, profesional: true }
+    });
+
+    if (!service) {
+      return res.status(404).json({ error: 'Servicio no encontrado.' });
+    }
+
+    // Verificar si el usuario es el cliente del servicio
+    if (service.cliente_id !== userId) {
+      return res.status(403).json({ error: 'No tienes permiso para reseñar este servicio.' });
+    }
+
+    // Verificar si el servicio está completado
+    if (service.estado !== 'completado') {
+      return res.json({ canReview: false, reason: 'El servicio debe estar completado para poder reseñar.' });
+    }
+
+    // Verificar si ya existe una reseña para este servicio (RB-02)
+    const existingReview = await prisma.resenas.findUnique({
+      where: { servicio_id: servicioId }
+    });
+
+    if (existingReview) {
+      return res.json({ canReview: false, reason: 'Ya se ha dejado una reseña para este servicio.' });
+    }
+
+    res.json({ canReview: true });
+  } catch (error) {
+    console.error('Error checking review eligibility:', error);
+    res.status(500).json({ error: 'Error al verificar elegibilidad para reseña.' });
   }
 };
 

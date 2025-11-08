@@ -50,19 +50,27 @@ passport.use(
             });
           }
         } else {
-          // Crear nuevo usuario con datos de Google - SIN rol por defecto
-          // El rol se asignará durante el proceso de registro normal
-          console.log('Google OAuth: New user detected, will need role assignment');
-          return done(null, false, { message: 'Usuario no registrado. Complete el registro primero.' });
+          // Crear nuevo usuario con datos de Google - rol "cliente" por defecto (REQ-02)
+          user = await prisma.usuarios.create({
+            data: {
+              nombre: profile.displayName,
+              email: profile.emails[0].value,
+              google_id: profile.id,
+              url_foto_perfil: profile.photos[0].value,
+              rol: 'cliente', // Rol por defecto según REQ-02
+              esta_verificado: true, // Los usuarios de Google están verificados
+            }
+          });
+          console.log('Google OAuth: New user created with role "cliente":', user.nombre);
         }
 
         console.log('Google OAuth: User authenticated:', user.nombre, '(', user.rol, ')');
 
-        // Generar token JWT
+        // Generar token JWT con expiresIn: '7d' según requisitos
         const token = jwt.sign(
           { userId: user.id, role: user.rol },
           process.env.JWT_SECRET,
-          { expiresIn: '24h', algorithm: 'HS256' }
+          { expiresIn: '7d', algorithm: 'HS256' }
         );
 
         // Devolver usuario y token

@@ -6,6 +6,7 @@
 const express = require('express');
 const verificationController = require('../controllers/verificationController');
 const { authenticateToken } = require('../middleware/authenticate');
+const { uploadVerificationDocument } = require('../services/storageService');
 
 // Configurar multer para subida de archivos
 const multer = require('multer');
@@ -39,16 +40,20 @@ router.post('/request',
 // Obtener estado de verificación del usuario actual
 router.get('/status', authenticateToken, verificationController.getVerificationStatus);
 
-// GET /api/verification/pending
+// GET /api/admin/verification-requests
 // Listar solicitudes pendientes (solo administradores)
-router.get('/pending', authenticateToken, verificationController.getPendingVerifications);
+router.get('/admin/verification-requests', authenticateToken, verificationController.getPendingVerifications);
 
-// PUT /api/verification/:id/approve
+// PUT /api/admin/verification/:id/approve
 // Aprobar solicitud de verificación (solo administradores)
-router.put('/:id/approve', authenticateToken, verificationController.approveVerification);
+router.put('/admin/verification/:id/approve', authenticateToken, verificationController.approveVerification);
 
-// PUT /api/verification/:id/reject
+// PUT /api/admin/verification/:id/reject
 // Rechazar solicitud de verificación (solo administradores)
-router.put('/:id/reject', authenticateToken, verificationController.rejectVerification);
+router.put('/admin/verification/:id/reject', authenticateToken, verificationController.rejectVerification);
+
+// GET /api/verification/:requestId/document
+// Obtener URL firmada para acceder al documento (usuario propietario o admin)
+router.get('/:requestId/document', authenticateToken, verificationController.getDocumentUrl);
 
 module.exports = router;
