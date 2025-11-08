@@ -1,12 +1,14 @@
 /**
  * Controlador de autenticación que maneja registro, login y autenticación OAuth de usuarios.
  * Gestiona la creación de cuentas, validación de credenciales y generación de tokens JWT.
+ * Incluye logging estructurado para auditoría (REQ-42, RB-04)
  */
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const logger = require('../services/logger');
 
 /**
  * Registro de usuario cliente
@@ -17,20 +19,32 @@ exports.register = async (req, res) => {
   try {
     // Validar que el rol sea especificado y válido
     if (!rol) {
+      logger.warn('Registration failed: role not specified', {
+        service: 'auth',
+        email,
+        ip: req.ip
+      });
       return res.status(400).json({ error: 'El rol es requerido. Use "cliente" o "profesional".' });
     }
 
     if (!['cliente', 'profesional'].includes(rol)) {
+      logger.warn('Registration failed: invalid role', {
+        service: 'auth',
+        email,
+        rol,
+        ip: req.ip
+      });
       return res.status(400).json({ error: 'Rol inválido. Use "cliente" o "profesional".' });
     }
-
-    console.log('AuthController - Register: Received rol:', rol);
-
-    console.log('AuthController - Register: Received rol:', rol);
 
     // Verificar si el usuario ya existe
     const existingUser = await prisma.usuarios.findUnique({ where: { email } });
     if (existingUser) {
+      logger.warn('Registration failed: email already exists', {
+        service: 'auth',
+        email,
+        ip: req.ip
+      });
       return res.status(400).json({ error: 'El email ya está registrado.' });
     }
 
@@ -48,8 +62,6 @@ exports.register = async (req, res) => {
       },
     });
 
-    console.log('AuthController - Register: Created user with rol:', user.rol);
-
     // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
@@ -57,9 +69,23 @@ exports.register = async (req, res) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
+    logger.info('User registered successfully', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email,
+      rol: user.rol,
+      ip: req.ip
+    });
+
     res.status(201).json({ message: 'Usuario registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } });
   } catch (error) {
-    console.error('Error en registro:', error);
+    logger.error('Registration error', {
+      service: 'auth',
+      email,
+      rol,
+      error,
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Error al registrar el usuario.', details: error.message });
   }
 };
@@ -74,12 +100,23 @@ exports.login = async (req, res) => {
     // Buscar usuario por email
     const user = await prisma.usuarios.findUnique({ where: { email } });
     if (!user) {
+      logger.warn('Login failed: user not found', {
+        service: 'auth',
+        email,
+        ip: req.ip
+      });
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
 
     // Verificar contraseña
     const isValidPassword = await bcrypt.compare(password, user.hash_contrasena);
     if (!isValidPassword) {
+      logger.warn('Login failed: invalid password', {
+        service: 'auth',
+        userId: user.id,
+        email,
+        ip: req.ip
+      });
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
 
@@ -90,9 +127,22 @@ exports.login = async (req, res) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
+    logger.info('User login successful', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email,
+      rol: user.rol,
+      ip: req.ip
+    });
+
     res.status(200).json({ message: 'Login exitoso.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } });
   } catch (error) {
-    console.error(error);
+    logger.error('Login error', {
+      service: 'auth',
+      email,
+      error,
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Error al iniciar sesión.' });
   }
 };
@@ -226,20 +276,39 @@ exports.googleLogin = async (req, res) => {
             esta_verificado: true, // Los usuarios de Google están verificados
           }
         });
+        logger.info('Google OAuth: existing user updated', {
+          service: 'auth',
+          userId: user.id,
+          email: user.email,
+          ip: req.ip
+        });
+      } else {
+        logger.info('Google OAuth: existing user login', {
+          service: 'auth',
+          userId: user.id,
+          email: user.email,
+          ip: req.ip
+        });
       }
     } else {
       // Crear nuevo usuario con rol por defecto "cliente" (REQ-02)
       user = await prisma.usuarios.create({
         data: {
-          nombre: nombre,
-          email: email,
+          nombre,
+          email,
           google_id: uid,
           url_foto_perfil: foto,
           rol: rol || 'cliente', // Rol por defecto según REQ-02
           esta_verificado: true, // Los usuarios de Google están verificados
         }
       });
-      console.log('Google OAuth: New user created with role "cliente":', user.nombre);
+      logger.info('Google OAuth: new user created', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        rol: user.rol,
+        ip: req.ip
+      });
     }
 
     // Generar token JWT con expiresIn: '7d' según requisitos
@@ -261,7 +330,12 @@ exports.googleLogin = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error en googleLogin:', error);
+    logger.error('Google OAuth login error', {
+      service: 'auth',
+      email,
+      error,
+      ip: req.ip
+    });
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 };
