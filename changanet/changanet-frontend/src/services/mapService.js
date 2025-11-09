@@ -2,29 +2,34 @@
  * Servicio de mapas para Changánet - Google Maps API Integration
  * Maneja geocodificación, autocompletado y cálculo de distancias
  * REQ-09, REQ-12, REQ-15
+ * Usa la nueva API funcional con setOptions e importLibrary
  */
-
-import { Loader } from '@googlemaps/js-api-loader';
-
-// Configuración del loader de Google Maps
-const loader = new Loader({
-  apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-  version: 'weekly',
-  libraries: ['places', 'geometry']
-});
 
 // Estado del servicio
 let googleMaps = null;
-let placesService = null;
+let placesLibrary = null;
+let mapsLibrary = null;
 
 /**
- * Inicializa Google Maps API
+ * Inicializa Google Maps API usando la nueva API funcional
  */
 export const initGoogleMaps = async () => {
   try {
     if (!googleMaps) {
-      googleMaps = await loader.load();
-      console.log('✅ Google Maps API inicializada');
+      // Configurar la API key globalmente
+      google.maps.importLibrary.setOptions({
+        apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+        version: 'weekly'
+      });
+
+      // Cargar las bibliotecas necesarias
+      [mapsLibrary, placesLibrary] = await Promise.all([
+        google.maps.importLibrary('maps'),
+        google.maps.importLibrary('places')
+      ]);
+
+      googleMaps = google.maps;
+      console.log('✅ Google Maps API inicializada con nueva API funcional');
     }
     return googleMaps;
   } catch (error) {
@@ -34,16 +39,16 @@ export const initGoogleMaps = async () => {
 };
 
 /**
- * Inicializa Places Service
+ * Inicializa Places Service usando la nueva API
  */
 const initPlacesService = () => {
-  if (!placesService && googleMaps) {
+  if (!placesService && googleMaps && placesLibrary) {
     const mapDiv = document.createElement('div');
-    const map = new googleMaps.Map(mapDiv, {
+    const map = new mapsLibrary.Map(mapDiv, {
       center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
       zoom: 12
     });
-    placesService = new googleMaps.places.PlacesService(map);
+    placesService = new placesLibrary.PlacesService(map);
   }
   return placesService;
 };
@@ -131,7 +136,7 @@ export const initAutocomplete = async (inputElement, callback) => {
     await initGoogleMaps();
 
     // Restringir a Argentina
-    const autocomplete = new googleMaps.places.Autocomplete(inputElement, {
+    const autocomplete = new placesLibrary.Autocomplete(inputElement, {
       componentRestrictions: { country: 'ar' },
       fields: ['formatted_address', 'geometry', 'place_id'],
       types: ['geocode', 'establishment']
