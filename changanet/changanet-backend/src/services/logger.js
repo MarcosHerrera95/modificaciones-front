@@ -8,6 +8,7 @@ const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
 const fs = require('fs');
+const sentryService = require('./sentryService');
 
 // Crear directorio de logs si no existe
 const logsDir = path.join(__dirname, '../../logs');
@@ -137,7 +138,23 @@ logger.warn = function(message, options = {}) {
 
 logger.error = function(message, options = {}) {
   const entry = createLogEntry('error', message, options);
-  return originalError(message, entry);
+  const result = originalError(message, entry);
+
+  // Integrar con Sentry para errores críticos
+  if (options.error || options.critical) {
+    sentryService.captureError(options.error || new Error(message), {
+      tags: {
+        service: options.service || 'unknown',
+        level: 'error'
+      },
+      extra: {
+        userId: options.userId,
+        ...sanitizeData(options)
+      }
+    });
+  }
+
+  return result;
 };
 
 logger.debug = function(message, options = {}) {
