@@ -27,14 +27,17 @@ exports.searchProfessionals = async (req, res) => {
 
     const where = {};
 
+    // Búsqueda por especialidad con ILIKE (REQ-11)
     if (especialidad) {
       where.especialidad = { contains: especialidad, mode: 'insensitive' };
     }
 
+    // Filtro por zona/barrio (REQ-12)
     if (zona_cobertura) {
       where.zona_cobertura = { contains: zona_cobertura, mode: 'insensitive' };
     }
 
+    // Filtro por rango de precio (REQ-13)
     if (precio_min || precio_max) {
       where.tarifa_hora = {};
       if (precio_min) where.tarifa_hora.gte = parseFloat(precio_min);
@@ -44,7 +47,7 @@ exports.searchProfessionals = async (req, res) => {
     const skip = (page - 1) * limit;
     const take = parseInt(limit);
 
-    // Configurar ordenamiento con índices optimizados
+    // Configurar ordenamiento (REQ-14)
     let orderBy = {};
     switch (sort_by) {
       case 'calificacion_promedio':

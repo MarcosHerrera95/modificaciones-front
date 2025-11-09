@@ -16,27 +16,48 @@ let mapsLibrary = null;
 export const initGoogleMaps = async () => {
   try {
     if (!googleMaps) {
-      // Configurar la API key globalmente
-      google.maps.importLibrary.setOptions({
-        apiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
-        version: 'weekly'
-      });
+      // Verificar que la API key esté disponible
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      if (!apiKey) {
+        throw new Error('Google Maps API key no configurada. Verifica VITE_GOOGLE_MAPS_API_KEY en .env.local');
+      }
+
+      console.log('🔄 Inicializando Google Maps API...');
+      console.log('API Key presente:', !!apiKey);
+
+      // Verificar que google esté disponible globalmente
+      if (typeof google === 'undefined') {
+        console.error('❌ Google no está definido globalmente. Necesitas cargar el script de Google Maps.');
+        throw new Error('Google Maps script no cargado. Verifica la configuración de CSP y el script loader.');
+      }
+
+      console.log('✅ Google disponible globalmente');
+
+      // No necesitamos configurar opciones adicionales, la API key ya está en el script
+      console.log('✅ API key ya configurada en el script global');
 
       // Cargar las bibliotecas necesarias
+      console.log('📚 Cargando bibliotecas maps y places...');
       [mapsLibrary, placesLibrary] = await Promise.all([
         google.maps.importLibrary('maps'),
         google.maps.importLibrary('places')
       ]);
+      console.log('✅ Bibliotecas maps y places cargadas');
 
       googleMaps = google.maps;
-      console.log('✅ Google Maps API inicializada con nueva API funcional');
+      console.log('✅ Google Maps API inicializada correctamente');
     }
     return googleMaps;
   } catch (error) {
     console.error('❌ Error inicializando Google Maps:', error);
-    throw new Error('No se pudo inicializar Google Maps API');
+    console.error('Detalles del error:', error.message);
+    console.error('Stack trace:', error.stack);
+    throw new Error(`No se pudo inicializar Google Maps API: ${error.message}`);
   }
 };
+
+// Estado del servicio
+let placesService = null;
 
 /**
  * Inicializa Places Service usando la nueva API
@@ -133,18 +154,30 @@ export const getDistanceMatrix = async (origin, destination) => {
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
+    console.log('🔄 Inicializando autocompletado...');
     await initGoogleMaps();
+    console.log('✅ Google Maps inicializado, creando autocompletado...');
 
-    // Restringir a Argentina
-    const autocomplete = new placesLibrary.Autocomplete(inputElement, {
+    // Usar la nueva API recomendada: PlaceAutocompleteElement
+    const autocompleteElement = new google.maps.places.PlaceAutocompleteElement({
       componentRestrictions: { country: 'ar' },
-      fields: ['formatted_address', 'geometry', 'place_id'],
       types: ['geocode', 'establishment']
     });
 
+    // Crear un contenedor para el elemento de autocompletado
+    const container = document.createElement('div');
+    container.style.position = 'relative';
+    inputElement.parentNode.insertBefore(container, inputElement);
+    container.appendChild(autocompleteElement);
+
+    // Ocultar el input original y usar el nuevo elemento
+    inputElement.style.display = 'none';
+
+    console.log('✅ Autocompletado creado exitosamente con PlaceAutocompleteElement');
+
     // Event listener para cuando se selecciona un lugar
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
+    autocompleteElement.addEventListener('gmp-placeselect', (event) => {
+      const place = event.place;
 
       if (!place.geometry) {
         console.warn('No se encontraron detalles del lugar seleccionado');
@@ -158,12 +191,15 @@ export const initAutocomplete = async (inputElement, callback) => {
         placeId: place.place_id
       };
 
+      console.log('📍 Lugar seleccionado:', location);
       callback(location);
     });
 
-    return autocomplete;
+    return autocompleteElement;
   } catch (error) {
-    console.error('Error inicializando autocompletado:', error);
+    console.error('❌ Error inicializando autocompletado:', error);
+    console.error('Detalles del error:', error.message);
+    console.error('Stack trace:', error.stack);
     throw error;
   }
 };

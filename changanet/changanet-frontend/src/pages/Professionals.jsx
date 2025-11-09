@@ -26,8 +26,7 @@ const Professionals = () => {
         if (precioMax) urlParams.set('precio_max', precioMax);
 
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
-        const sortParam = sortBy === 'rating' ? 'calificacion_promedio' : sortBy;
-        urlParams.set('sort_by', sortParam);
+        urlParams.set('sort_by', sortBy);
 
         const response = await fetch(`/api/search?${urlParams.toString()}`);
         const data = await response.json();
@@ -46,7 +45,7 @@ const Professionals = () => {
     };
 
     fetchProfessionals();
-  }, [location.search, zonaCobertura, precioMin, precioMax]);
+  }, [location.search, zonaCobertura, precioMin, precioMax, sortBy]);
 
   // El ordenamiento ahora se hace en el backend, así que solo usamos los resultados tal cual
   const sortedProfessionals = professionals;
