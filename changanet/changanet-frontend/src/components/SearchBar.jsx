@@ -69,9 +69,9 @@ const SearchBar = () => {
       const params = new URLSearchParams();
       params.set('especialidad', service.trim());
       if (location.trim()) {
-        params.set('zona_cobertura', location.trim());
+        params.set('ubicacion', location.trim());
       }
-      navigate(`/profesionales?${params.toString()}`);
+      navigate(`/api/search?${params.toString()}`);
     }
   };
 
@@ -189,7 +189,7 @@ const SearchBar = () => {
           <button
             type="submit"
             disabled={!service.trim()}
-            className="bg-emerald-500 text-white px-8 py-4 rounded-xl hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-md hover:shadow-lg min-h-[56px] flex items-center justify-center"
+            className="bg-[#E30613] text-white px-8 py-4 rounded-xl hover:bg-[#c9050f] disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-md hover:shadow-lg min-h-[56px] flex items-center justify-center"
             aria-label="Buscar profesionales"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

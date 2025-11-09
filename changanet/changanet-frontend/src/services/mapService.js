@@ -2,51 +2,55 @@
  * Servicio de mapas para Changánet - Google Maps API Integration
  * Maneja geocodificación, autocompletado y cálculo de distancias
  * REQ-09, REQ-12, REQ-15
- * Usa la nueva API funcional con setOptions e importLibrary
+ * Usa la nueva API funcional de @googlemaps/js-api-loader
  */
+
+import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 
 // Estado del servicio
 let googleMaps = null;
 let placesLibrary = null;
 let mapsLibrary = null;
+let isInitialized = false;
 
 /**
  * Inicializa Google Maps API usando la nueva API funcional
+ * Llama setOptions solo una vez al inicio de la aplicación
  */
 export const initGoogleMaps = async () => {
   try {
-    if (!googleMaps) {
+    if (!isInitialized) {
       // Verificar que la API key esté disponible
       const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
         throw new Error('Google Maps API key no configurada. Verifica VITE_GOOGLE_MAPS_API_KEY en .env.local');
       }
 
-      console.log('🔄 Inicializando Google Maps API...');
+      console.log('🔄 Inicializando Google Maps API con nueva API funcional...');
       console.log('API Key presente:', !!apiKey);
 
-      // Verificar que google esté disponible globalmente
-      if (typeof google === 'undefined') {
-        console.error('❌ Google no está definido globalmente. Necesitas cargar el script de Google Maps.');
-        throw new Error('Google Maps script no cargado. Verifica la configuración de CSP y el script loader.');
-      }
+      // Configurar opciones globales UNA SOLA VEZ
+      setOptions({
+        apiKey: apiKey,
+        version: 'weekly'
+      });
 
-      console.log('✅ Google disponible globalmente');
+      isInitialized = true;
+      console.log('✅ Google Maps API configurada globalmente');
+    }
 
-      // No necesitamos configurar opciones adicionales, la API key ya está en el script
-      console.log('✅ API key ya configurada en el script global');
-
+    if (!googleMaps) {
       // Cargar las bibliotecas necesarias
       console.log('📚 Cargando bibliotecas maps y places...');
       [mapsLibrary, placesLibrary] = await Promise.all([
-        google.maps.importLibrary('maps'),
-        google.maps.importLibrary('places')
+        importLibrary('maps'),
+        importLibrary('places')
       ]);
-      console.log('✅ Bibliotecas maps y places cargadas');
 
-      googleMaps = google.maps;
-      console.log('✅ Google Maps API inicializada correctamente');
+      googleMaps = { maps: mapsLibrary, places: placesLibrary };
+      console.log('✅ Bibliotecas maps y places cargadas');
     }
+
     return googleMaps;
   } catch (error) {
     console.error('❌ Error inicializando Google Maps:', error);
@@ -147,10 +151,10 @@ export const getDistanceMatrix = async (origin, destination) => {
 };
 
 /**
- * Inicializa autocompletado de lugares en un input
+ * Inicializa autocompletado de lugares en un input usando PlaceAutocompleteElement
  * @param {HTMLInputElement} inputElement - Elemento input
  * @param {Function} callback - Función a llamar cuando se selecciona un lugar
- * @returns {google.maps.places.Autocomplete}
+ * @returns {google.maps.places.PlaceAutocompleteElement}
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
@@ -158,26 +162,55 @@ export const initAutocomplete = async (inputElement, callback) => {
     await initGoogleMaps();
     console.log('✅ Google Maps inicializado, creando autocompletado...');
 
-    // Usar la nueva API recomendada: PlaceAutocompleteElement
-    const autocompleteElement = new google.maps.places.PlaceAutocompleteElement({
+    // Usar Autocomplete clásico que permite mejor control de estilos
+    const { Autocomplete } = placesLibrary;
+    const autocomplete = new Autocomplete(inputElement, {
       componentRestrictions: { country: 'ar' },
+      fields: ['formatted_address', 'geometry', 'place_id'],
       types: ['geocode', 'establishment']
     });
 
-    // Crear un contenedor para el elemento de autocompletado
-    const container = document.createElement('div');
-    container.style.position = 'relative';
-    inputElement.parentNode.insertBefore(container, inputElement);
-    container.appendChild(autocompleteElement);
+    // Aplicar estilos CSS para el panel de sugerencias
+    const styleId = 'google-places-autocomplete-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        .pac-container {
+          background-color: white !important;
+          border: 1px solid #e5e7eb !important;
+          border-radius: 0.5rem !important;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+          font-family: inherit !important;
+        }
+        .pac-item {
+          background-color: white !important;
+          color: #374151 !important;
+          padding: 8px 12px !important;
+          border: none !important;
+        }
+        .pac-item:hover {
+          background-color: #f9fafb !important;
+        }
+        .pac-item-selected {
+          background-color: #f3f4f6 !important;
+        }
+        .pac-matched {
+          font-weight: 600 !important;
+          color: #059669 !important;
+        }
+        .pac-icon {
+          display: none !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
 
-    // Ocultar el input original y usar el nuevo elemento
-    inputElement.style.display = 'none';
-
-    console.log('✅ Autocompletado creado exitosamente con PlaceAutocompleteElement');
+    console.log('✅ Autocomplete creado exitosamente con estilos corregidos');
 
     // Event listener para cuando se selecciona un lugar
-    autocompleteElement.addEventListener('gmp-placeselect', (event) => {
-      const place = event.place;
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
 
       if (!place.geometry) {
         console.warn('No se encontraron detalles del lugar seleccionado');
@@ -195,7 +228,7 @@ export const initAutocomplete = async (inputElement, callback) => {
       callback(location);
     });
 
-    return autocompleteElement;
+    return autocomplete;
   } catch (error) {
     console.error('❌ Error inicializando autocompletado:', error);
     console.error('Detalles del error:', error.message);

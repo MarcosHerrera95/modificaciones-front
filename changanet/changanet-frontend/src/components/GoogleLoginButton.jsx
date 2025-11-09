@@ -10,8 +10,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../config/firebaseConfig';
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
@@ -32,56 +30,12 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
     setLoading(true);
 
     try {
-      // Crear provider de Google
-      const provider = new GoogleAuthProvider();
-      provider.addScope('email');
-      provider.addScope('profile');
-
-      // Iniciar sesión con popup
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-
-      console.log('Google login successful:', user);
-
-      // Enviar datos al backend para crear/verificar usuario
-      const response = await fetch('/api/auth/google-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          nombre: user.displayName,
-          foto: user.photoURL,
-          rol: 'cliente' // Por defecto cliente según REQ-02
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && data.token && data.user) {
-        // Login exitoso
-        login(data.user, data.token);
-
-        // Redirigir según rol
-        const dashboardRoute = data.user.rol === 'profesional' ? '/dashboard-profesional' : '/mi-cuenta';
-        navigate(dashboardRoute);
-      } else {
-        throw new Error(data.error || 'Error en autenticación');
-      }
+      // Redirigir al backend para iniciar flujo OAuth (REQ-02)
+      // NUNCA usar signInWithPopup en frontend según especificaciones
+      window.location.href = 'http://localhost:3002/api/auth/google';
     } catch (error) {
-      console.error('Error en autenticación con Google:', error);
-
-      // Manejar errores específicos de Firebase
-      let errorMessage = 'Error al iniciar sesión con Google.';
-
-      if (error.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'Inicio de sesión cancelado.';
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = 'Popup bloqueado. Permite popups para este sitio.';
-      }
-
-      alert(errorMessage);
-    } finally {
+      console.error('Error redirigiendo a Google OAuth:', error);
+      alert('Error al iniciar sesión con Google. Intente nuevamente.');
       setLoading(false);
     }
   };
