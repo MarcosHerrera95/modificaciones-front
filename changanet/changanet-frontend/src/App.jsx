@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ModalProvider } from './context/ModalContext.jsx';
 import { NotificationProvider } from './context/NotificationContext';
@@ -61,6 +61,7 @@ function App() {
                 <main id="main-content" className="flex-grow" role="main">
                   <Routes>
                     <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Navigate to="/" replace />} />
                     <Route path="/profesionales" element={<Professionals />} />
                     <Route path="/profesional/:id" element={<ProfessionalDetail />} />
                     <Route path="/mi-cuenta" element={<Dashboard />} />

@@ -61,7 +61,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({
           profesional_id: professionalId,
@@ -91,8 +91,8 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">¿Cómo quieres contactar?</h2>
-        <p className="text-gray-600">Elige la opción que más te convenga</p>
+        <h2 className="text-2xl font-bold text-[#1F2937] mb-2">¿Cómo quieres contactar?</h2>
+        <p className="text-[#6B7280]">Elige la opción que más te convenga</p>
       </div>
 
       {error && (
@@ -116,11 +116,11 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
 
       {/* Full Quote Request Form */}
       <div className="border-t pt-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">📋 Solicitud Completa de Presupuesto</h3>
+        <h3 className="text-lg font-semibold text-[#1F2937] mb-4">📋 Solicitud Completa de Presupuesto</h3>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="descripcion" className="block text-gray-700 font-medium mb-2 text-lg">
+            <label htmlFor="descripcion" className="block text-[#1F2937] font-medium mb-2 text-lg">
               ¿Qué trabajo necesitas?
             </label>
             <textarea
@@ -128,7 +128,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
               name="descripción"
               value={formData.descripción}
               onChange={handleChange}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300 text-gray-700 text-lg min-h-[120px]"
+              className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-300 text-[#1F2937] text-lg min-h-[120px] placeholder-[#6B7280]"
               rows="4"
               placeholder="Describe brevemente el trabajo que necesitas realizar..."
               required
@@ -138,7 +138,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           </div>
 
           <div>
-            <label htmlFor="zona" className="block text-gray-700 font-medium mb-2 text-lg">
+            <label htmlFor="zona" className="block text-[#1F2937] font-medium mb-2 text-lg">
               ¿Dónde lo necesitas?
             </label>
             <input
@@ -147,7 +147,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
               name="zona_cobertura"
               value={formData.zona_cobertura}
               onChange={handleChange}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300 text-gray-700 text-lg min-h-[44px]"
+              className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-300 text-[#1F2937] text-lg min-h-[44px] placeholder-[#6B7280]"
               placeholder="Ej: Palermo, CABA"
               required
               aria-describedby="zona-help"
@@ -158,7 +158,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-h-[44px] touch-manipulation"
+            className="w-full bg-[#E30613] text-white py-4 rounded-2xl hover:bg-[#E30613] transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-h-[44px] touch-manipulation"
             aria-label="Enviar solicitud completa de presupuesto"
           >
             {loading ? (

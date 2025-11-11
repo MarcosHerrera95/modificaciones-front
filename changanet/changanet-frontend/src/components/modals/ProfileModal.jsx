@@ -26,7 +26,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
     try {
       const response = await fetch(`/api/profile/${user.id}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         }
       });
 
@@ -83,7 +83,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
       const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         },
         body: formDataToSend
       });
@@ -139,7 +139,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Foto de Perfil */}
             <div>
-              <label className="block text-gray-700 font-medium mb-3">
+              <label className="block text-[#1F2937] font-medium mb-3">
                 Foto de Perfil (opcional)
               </label>
               <ImageUpload
@@ -152,7 +152,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
 
             {/* Especialidad */}
             <div>
-              <label className="block text-gray-700 font-medium mb-2">
+              <label className="block text-[#1F2937] font-medium mb-2">
                 Especialidad
               </label>
               <input
@@ -160,7 +160,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
                 name="especialidad"
                 value={formData.especialidad}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-200 text-[#1F2937] placeholder-[#6B7280]"
                 placeholder="Ej: Plomero, Electricista, Pintor..."
                 required
               />
@@ -168,7 +168,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
 
             {/* Años de Experiencia */}
             <div>
-              <label className="block text-gray-700 font-medium mb-2">
+              <label className="block text-[#1F2937] font-medium mb-2">
                 Años de Experiencia
               </label>
               <input
@@ -176,7 +176,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
                 name="anos_experiencia"
                 value={formData.anos_experiencia}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-200 text-[#1F2937] placeholder-[#6B7280]"
                 placeholder="Ej: 5"
                 min="0"
                 required
@@ -185,7 +185,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
 
             {/* Zona de Cobertura */}
             <div>
-              <label className="block text-gray-700 font-medium mb-2">
+              <label className="block text-[#1F2937] font-medium mb-2">
                 Zona de Cobertura
               </label>
               <input
@@ -193,7 +193,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
                 name="zona_cobertura"
                 value={formData.zona_cobertura}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-200 text-[#1F2937] placeholder-[#6B7280]"
                 placeholder="Ej: Ciudad de Buenos Aires, Zona Norte..."
                 required
               />
@@ -201,7 +201,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
 
             {/* Tarifa por Hora */}
             <div>
-              <label className="block text-gray-700 font-medium mb-2">
+              <label className="block text-[#1F2937] font-medium mb-2">
                 Tarifa por Hora ($)
               </label>
               <input
@@ -209,7 +209,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
                 name="tarifa_hora"
                 value={formData.tarifa_hora}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-200 text-[#1F2937] placeholder-[#6B7280]"
                 placeholder="Ej: 1500"
                 min="0"
                 step="0.01"
@@ -219,14 +219,14 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
 
             {/* Descripción */}
             <div>
-              <label className="block text-gray-700 font-medium mb-2">
+              <label className="block text-[#1F2937] font-medium mb-2">
                 Descripción
               </label>
               <textarea
                 name="descripcion"
                 value={formData.descripcion}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 resize-none"
+                className="w-full px-4 py-3 bg-[#F9FBFD] border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#E30613] focus:border-transparent transition-all duration-200 resize-none text-[#1F2937] placeholder-[#6B7280]"
                 rows={4}
                 placeholder="Describe tus servicios, experiencia y especialidades..."
                 required
@@ -245,7 +245,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
+                className="flex-1 bg-[#E30613] text-white py-3 rounded-2xl hover:bg-[#E30613] transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
               >
                 {loading ? (
                   <>

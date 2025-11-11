@@ -64,14 +64,17 @@ const SearchBar = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (service.trim()) {
+    if (service.trim() || location.trim()) {
       setShowServiceSuggestions(false);
       const params = new URLSearchParams();
-      params.set('especialidad', service.trim());
+      if (service.trim()) {
+        params.set('especialidad', service.trim());
+      }
       if (location.trim()) {
         params.set('ubicacion', location.trim());
       }
-      navigate(`/api/search?${params.toString()}`);
+      // Navigate to professionals search page instead of API endpoint
+      navigate(`/profesionales?${params.toString()}`);
     }
   };
 
@@ -188,7 +191,7 @@ const SearchBar = () => {
           {/* Botón de búsqueda */}
           <button
             type="submit"
-            disabled={!service.trim()}
+            disabled={!service.trim() && !location.trim()}
             className="bg-[#E30613] text-white px-8 py-4 rounded-xl hover:bg-[#c9050f] disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-md hover:shadow-lg min-h-[56px] flex items-center justify-center"
             aria-label="Buscar profesionales"
           >

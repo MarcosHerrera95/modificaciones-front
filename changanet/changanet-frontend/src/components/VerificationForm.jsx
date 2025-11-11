@@ -23,7 +23,7 @@ const VerificationForm = () => {
     try {
       const response = await fetch('/api/verification/status', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         }
       });
 
@@ -75,7 +75,7 @@ const VerificationForm = () => {
       const response = await fetch('/api/verification/request', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         },
         body: formData
       });
@@ -107,7 +107,7 @@ const VerificationForm = () => {
     try {
       const response = await fetch('/api/verification/status', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
         }
       });
 
@@ -135,7 +135,7 @@ const VerificationForm = () => {
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-bold text-gray-800 mb-4">
+      <h3 className="text-xl font-bold text-[#1F2937] mb-4">
         Verificación de Identidad
       </h3>
 
@@ -156,13 +156,13 @@ const VerificationForm = () => {
           </div>
 
           {status.comentario_admin && (
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-[#6B7280]">
               <strong>Comentario del administrador:</strong> {status.comentario_admin}
             </p>
           )}
 
           {status.revisado_en && (
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-[#6B7280]">
               Revisado el: {new Date(status.revisado_en).toLocaleDateString('es-ES')}
             </p>
           )}
@@ -173,10 +173,10 @@ const VerificationForm = () => {
       {(!status || status.estado !== 'aprobado') && (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-[#1F2937] mb-2">
               Documento de Identidad
             </label>
-            <p className="text-sm text-gray-500 mb-3">
+            <p className="text-sm text-[#6B7280] mb-3">
               Sube una foto clara de tu DNI, cédula o pasaporte. Aceptamos imágenes (JPG, PNG) o PDF.
             </p>
 
@@ -184,12 +184,12 @@ const VerificationForm = () => {
               type="file"
               accept=".jpg,.jpeg,.png,.pdf"
               onChange={handleFileSelect}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              className="block w-full text-sm text-[#6B7280] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-[#F9FBFD] file:text-[#1F2937] hover:file:bg-[#E30613] hover:file:text-white"
               disabled={uploading}
             />
 
             {selectedFile && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-[#6B7280]">
                 Archivo seleccionado: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
               </p>
             )}
@@ -207,7 +207,7 @@ const VerificationForm = () => {
             className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
               !selectedFile || uploading || status?.estado === 'pendiente'
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                : 'bg-[#E30613] hover:bg-[#E30613] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#E30613]'
             }`}
           >
             {uploading ? (
@@ -225,11 +225,11 @@ const VerificationForm = () => {
       )}
 
       {/* Información adicional */}
-      <div className="mt-6 bg-blue-50 rounded-lg p-4">
-        <h4 className="text-sm font-medium text-blue-800 mb-2">
+      <div className="mt-6 bg-[#F9FBFD] rounded-lg p-4">
+        <h4 className="text-sm font-medium text-[#1F2937] mb-2">
           ¿Por qué verificar mi identidad?
         </h4>
-        <ul className="text-sm text-blue-700 space-y-1">
+        <ul className="text-sm text-[#6B7280] space-y-1">
           <li>• Aumenta la confianza de los clientes</li>
           <li>• Apareces más arriba en las búsquedas</li>
           <li>• Destacas como profesional verificado</li>

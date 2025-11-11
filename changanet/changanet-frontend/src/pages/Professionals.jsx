@@ -28,7 +28,7 @@ const Professionals = () => {
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
         urlParams.set('sort_by', sortBy);
 
-        const response = await fetch(`/api/search?${urlParams.toString()}`);
+        const response = await fetch(`/api/professionals?${urlParams.toString()}`);
         const data = await response.json();
         if (response.ok) {
           setProfessionals(data.professionals);

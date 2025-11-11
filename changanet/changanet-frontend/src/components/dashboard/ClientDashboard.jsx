@@ -1,30 +1,60 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const ClientDashboard = ({ user }) => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     activeServices: 0,
     pendingQuotes: 0,
     unreadNotifications: 0
   });
+  const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = sessionStorage.getItem('changanet_token');
+        if (!token) return;
+
+        const response = await fetch('/api/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const profileData = await response.json();
+          // For clients, the response is { usuario: { nombre, ... } }
+          // For professionals, it's the profile object directly
+          const profile = profileData.usuario || profileData;
+          setProfile(profile);
+        }
+      } catch (error) {
+        console.error('Error fetching profile:', error);
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
   const fetchDashboardData = async () => {
     try {
       // Fetch essential data only
+      const token = sessionStorage.getItem('changanet_token');
       const [servicesRes, quotesRes, notificationsRes] = await Promise.all([
         fetch('/api/quotes/client/services', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+          headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch('/api/quotes/client', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+          headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch('/api/notifications', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
@@ -45,10 +75,10 @@ const ClientDashboard = ({ user }) => {
       }
 
       if (notificationsRes.ok) {
-        const notifications = await notificationsRes.json();
+        const data = await notificationsRes.json();
         setStats(prev => ({
           ...prev,
-          unreadNotifications: notifications.filter(n => !n.esta_leido).length
+          unreadNotifications: data.notifications ? data.notifications.filter(n => !n.esta_leido).length : 0
         }));
       }
     } catch (error) {
@@ -71,7 +101,7 @@ const ClientDashboard = ({ user }) => {
       {/* Simple Welcome */}
       <div className="text-center py-4">
         <h1 className="text-2xl font-bold text-gray-800">
-          ¡Hola, {user.nombre}!
+          ¡Hola, {profile?.nombre || user.nombre}!
         </h1>
         <p className="text-gray-600 mt-1">
           ¿Qué necesitas hoy?
@@ -117,8 +147,8 @@ const ClientDashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Main Actions - Simplified to 2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* Main Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link
           to="/profesionales"
           className="bg-emerald-600 text-white p-6 rounded-xl hover:bg-emerald-700 transition-colors duration-200 text-center"
@@ -127,6 +157,22 @@ const ClientDashboard = ({ user }) => {
           <h3 className="text-lg font-semibold mb-1">Buscar Profesionales</h3>
           <p className="text-sm opacity-90">Encuentra el servicio que necesitas</p>
         </Link>
+
+        <button
+          onClick={() => {
+            const token = sessionStorage.getItem('changanet_token');
+            if (!token) {
+              navigate('/login');
+            } else {
+              navigate('/mi-perfil-cliente');
+            }
+          }}
+          className="bg-white text-gray-800 p-6 rounded-xl hover:bg-gray-50 transition-colors duration-200 text-center border border-gray-200 shadow-sm"
+        >
+          <span className="text-3xl block mb-2">👤</span>
+          <h3 className="text-lg font-semibold mb-1">Mi Perfil</h3>
+          <p className="text-sm text-gray-600">Gestiona tu información</p>
+        </button>
 
         <Link
           to="/mis-cotizaciones"

@@ -151,59 +151,47 @@ export const getDistanceMatrix = async (origin, destination) => {
 };
 
 /**
- * Inicializa autocompletado de lugares en un input usando PlaceAutocompleteElement
- * @param {HTMLInputElement} inputElement - Elemento input a reemplazar
+ * Inicializa autocompletado de lugares en un input usando Autocomplete class
+ * @param {HTMLInputElement} inputElement - Elemento input para autocompletado
  * @param {Function} callback - Función a llamar cuando se selecciona un lugar
- * @returns {HTMLElement} El elemento PlaceAutocompleteElement creado
+ * @returns {Object} Instancia de Autocomplete
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
-    console.log('🔄 Inicializando autocompletado con PlaceAutocompleteElement...');
+    console.log('🔄 Inicializando autocompletado con Autocomplete class...');
     await initGoogleMaps();
-    console.log('✅ Google Maps inicializado, creando PlaceAutocompleteElement...');
+    console.log('✅ Google Maps inicializado, creando Autocomplete...');
 
-    // Crear el elemento PlaceAutocompleteElement
-    const autocompleteElement = document.createElement('gmp-place-autocomplete');
+    // Crear instancia de Autocomplete
+    const autocomplete = new placesLibrary.Autocomplete(inputElement, {
+      componentRestrictions: { country: 'ar' },
+      fields: ['formatted_address', 'geometry', 'place_id'],
+      types: ['geocode', 'establishment']
+    });
 
-    // Configurar restricciones y tipos
-    autocompleteElement.componentRestrictions = { country: 'ar' };
-    autocompleteElement.types = ['geocode', 'establishment'];
-    autocompleteElement.requestedFields = ['formattedAddress', 'location', 'id'];
-
-    // Copiar atributos del input original si es necesario
-    if (inputElement.placeholder) {
-      autocompleteElement.placeholder = inputElement.placeholder;
-    }
-    if (inputElement.className) {
-      autocompleteElement.className = inputElement.className;
-    }
-
-    console.log('✅ PlaceAutocompleteElement creado exitosamente');
+    console.log('✅ Autocomplete creado exitosamente');
 
     // Event listener para cuando se selecciona un lugar
-    autocompleteElement.addEventListener('gmp-placeselect', (event) => {
-      const place = event.detail.place;
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
 
-      if (!place.location) {
+      if (!place.geometry || !place.geometry.location) {
         console.warn('No se encontraron detalles del lugar seleccionado');
         return;
       }
 
       const location = {
-        address: place.formattedAddress,
-        lat: place.location.lat(),
-        lng: place.location.lng(),
-        placeId: place.id
+        address: place.formatted_address,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        placeId: place.place_id
       };
 
       console.log('📍 Lugar seleccionado:', location);
       callback(location);
     });
 
-    // Reemplazar el input original con el elemento de autocompletado
-    inputElement.parentNode.replaceChild(autocompleteElement, inputElement);
-
-    return autocompleteElement;
+    return autocomplete;
   } catch (error) {
     console.error('❌ Error inicializando autocompletado:', error);
     console.error('Detalles del error:', error.message);
