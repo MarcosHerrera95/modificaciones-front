@@ -19,23 +19,23 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Recupera datos de usuario del sessionStorage al inicializar
-    const token = sessionStorage.getItem('changanet_token');
+    // Recupera datos de usuario del localStorage al inicializar
+    const token = localStorage.getItem('changanet_token');
     if (token) {
       try {
-        const userData = JSON.parse(sessionStorage.getItem('changanet_user'));
-        console.log('AuthContext - Loaded user from sessionStorage:', userData);
+        const userData = JSON.parse(localStorage.getItem('changanet_user'));
+        console.log('AuthContext - Loaded user from localStorage:', userData);
         console.log('AuthContext - User name:', userData?.nombre || 'NO NAME');
         console.log('AuthContext - User role:', userData?.rol || userData?.role || 'NO ROLE');
         setUser(userData);
       } catch (error) {
-        console.error('Error parsing user data from sessionStorage:', error);
+        console.error('Error parsing user data from localStorage:', error);
         // Limpiar datos corruptos
-        sessionStorage.removeItem('changanet_token');
-        sessionStorage.removeItem('changanet_user');
+        localStorage.removeItem('changanet_token');
+        localStorage.removeItem('changanet_user');
       }
     } else {
-      console.log('AuthContext - No token found in sessionStorage');
+      console.log('AuthContext - No token found in localStorage');
     }
     setLoading(false);
   }, []);
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
   // Función para obtener datos actualizados del usuario desde el backend
   const fetchCurrentUser = async () => {
     try {
-      const token = sessionStorage.getItem('changanet_token');
+      const token = localStorage.getItem('changanet_token');
       if (!token) return;
 
       const response = await fetch('/api/auth/me', {
@@ -54,7 +54,7 @@ export const AuthProvider = ({ children }) => {
         const data = await response.json();
         console.log('AuthContext - Fetched current user:', data.user);
         setUser(data.user);
-        sessionStorage.setItem('changanet_user', JSON.stringify(data.user));
+        localStorage.setItem('changanet_user', JSON.stringify(data.user));
       }
     } catch (error) {
       console.error('Error fetching current user:', error);
@@ -72,8 +72,8 @@ export const AuthProvider = ({ children }) => {
       nombre: userData.nombre || userData.name || 'Usuario'
     };
 
-    sessionStorage.setItem('changanet_token', token);
-    sessionStorage.setItem('changanet_user', JSON.stringify(userWithName));
+    localStorage.setItem('changanet_token', token);
+    localStorage.setItem('changanet_user', JSON.stringify(userWithName));
     setUser(userWithName);
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY (solo si está disponible)
@@ -149,8 +149,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    sessionStorage.removeItem('changanet_token');
-    sessionStorage.removeItem('changanet_user');
+    localStorage.removeItem('changanet_token');
+    localStorage.removeItem('changanet_user');
     setUser(null);
   };
 

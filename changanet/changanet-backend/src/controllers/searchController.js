@@ -84,16 +84,23 @@ exports.searchProfessionals = async (req, res) => {
 
     // Optimizar consultas: precargar datos relacionados para evitar N+1
     const professionalIds = professionals.map(p => p.usuario_id);
-    const [reviews, services] = await Promise.all([
-      prisma.resenas.groupBy({
-        by: ['profesional_id'],
-        where: { profesional_id: { in: professionalIds } },
-        _count: { calificacion: true },
-        _avg: { calificacion: true }
+    const [reviewsData, services] = await Promise.all([
+      prisma.resenas.findMany({
+        where: {
+          servicio: {
+            profesional_id: { in: professionalIds }
+          }
+        },
+        select: {
+          calificacion: true,
+          servicio: {
+            select: { profesional_id: true }
+          }
+        }
       }),
       prisma.servicios.groupBy({
         by: ['profesional_id'],
-        where: { profesional_id: { in: professionalIds }, estado: 'completado' },
+        where: { profesional_id: { in: professionalIds }, estado: 'COMPLETADO' },
         _count: { id: true }
       })
     ]);
@@ -101,14 +108,36 @@ exports.searchProfessionals = async (req, res) => {
     // Crear mapa de estadísticas para acceso rápido
     const statsMap = new Map();
     professionalIds.forEach(id => {
-      const reviewStats = reviews.find(r => r.profesional_id === id);
-      const serviceStats = services.find(s => s.profesional_id === id);
-
       statsMap.set(id, {
-        calificacion_promedio: reviewStats?._avg.calificacion || 0,
-        total_resenas: reviewStats?._count.calificacion || 0,
-        servicios_completados: serviceStats?._count.id || 0
+        calificacion_promedio: 0,
+        total_resenas: 0,
+        servicios_completados: 0
       });
+    });
+
+    // Procesar reseñas
+    reviewsData.forEach(review => {
+      const profId = review.servicio.profesional_id;
+      const stats = statsMap.get(profId);
+      if (stats) {
+        stats.total_resenas++;
+        stats.calificacion_promedio += review.calificacion;
+      }
+    });
+
+    // Calcular promedio
+    statsMap.forEach(stats => {
+      if (stats.total_resenas > 0) {
+        stats.calificacion_promedio = stats.calificacion_promedio / stats.total_resenas;
+      }
+    });
+
+    // Procesar servicios completados
+    services.forEach(serviceStat => {
+      const stats = statsMap.get(serviceStat.profesional_id);
+      if (stats) {
+        stats.servicios_completados = serviceStat._count.id;
+      }
     });
 
     // Enriquecer resultados con estadísticas calculadas
