@@ -152,83 +152,58 @@ export const getDistanceMatrix = async (origin, destination) => {
 
 /**
  * Inicializa autocompletado de lugares en un input usando PlaceAutocompleteElement
- * @param {HTMLInputElement} inputElement - Elemento input
+ * @param {HTMLInputElement} inputElement - Elemento input a reemplazar
  * @param {Function} callback - Función a llamar cuando se selecciona un lugar
- * @returns {google.maps.places.PlaceAutocompleteElement}
+ * @returns {HTMLElement} El elemento PlaceAutocompleteElement creado
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
-    console.log('🔄 Inicializando autocompletado...');
+    console.log('🔄 Inicializando autocompletado con PlaceAutocompleteElement...');
     await initGoogleMaps();
-    console.log('✅ Google Maps inicializado, creando autocompletado...');
+    console.log('✅ Google Maps inicializado, creando PlaceAutocompleteElement...');
 
-    // Usar Autocomplete clásico que permite mejor control de estilos
-    const { Autocomplete } = placesLibrary;
-    const autocomplete = new Autocomplete(inputElement, {
-      componentRestrictions: { country: 'ar' },
-      fields: ['formatted_address', 'geometry', 'place_id'],
-      types: ['geocode', 'establishment']
-    });
+    // Crear el elemento PlaceAutocompleteElement
+    const autocompleteElement = document.createElement('gmp-place-autocomplete');
 
-    // Aplicar estilos CSS para el panel de sugerencias
-    const styleId = 'google-places-autocomplete-styles';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = `
-        .pac-container {
-          background-color: white !important;
-          border: 1px solid #e5e7eb !important;
-          border-radius: 0.5rem !important;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-          font-family: inherit !important;
-        }
-        .pac-item {
-          background-color: white !important;
-          color: #374151 !important;
-          padding: 8px 12px !important;
-          border: none !important;
-        }
-        .pac-item:hover {
-          background-color: #f9fafb !important;
-        }
-        .pac-item-selected {
-          background-color: #f3f4f6 !important;
-        }
-        .pac-matched {
-          font-weight: 600 !important;
-          color: #059669 !important;
-        }
-        .pac-icon {
-          display: none !important;
-        }
-      `;
-      document.head.appendChild(style);
+    // Configurar restricciones y tipos
+    autocompleteElement.componentRestrictions = { country: 'ar' };
+    autocompleteElement.types = ['geocode', 'establishment'];
+    autocompleteElement.requestedFields = ['formattedAddress', 'location', 'id'];
+
+    // Copiar atributos del input original si es necesario
+    if (inputElement.placeholder) {
+      autocompleteElement.placeholder = inputElement.placeholder;
+    }
+    if (inputElement.className) {
+      autocompleteElement.className = inputElement.className;
     }
 
-    console.log('✅ Autocomplete creado exitosamente con estilos corregidos');
+    console.log('✅ PlaceAutocompleteElement creado exitosamente');
 
     // Event listener para cuando se selecciona un lugar
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
+    autocompleteElement.addEventListener('gmp-placeselect', (event) => {
+      const place = event.detail.place;
 
-      if (!place.geometry) {
+      if (!place.location) {
         console.warn('No se encontraron detalles del lugar seleccionado');
         return;
       }
 
       const location = {
-        address: place.formatted_address,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        placeId: place.place_id
+        address: place.formattedAddress,
+        lat: place.location.lat(),
+        lng: place.location.lng(),
+        placeId: place.id
       };
 
       console.log('📍 Lugar seleccionado:', location);
       callback(location);
     });
 
-    return autocomplete;
+    // Reemplazar el input original con el elemento de autocompletado
+    inputElement.parentNode.replaceChild(autocompleteElement, inputElement);
+
+    return autocompleteElement;
   } catch (error) {
     console.error('❌ Error inicializando autocompletado:', error);
     console.error('Detalles del error:', error.message);

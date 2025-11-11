@@ -81,6 +81,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
+const { sendPushNotification } = require('./services/pushNotificationService');
 
 // Importar documentación Swagger
 const swaggerUi = require('swagger-ui-express');
@@ -372,7 +373,23 @@ io.on('connection', (socket) => {
         },
       });
 
-      // Enviar notificación push al destinatario
+      // Enviar notificación push al destinatario (FCM)
+      try {
+        await sendPushNotification(
+          destinatario_id,
+          'Nuevo mensaje',
+          `Tienes un nuevo mensaje en Changánet`,
+          {
+            type: 'mensaje',
+            remitente_id: remitente_id,
+            message_id: message.id
+          }
+        );
+      } catch (pushError) {
+        console.warn('Error enviando push notification:', pushError.message);
+      }
+
+      // Enviar notificación en base de datos (para historial)
       await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${remitente_id}`);
 
       // Emitir el mensaje en tiempo real usando salas de Socket.IO

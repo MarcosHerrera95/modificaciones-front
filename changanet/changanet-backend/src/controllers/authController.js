@@ -6,9 +6,11 @@
 
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const logger = require('../services/logger');
+const { sendEmail } = require('../services/emailService');
 
 /**
  * Registro de usuario cliente
@@ -51,6 +53,10 @@ exports.register = async (req, res) => {
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generar token de verificación de email
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
     // Crear usuario con rol explícitamente asignado
     const user = await prisma.usuarios.create({
       data: {
@@ -58,9 +64,30 @@ exports.register = async (req, res) => {
         email,
         hash_contrasena: hashedPassword,
         rol: rol, // Rol explícitamente asignado desde el frontend
-        esta_verificado: false
+        esta_verificado: false,
+        token_verificacion: verificationToken,
+        token_expiracion: tokenExpiration
       },
     });
+
+    // Enviar email de verificación
+    try {
+      const { sendVerificationEmail } = require('../services/emailService');
+      await sendVerificationEmail(user.email, verificationToken);
+      logger.info('Verification email sent', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email
+      });
+    } catch (emailError) {
+      logger.warn('Failed to send verification email', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        error: emailError.message
+      });
+      // No fallar el registro por error en email
+    }
 
     // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
@@ -77,7 +104,12 @@ exports.register = async (req, res) => {
       ip: req.ip
     });
 
-    res.status(201).json({ message: 'Usuario registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } });
+    res.status(201).json({
+      message: 'Usuario registrado exitosamente. Revisa tu email para verificar la cuenta.',
+      token,
+      user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },
+      requiresVerification: true
+    });
   } catch (error) {
     logger.error('Registration error', {
       service: 'auth',
@@ -193,6 +225,10 @@ exports.registerProfessional = async (req, res) => {
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Generar token de verificación de email
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
     // Crear usuario
     const user = await prisma.usuarios.create({
       data: {
@@ -201,6 +237,9 @@ exports.registerProfessional = async (req, res) => {
         hash_contrasena: hashedPassword,
         telefono,
         rol: 'profesional',
+        esta_verificado: false,
+        token_verificacion: verificationToken,
+        token_expiracion: tokenExpiration
       },
     });
 
@@ -216,6 +255,25 @@ exports.registerProfessional = async (req, res) => {
       },
     });
 
+    // Enviar email de verificación
+    try {
+      const { sendVerificationEmail } = require('../services/emailService');
+      await sendVerificationEmail(user.email, verificationToken);
+      logger.info('Verification email sent to professional', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email
+      });
+    } catch (emailError) {
+      logger.warn('Failed to send verification email to professional', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        error: emailError.message
+      });
+      // No fallar el registro por error en email
+    }
+
     // Generar token JWT con expiresIn: '7d' según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
@@ -223,7 +281,13 @@ exports.registerProfessional = async (req, res) => {
       { expiresIn: '7d', algorithm: 'HS256' }
     );
 
-    res.status(201).json({ message: 'Profesional registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol }, profile });
+    res.status(201).json({
+      message: 'Profesional registrado exitosamente. Revisa tu email para verificar la cuenta.',
+      token,
+      user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },
+      profile,
+      requiresVerification: true
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al registrar el profesional.' });
@@ -250,6 +314,60 @@ exports.getCurrentUser = async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo usuario actual:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Verificar email del usuario
+ */
+exports.verifyEmail = async (req, res) => {
+  const { token } = req.query;
+
+  try {
+    if (!token) {
+      return res.status(400).json({ error: 'Token de verificación requerido' });
+    }
+
+    // Buscar usuario con el token de verificación
+    const user = await prisma.usuarios.findUnique({
+      where: { token_verificacion: token }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Token de verificación inválido' });
+    }
+
+    // Verificar si el token no ha expirado
+    if (user.token_expiracion && user.token_expiracion < new Date()) {
+      return res.status(400).json({ error: 'Token de verificación expirado' });
+    }
+
+    // Marcar email como verificado y limpiar tokens
+    await prisma.usuarios.update({
+      where: { id: user.id },
+      data: {
+        esta_verificado: true,
+        token_verificacion: null,
+        token_expiracion: null
+      }
+    });
+
+    logger.info('Email verified successfully', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email
+    });
+
+    res.status(200).json({
+      message: 'Email verificado exitosamente',
+      user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol, esta_verificado: true }
+    });
+  } catch (error) {
+    logger.error('Email verification error', {
+      service: 'auth',
+      error: error.message
+    });
+    res.status(500).json({ error: 'Error al verificar email' });
   }
 };
 
@@ -332,8 +450,7 @@ exports.googleLogin = async (req, res) => {
   } catch (error) {
     logger.error('Google OAuth login error', {
       service: 'auth',
-      email,
-      error,
+      error: error.message,
       ip: req.ip
     });
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -346,5 +463,6 @@ module.exports = {
   googleCallback: exports.googleCallback,
   googleLogin: exports.googleLogin,
   registerProfessional: exports.registerProfessional,
-  getCurrentUser: exports.getCurrentUser
+  getCurrentUser: exports.getCurrentUser,
+  verifyEmail: exports.verifyEmail
 };

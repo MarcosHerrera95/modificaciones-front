@@ -39,17 +39,19 @@ enum EstadoCotizacion {
 // TARJETA BACKEND: Tarjeta 1: [Backend] Implementar API de Registro y Login.
 // SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
 model usuarios {
-  id              String    @id @default(uuid())
-  email           String    @unique
-  hash_contrasena String?
-  nombre          String
-  telefono        String?
-  rol             String    @default("cliente")
-  esta_verificado Boolean   @default(false)
-  creado_en       DateTime  @default(now())
-  actualizado_en  DateTime?
-  google_id       String?   @unique
-  url_foto_perfil String?
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  hash_contrasena       String?
+  nombre                String
+  telefono              String?
+  rol                   String    @default("cliente")
+  esta_verificado       Boolean   @default(false)
+  token_verificacion    String?   @unique
+  token_expiracion      DateTime?
+  creado_en             DateTime  @default(now())
+  actualizado_en        DateTime?
+  google_id             String?   @unique
+  url_foto_perfil       String?
 
   perfil_profesional perfiles_profesionales?
   servicios_como_cliente servicios[] @relation("ServicioCliente")

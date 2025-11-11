@@ -28,7 +28,8 @@ passport.use(
       callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3002/api/auth/google/callback',
       scope: ['profile', 'email'],
       accessType: 'offline',
-      prompt: 'consent'
+      prompt: 'consent',
+      responseType: 'code'
     },
     async (accessToken, refreshToken, profile, done) => {
       try {

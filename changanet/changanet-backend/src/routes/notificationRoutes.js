@@ -24,4 +24,16 @@ router.put('/read-all', authenticateToken, notificationController.markAllAsRead)
 // DELETE /api/notifications/:id - Eliminar notificación
 router.delete('/:id', authenticateToken, notificationController.deleteNotification);
 
+// FCM Token Management
+// POST /api/notifications/register-token - Registrar token FCM
+router.post('/register-token', authenticateToken, notificationController.registerFCMToken);
+
+// DELETE /api/notifications/unregister-token - Eliminar token FCM
+router.delete('/unregister-token', authenticateToken, notificationController.unregisterFCMToken);
+
+// POST /api/notifications/test - Enviar notificación de prueba (desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/test', authenticateToken, notificationController.sendTestNotification);
+}
+
 module.exports = router;

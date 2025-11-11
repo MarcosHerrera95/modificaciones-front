@@ -1,18 +1,9 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { getStorage } from "firebase/storage";
-import { initializeApp } from "firebase/app";
+import { db } from "../config/firebaseConfig";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
-  authDomain: "changanet-notifications.firebaseapp.com",
-  projectId: "changanet-notifications",
-  storageBucket: "changanet-notifications.appspot.com",
-  messagingSenderId: "926478045621",
-  appId: "1:926478045621:web:6704a255057b65a6e549fc"
-};
-
-const app = initializeApp(firebaseConfig);
-const storage = getStorage(app);
+// Usar la instancia de storage ya inicializada
+const storage = getStorage();
 
 // Subir foto de perfil
 export const uploadProfilePicture = async (userId, file) => {

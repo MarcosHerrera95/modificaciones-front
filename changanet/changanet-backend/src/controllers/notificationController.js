@@ -7,6 +7,7 @@
  */
 
 const notificationService = require('../services/notificationService');
+const pushNotificationService = require('../services/pushNotificationService');
 
 /**
  * Obtener notificaciones del usuario autenticado
@@ -106,6 +107,81 @@ exports.deleteNotification = async (req, res) => {
     });
   } catch (error) {
     console.error('Error eliminando notificación:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Registrar token FCM para notificaciones push
+ */
+exports.registerFCMToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Token FCM es requerido'
+      });
+    }
+
+    await pushNotificationService.registerFCMToken(userId, token);
+
+    res.json({
+      success: true,
+      message: 'Token FCM registrado correctamente'
+    });
+  } catch (error) {
+    console.error('Error registrando token FCM:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Eliminar token FCM (logout/dispositivo removido)
+ */
+exports.unregisterFCMToken = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await pushNotificationService.unregisterFCMToken(userId);
+
+    res.json({
+      success: true,
+      message: 'Token FCM eliminado correctamente'
+    });
+  } catch (error) {
+    console.error('Error eliminando token FCM:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Enviar notificación push de prueba
+ */
+exports.sendTestNotification = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await pushNotificationService.sendPushNotification(
+      userId,
+      'Notificación de Prueba',
+      'Esta es una notificación de prueba de Changánet',
+      { type: 'test', timestamp: new Date().toISOString() }
+    );
+
+    res.json({
+      success: true,
+      message: 'Notificación de prueba enviada'
+    });
+  } catch (error) {
+    console.error('Error enviando notificación de prueba:', error);
     res.status(500).json({
       error: 'Error interno del servidor'
     });

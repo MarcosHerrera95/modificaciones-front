@@ -2,7 +2,7 @@ const express = require('express');
 const passport = require('../config/passport');
 const { authenticateToken } = require('../middleware/authenticate');
 // Importar los controladores que contienen la lógica de negocio para registro y login.
-const { register, login, googleCallback, googleLogin, registerProfessional, getCurrentUser } = require('../controllers/authController');
+const { register, login, googleCallback, googleLogin, registerProfessional, getCurrentUser, verifyEmail } = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -10,6 +10,7 @@ const router = express.Router();
 router.post('/register', register);
 router.post('/login', login);
 router.post('/register-professional', registerProfessional);
+router.get('/verify-email', verifyEmail);
 router.get('/me', authenticateToken, getCurrentUser);
 
 // Rutas OAuth de Google

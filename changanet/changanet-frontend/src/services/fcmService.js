@@ -7,21 +7,8 @@
  * @returns {Promise<Object>} Resultado de la inicialización
  */
 
-import { getMessaging, getToken, onMessage, deleteToken } from "firebase/messaging";
-import { getMessaging as getMessagingInstance } from "firebase/messaging";
-import { initializeApp } from "firebase/app";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyA93wqcIxGpPCfyUBMq4ZwBxJRDfkKGXfQ",
-  authDomain: "changanet-notifications.firebaseapp.com",
-  projectId: "changanet-notifications",
-  storageBucket: "changanet-notifications.appspot.com",
-  messagingSenderId: "926478045621",
-  appId: "1:926478045621:web:6704a255057b65a6e549fc"
-};
-
-const app = initializeApp(firebaseConfig);
-const messaging = getMessaging(app);
+import { getToken, onMessage } from "firebase/messaging";
+import { messaging } from "../config/firebaseConfig";
 
 /**
  * @función initializeFCM - Inicialización de Firebase Cloud Messaging
@@ -34,6 +21,12 @@ const messaging = getMessaging(app);
 export const initializeFCM = async () => {
   try {
     // Verificar si Firebase Messaging está disponible
+    if (!messaging) {
+      console.warn('Firebase Messaging no está disponible');
+      return { success: false, error: 'Firebase Messaging no está disponible' };
+    }
+
+    // Verificar si Service Worker y Notification API están disponibles
     if (!('serviceWorker' in navigator) || !('Notification' in window)) {
       console.warn('Service Worker o Notification API no soportados');
       return { success: false, error: 'Service Worker o Notification API no soportados' };
@@ -53,11 +46,42 @@ export const initializeFCM = async () => {
       console.log('Service Worker registrado:', registration);
     }
 
-    // Aquí iría la inicialización de Firebase Messaging
-    // Por ahora, simulamos la inicialización exitosa
-    console.log('FCM inicializado correctamente (simulado)');
+    // Obtener token FCM real
+    const token = await getToken(messaging, {
+      vapidKey: import.meta.env.VITE_FCM_VAPID_KEY
+    });
 
-    return { success: true };
+    if (!token) {
+      console.warn('No se pudo obtener token FCM');
+      return { success: false, error: 'No se pudo obtener token FCM' };
+    }
+
+    // Enviar token al backend para almacenarlo
+    const authToken = localStorage.getItem('changanet_token');
+    if (authToken) {
+      try {
+        const response = await fetch('/api/notifications/register-token', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ token })
+        });
+
+        if (!response.ok) {
+          console.warn('Error registrando token FCM en backend');
+        } else {
+          console.log('Token FCM registrado en backend correctamente');
+        }
+      } catch (error) {
+        console.warn('Error enviando token al backend:', error);
+      }
+    }
+
+    console.log('FCM inicializado correctamente con token real');
+    return { success: true, token };
+
   } catch (error) {
     console.error('Error inicializando FCM:', error);
     return { success: false, error: error.message };
@@ -74,26 +98,47 @@ export const initializeFCM = async () => {
  * @returns {Function} Función para desuscribirse
  */
 export const onFCMMessage = (callback) => {
-  // Aquí iría la configuración del listener de Firebase Messaging
-  // Por ahora, simulamos con un listener de prueba
-  const handleMessage = (event) => {
-    if (event.data && event.data.type === 'fcm_message') {
-      callback(event.data.payload);
-    }
-  };
+  // Verificar si messaging está disponible
+  if (!messaging) {
+    console.warn('Firebase Messaging no disponible para escuchar mensajes');
+    return () => {}; // Retornar función vacía
+  }
 
-  // Escuchar mensajes del service worker
-  navigator.serviceWorker.addEventListener('message', handleMessage);
+  try {
+    // Escuchar mensajes FCM en primer plano
+    return onMessage(messaging, (payload) => {
+      console.log('Mensaje FCM recibido:', payload);
 
-  // Función para desuscribirse
-  return () => {
-    navigator.serviceWorker.removeEventListener('message', handleMessage);
-  };
+      // Mostrar notificación del navegador
+      if (Notification.permission === 'granted') {
+        const notification = new Notification(payload.notification?.title || 'Nueva notificación', {
+          body: payload.notification?.body || 'Tienes una nueva notificación',
+          icon: '/vite.svg',
+          data: payload.data || {},
+          tag: 'changanet-notification'
+        });
+
+        // Manejar click en la notificación
+        notification.onclick = () => {
+          notification.close();
+          // Enfocar la ventana de la app
+          window.focus();
+          // Aquí se podría navegar a la sección correspondiente
+        };
+      }
+
+      // Ejecutar callback con los datos del mensaje
+      callback(payload);
+    });
+  } catch (error) {
+    console.error('Error configurando listener FCM:', error);
+    return () => {}; // Retornar función vacía
+  }
 };
 
 /**
- * @función sendFCMNotification - Enviar notificación push (simulada)
- * @descripción Simula envío de notificación FCM desde cliente (REQ-19)
+ * @función sendFCMNotification - Enviar notificación push (desde cliente - solo para testing)
+ * @descripción Envía notificación FCM desde el cliente (solo para desarrollo/testing)
  * @sprint Sprint 2 – Notificaciones y Comunicación
  * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
  * @impacto Social: Testing accesible de notificaciones sin backend
@@ -105,14 +150,15 @@ export const onFCMMessage = (callback) => {
  */
 export const sendFCMNotification = async (token, title, body, data = {}) => {
   // En producción, esto se haría desde el servidor backend
-  console.log('Enviando notificación FCM:', { token, title, body, data });
+  console.log('Enviando notificación FCM (cliente):', { token, title, body, data });
 
-  // Simular envío local para testing
+  // Para testing local, mostrar notificación del navegador
   if (Notification.permission === 'granted') {
     new Notification(title, {
       body,
       icon: '/vite.svg',
-      data
+      data,
+      tag: 'changanet-test-notification'
     });
   }
 

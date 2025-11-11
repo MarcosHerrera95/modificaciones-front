@@ -7,7 +7,8 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
-const { sendNotification } = require('../services/notificationService');
+const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
+const { sendPushNotification } = require('../services/pushNotificationService');
 const { sendQuoteRequestEmail } = require('../services/emailService');
 
 const prisma = new PrismaClient();
@@ -58,7 +59,23 @@ exports.createQuoteRequest = async (req, res) => {
       }
     });
 
-    // Enviar notificación al profesional (REQ-35)
+    // Enviar notificación push al profesional (REQ-35)
+    try {
+      await sendPushNotification(
+        parseInt(profesional_id),
+        'Nueva solicitud de presupuesto',
+        `Tienes una nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
+        {
+          type: 'cotizacion',
+          quoteId: quote.id,
+          cliente_id: clientId
+        }
+      );
+    } catch (pushError) {
+      console.warn('Error enviando push notification de cotización:', pushError.message);
+    }
+
+    // Enviar notificación en base de datos al profesional (REQ-35)
     await createNotification(
       parseInt(profesional_id),
       NOTIFICATION_TYPES.COTIZACION,
@@ -163,7 +180,29 @@ exports.respondToQuote = async (req, res) => {
       }
     });
 
-    // Enviar notificación al cliente
+    // Enviar notificación push al cliente
+    const pushTitle = action === 'accept' ? 'Cotización aceptada' : 'Cotización rechazada';
+    const pushMessage = action === 'accept'
+      ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`
+      : `Tu cotización ha sido rechazada por ${quote.profesional.nombre}`;
+
+    try {
+      await sendPushNotification(
+        quote.cliente_id,
+        pushTitle,
+        pushMessage,
+        {
+          type: action === 'accept' ? 'cotizacion_aceptada' : 'cotizacion_rechazada',
+          quoteId: quoteId,
+          profesional_id: professionalId,
+          precio: action === 'accept' ? precio : null
+        }
+      );
+    } catch (pushError) {
+      console.warn('Error enviando push notification de respuesta a cotización:', pushError.message);
+    }
+
+    // Enviar notificación en base de datos al cliente
     const notificationType = action === 'accept' ? NOTIFICATION_TYPES.COTIZACION_ACEPTADA : NOTIFICATION_TYPES.COTIZACION_RECHAZADA;
     const message = action === 'accept'
       ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`

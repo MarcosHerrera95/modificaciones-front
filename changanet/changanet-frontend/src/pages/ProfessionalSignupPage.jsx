@@ -60,15 +60,30 @@ const ProfessionalSignupPage = () => {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/register', {
+      // Preparar datos del profesional incluyendo perfil
+      const professionalData = {
+        nombre: formData.name,
+        email: formData.email,
+        password: formData.password,
+        telefono: formData.telefono || null,
+        especialidad: formData.specialty,
+        anos_experiencia: formData.yearsExperience ? parseInt(formData.yearsExperience) : null,
+        zona_cobertura: formData.coverageArea,
+        tarifa_hora: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
+        descripcion: `Profesional en ${formData.specialty} con ${formData.yearsExperience || 0} años de experiencia. Zona: ${formData.coverageArea}.`
+      };
+
+      // Si hay imagen, subirla primero
+      if (formData.profilePicture) {
+        // TODO: Implementar subida de imagen al backend
+        // Por ahora, continuar sin imagen
+        console.log('Imagen seleccionada, pero subida no implementada aún');
+      }
+
+      const response = await fetch('/api/auth/register-professional', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-          rol: "profesional"
-        })
+        body: JSON.stringify(professionalData)
       });
       const data = await response.json();
 

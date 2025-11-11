@@ -310,6 +310,50 @@ exports.sendNotificationEmail = async (email, type, message, userName) => {
  * @param {string} subject - Asunto del email
  * @param {string} html - Contenido HTML del email
  */
+/**
+ * Envía email de verificación de cuenta
+ * @param {string} email - Email del usuario
+ * @param {string} verificationToken - Token de verificación
+ */
+exports.sendVerificationEmail = async (email, verificationToken) => {
+  const subject = 'Verifica tu cuenta - Changánet';
+  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Verifica tu cuenta</h1>
+      </div>
+      <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h2 style="color: #333; margin-bottom: 20px;">¡Bienvenido a Changánet!</h2>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Gracias por registrarte. Para completar tu registro y comenzar a usar la plataforma, necesitas verificar tu dirección de email.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${verificationUrl}"
+             style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Verificar mi cuenta
+          </a>
+        </div>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Si el botón no funciona, copia y pega esta URL en tu navegador:
+        </p>
+        <p style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all; color: #666; font-size: 12px;">
+          ${verificationUrl}
+        </p>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+          Este enlace expirará en 24 horas por seguridad.
+        </p>
+        <p style="color: #999; font-size: 12px; text-align: center;">
+          Si no te registraste en Changánet, puedes ignorar este email.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await exports.sendEmail(email, subject, html);
+};
+
 exports.sendEmail = async (to, subject, html) => {
   const sgMail = require('@sendgrid/mail');
 

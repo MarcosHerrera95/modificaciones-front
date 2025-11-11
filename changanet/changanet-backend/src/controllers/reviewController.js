@@ -1,6 +1,8 @@
 // src/controllers/reviewController.js
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
+const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
+const { sendPushNotification } = require('../services/pushNotificationService');
 const prisma = new PrismaClient();
 
 exports.createReview = async (req, res) => {
@@ -59,6 +61,35 @@ exports.createReview = async (req, res) => {
       where: { usuario_id: service.profesional_id },
       data: { calificacion_promedio: avgRating }
     });
+
+    // Enviar notificación push al profesional
+    try {
+      await sendPushNotification(
+        service.profesional_id,
+        'Nueva reseña recibida',
+        `Has recibido una nueva reseña de ${service.cliente.nombre} (${calificacion}⭐)`,
+        {
+          type: 'resena_recibida',
+          servicio_id: servicio_id,
+          calificacion: calificacion,
+          cliente_id: userId
+        }
+      );
+    } catch (pushError) {
+      console.warn('Error enviando push notification de reseña:', pushError.message);
+    }
+
+    // Enviar notificación en base de datos al profesional
+    await createNotification(
+      service.profesional_id,
+      NOTIFICATION_TYPES.RESENA_RECIBIDA,
+      `Has recibido una nueva reseña de ${service.cliente.nombre} (${calificacion}⭐)`,
+      {
+        servicio_id: servicio_id,
+        calificacion: calificacion,
+        cliente_id: userId
+      }
+    );
 
     res.status(201).json(review);
   } catch (error) {
