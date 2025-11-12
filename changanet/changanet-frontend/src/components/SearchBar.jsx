@@ -71,7 +71,7 @@ const SearchBar = () => {
         params.set('especialidad', service.trim());
       }
       if (location.trim()) {
-        params.set('ubicacion', location.trim());
+        params.set('zona_cobertura', location.trim());
       }
       // Navigate to professionals search page instead of API endpoint
       navigate(`/profesionales?${params.toString()}`);

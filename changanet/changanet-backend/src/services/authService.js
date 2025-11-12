@@ -1,5 +1,4 @@
-hanganet/changanet-backend/src/services/authService.js</path>
-<content">/**
+/**
  * Servicio de autenticación usando Firebase Auth Admin SDK.
  * Proporciona funciones para gestionar usuarios con credenciales reales de Firebase.
  */
@@ -201,14 +200,4 @@ exports.sendEmailVerification = async (email) => {
     console.error('Error al enviar email de verificación:', error);
     throw error;
   }
-};
-
-module.exports = {
-  createUserWithEmailAndPassword: exports.createUserWithEmailAndPassword,
-  getUserByEmail: exports.getUserByEmail,
-  updateUser: exports.updateUser,
-  deleteUser: exports.deleteUser,
-  verifyIdToken: exports.verifyIdToken,
-  createCustomToken: exports.createCustomToken,
-  sendEmailVerification: exports.sendEmailVerification
 };

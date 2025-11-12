@@ -108,7 +108,7 @@ exports.getProfessionalRanking = async (req, res) => {
 
     const ranking = {
       posicion: higherRated + 1,
-      profesional,
+      profesional: professional,
       calificacion: professional.calificacion_promedio || 0
     };
 
