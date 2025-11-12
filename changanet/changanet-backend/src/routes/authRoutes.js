@@ -17,7 +17,8 @@ router.get('/me', authenticateToken, getCurrentUser);
 router.get('/google', passport.authenticate('google', {
   scope: ['profile', 'email'],
   accessType: 'offline',
-  prompt: 'consent'
+  prompt: 'consent',
+  responseType: 'code'
 }));
 router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/login' }), googleCallback);
 

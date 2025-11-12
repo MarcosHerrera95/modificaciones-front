@@ -5,7 +5,7 @@
  * @tarjeta Tarjeta 4: [Frontend] Implementar Servicio de Notificaciones
  * @impacto Social: API cliente accesible para gestión de notificaciones
  */
-import { messaging } from "../config/firebaseConfig";
+// Removed unused Firebase messaging import
 
 const API_BASE = '/api';
 

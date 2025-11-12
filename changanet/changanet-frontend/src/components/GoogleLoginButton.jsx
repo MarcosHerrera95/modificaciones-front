@@ -10,8 +10,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../config/firebaseConfig';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { app } from "../config/firebaseConfig";
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
@@ -30,42 +30,30 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
 
   const handleGoogleLogin = async () => {
     setLoading(true);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+    provider.addScope('profile');
+    provider.addScope('email');
 
     try {
-      // Crear proveedor de Google
-      const provider = new GoogleAuthProvider();
-      provider.addScope('profile');
-      provider.addScope('email');
-
-      // Configurar parámetros adicionales
-      provider.setCustomParameters({
-        prompt: 'select_account'
-      });
-
-      // Iniciar sesión con popup
       const result = await signInWithPopup(auth, provider);
-
-      // Obtener datos del usuario
       const user = result.user;
       const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential.accessToken;
+      const idToken = credential.idToken;
 
-      // Preparar datos para el backend
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        nombre: user.displayName,
-        foto: user.photoURL,
-        rol: 'cliente' // Rol por defecto para nuevos usuarios
-      };
-
-      // Enviar datos al backend para registro/login
+      // Send to backend for registration/login
       const response = await fetch('/api/auth/google-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData)
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          nombre: user.displayName,
+          foto: user.photoURL,
+          rol: 'cliente'
+        })
       });
 
       if (!response.ok) {
@@ -74,25 +62,18 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
 
       const data = await response.json();
 
-      // Login exitoso - usar AuthContext
-      const { loginWithGoogle } = useAuth();
-      await loginWithGoogle(data.user, data.token);
-
-      // Redirigir al dashboard
+      // Login successful - use AuthContext
+      login(data.user, data.token);
       navigate('/dashboard');
 
     } catch (error) {
       console.error('Error en login con Google:', error);
-
-      // Manejar errores específicos de Firebase
       let errorMessage = 'Error al iniciar sesión con Google';
 
       if (error.code === 'auth/popup-closed-by-user') {
         errorMessage = 'Inicio de sesión cancelado por el usuario';
       } else if (error.code === 'auth/popup-blocked') {
         errorMessage = 'Popup bloqueado por el navegador. Permita popups para este sitio.';
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        errorMessage = 'Solicitud de popup cancelada';
       }
 
       alert(errorMessage);

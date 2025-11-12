@@ -11,9 +11,10 @@ import {
   signOut,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  getAuth
 } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
+import { app } from "../config/firebaseConfig";
 
 /**
  * Registra un nuevo usuario usando email y contraseña.
@@ -22,6 +23,7 @@ import { auth } from "../config/firebaseConfig";
  */
 export const registerWithEmail = async (email, password) => {
   try {
+    const auth = getAuth(app);
     // Verificar que Firebase Auth esté disponible
     if (!auth) {
       throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
@@ -101,6 +103,7 @@ export const registerWithEmail = async (email, password) => {
  */
 export const loginWithEmail = async (email, password) => {
   try {
+    const auth = getAuth(app);
     // Verificar que Firebase Auth esté disponible
     if (!auth) {
       console.error('❌ Firebase Auth no disponible. Verificando configuración...');
@@ -261,6 +264,7 @@ export const loginWithFacebook = async () => {
  */
 export const resetPassword = async (email) => {
   try {
+    const auth = getAuth(app);
     // Verificar que Firebase Auth esté disponible
     if (!auth) {
       throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
@@ -310,6 +314,7 @@ export const resetPassword = async (email) => {
  */
 export const logout = async () => {
   try {
+    const auth = getAuth(app);
     // Verificar que Firebase Auth esté disponible
     if (!auth) {
       // Si Firebase no está disponible, solo limpiar localStorage
@@ -354,5 +359,6 @@ export const logout = async () => {
  * Ejecuta el callback proporcionado cuando el usuario inicia o cierra sesión.
  */
 export const onAuthStateChange = (callback) => {
+  const auth = getAuth(app);
   return onAuthStateChanged(auth, callback);
 };

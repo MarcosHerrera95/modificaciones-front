@@ -27,9 +27,9 @@ export default defineConfig({
     headers: {
       // Headers de desarrollo para facilitar OAuth y evitar problemas de CSP
       // NOTA: En producción, estos headers deben ser más restrictivos
-      'Cross-Origin-Opener-Policy': 'unsafe-none',
-      'Cross-Origin-Embedder-Policy': 'unsafe-none',
-      'Content-Security-Policy': "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ws://localhost:5176 https://maps.googleapis.com https://places.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://o4510260990574592.ingest.us.sentry.io;",
+      // 'Cross-Origin-Opener-Policy': 'unsafe-none',
+      // 'Cross-Origin-Embedder-Policy': 'unsafe-none',
+      'Content-Security-Policy': "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ws://localhost:51761 https://maps.googleapis.com https://places.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://o4510260990574592.ingest.us.sentry.io;",
       // Headers de seguridad adicionales
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',

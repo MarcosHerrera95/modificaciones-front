@@ -18,7 +18,7 @@ const ClientDashboard = ({ user }) => {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const token = sessionStorage.getItem('changanet_token');
+        const token = localStorage.getItem('changanet_token');
         if (!token) return;
 
         const response = await fetch('/api/profile', {
@@ -45,7 +45,7 @@ const ClientDashboard = ({ user }) => {
   const fetchDashboardData = async () => {
     try {
       // Fetch essential data only
-      const token = sessionStorage.getItem('changanet_token');
+      const token = localStorage.getItem('changanet_token');
       const [servicesRes, quotesRes, notificationsRes] = await Promise.all([
         fetch('/api/quotes/client/services', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -160,7 +160,7 @@ const ClientDashboard = ({ user }) => {
 
         <button
           onClick={() => {
-            const token = sessionStorage.getItem('changanet_token');
+            const token = localStorage.getItem('changanet_token');
             if (!token) {
               navigate('/login');
             } else {

@@ -29,12 +29,12 @@ exports.searchProfessionals = async (req, res) => {
 
     // Búsqueda por especialidad con ILIKE (REQ-11)
     if (especialidad) {
-      where.especialidad = { contains: especialidad, mode: 'insensitive' };
+      where.especialidad = { contains: especialidad };
     }
 
     // Filtro por zona/barrio (REQ-12)
     if (zona_cobertura) {
-      where.zona_cobertura = { contains: zona_cobertura, mode: 'insensitive' };
+      where.zona_cobertura = { contains: zona_cobertura };
     }
 
     // Filtro por rango de precio (REQ-13)

@@ -7,8 +7,8 @@
  * @returns {Promise<Object>} Resultado de la inicialización
  */
 
-import { getToken, onMessage } from "firebase/messaging";
-import { messaging } from "../config/firebaseConfig";
+import { getToken, onMessage, getMessaging } from "firebase/messaging";
+import { app } from "../config/firebaseConfig";
 
 /**
  * @función initializeFCM - Inicialización de Firebase Cloud Messaging
@@ -20,6 +20,7 @@ import { messaging } from "../config/firebaseConfig";
  */
 export const initializeFCM = async () => {
   try {
+    const messaging = getMessaging(app);
     // Verificar si Firebase Messaging está disponible
     if (!messaging) {
       console.warn('Firebase Messaging no está disponible');
@@ -98,6 +99,7 @@ export const initializeFCM = async () => {
  * @returns {Function} Función para desuscribirse
  */
 export const onFCMMessage = (callback) => {
+  const messaging = getMessaging(app);
   // Verificar si messaging está disponible
   if (!messaging) {
     console.warn('Firebase Messaging no disponible para escuchar mensajes');

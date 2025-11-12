@@ -1,6 +1,6 @@
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { getStorage } from "firebase/storage";
-import { db } from "../config/firebaseConfig";
+import { app } from "../config/firebaseConfig";
 
 // Usar la instancia de storage ya inicializada
 const storage = getStorage();
