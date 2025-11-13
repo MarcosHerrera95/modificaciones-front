@@ -4,7 +4,12 @@
  * Inicializa Socket.IO para comunicación en tiempo real y define rutas de la API.
  */
 
-require('dotenv').config();
+// Load appropriate environment file based on NODE_ENV
+if (process.env.NODE_ENV === 'test') {
+  require('dotenv').config({ path: '.env.test' });
+} else {
+  require('dotenv').config();
+}
 
 /**
  * Inicializa Sentry para monitoreo de errores antes de cualquier otro middleware.
@@ -122,12 +127,33 @@ const io = new Server(server, {
  */
 io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
+  const clientIP = socket.handshake.address;
+  const userAgent = socket.handshake.headers['user-agent'];
+  const isDevelopment = process.env.NODE_ENV !== 'production';
+
+  console.log(`🔐 Socket.IO Auth Attempt - IP: ${clientIP}, UA: ${userAgent?.substring(0, 50)}..., ENV: ${process.env.NODE_ENV}`);
 
   if (!token) {
-    console.warn('Socket.IO: No token provided - allowing connection for development');
-    // Para desarrollo, permitir conexión sin token
-    socket.user = null;
-    return next();
+    if (isDevelopment) {
+      console.warn('⚠️ DEVELOPMENT: Socket.IO connection without token allowed for testing');
+      console.warn(`⚠️ Client IP: ${clientIP}, Time: ${new Date().toISOString()}`);
+      console.warn('⚠️ Remember to enable authentication in production!');
+
+      // En desarrollo, crear usuario de prueba pero marcar como no autenticado
+      socket.user = {
+        id: 'dev-test-user',
+        nombre: 'Usuario de Prueba',
+        email: 'test@changánet.dev',
+        rol: 'cliente',
+        esta_verificado: false
+      };
+      socket.isDevMode = true;
+      return next();
+    } else {
+      console.error('🚨 PRODUCTION SECURITY ALERT: Socket.IO connection without token BLOCKED!');
+      console.error(`🚨 Client IP: ${clientIP}, Time: ${new Date().toISOString()}`);
+      return next(new Error('Authentication required'));
+    }
   }
 
   try {
@@ -148,8 +174,14 @@ io.use(async (socket, next) => {
     });
 
     if (!userData) {
-      console.warn('Socket.IO: User not found in database - allowing connection for development');
+      console.error(`🚨 SECURITY ALERT: Valid JWT but user not found in DB!`);
+      console.error(`🚨 Token userId: ${decoded.userId || decoded.id}, IP: ${clientIP}`);
+      if (!isDevelopment) {
+        return next(new Error('User not found'));
+      }
+      // En desarrollo, permitir pero loggear
       socket.user = null;
+      socket.isUnauthenticated = true;
       return next();
     }
 
@@ -160,12 +192,20 @@ io.use(async (socket, next) => {
       role: userData.rol
     };
 
-    console.log('Socket.IO: User authenticated:', socket.user.nombre);
+    console.log(`✅ Socket.IO: User authenticated: ${socket.user.nombre} (${socket.user.email})`);
     next();
   } catch (error) {
-    console.warn('Socket.IO: Authentication error:', error.message, '- allowing connection for development');
-    // Para desarrollo, permitir conexión incluso con token inválido
+    console.error(`🚨 SECURITY ALERT: JWT verification failed!`);
+    console.error(`🚨 Error: ${error.message}, IP: ${clientIP}, Token: ${token?.substring(0, 20)}...`);
+
+    if (!isDevelopment) {
+      return next(new Error('Invalid token'));
+    }
+
+    // En desarrollo, permitir pero loggear como error de desarrollo
+    console.warn('⚠️ DEVELOPMENT: Allowing connection despite invalid token');
     socket.user = null;
+    socket.isUnauthenticated = true;
     next();
   }
 });
@@ -195,9 +235,11 @@ app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 // Configura el limitador de tasa usando RateLimiterMemory
 const limiter = new rateLimit.RateLimiterMemory({
-  points: 100, // Número máximo de solicitudes permitidas
+  points: process.env.NODE_ENV === 'production' ? 30 : 100, // Más restrictivo en producción
   duration: 60, // Ventana de tiempo en segundos (1 minuto)
 });
+
+console.log(`🛡️ Rate limiting configured: ${limiter.points} requests per ${limiter.duration} seconds (${process.env.NODE_ENV})`);
 
 /**
  * Middleware que verifica y limita la tasa de solicitudes por IP.
@@ -221,8 +263,36 @@ app.use(rateLimiterMiddleware);
  */
 
 // Configura CORS para permitir solicitudes desde el frontend
+const corsOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
+  "http://127.0.0.1:5175",
+  "http://127.0.0.1:5176",
+  "http://localhost:3000"
+];
+
+console.log(`🌐 CORS configured with ${corsOrigins.length} allowed origins:`, corsOrigins);
+
 app.use(cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://127.0.0.1:5173", "http://127.0.0.1:5174", "http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:5176", "http://127.0.0.1:5176"],
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como mobile apps o curl)
+    if (!origin) {
+      console.log('🌐 CORS: Allowing request without origin');
+      return callback(null, true);
+    }
+
+    if (corsOrigins.includes(origin)) {
+      console.log(`🌐 CORS: Allowing origin ${origin}`);
+      return callback(null, true);
+    } else {
+      console.error(`🚫 CORS: Blocking origin ${origin}`);
+      return callback(new Error(`CORS policy violation: ${origin} not allowed`));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
@@ -259,6 +329,7 @@ app.use(passport.session());
  * Ruta raíz que retorna información básica del estado de la API.
  */
 app.get('/', (req, res) => {
+  console.log(`📍 Route '/' accessed from ${req.ip} at ${new Date().toISOString()}`);
   res.status(200).json({
     message: 'Changánet API funcionando correctamente',
     version: '1.0.0',
@@ -354,18 +425,41 @@ io.on('connection', (socket) => {
    */
   socket.on('sendMessage', async (data) => {
     const { remitente_id, destinatario_id, contenido, url_imagen } = data;
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    // 🚨 SECURITY CHECK: Verificar si el socket está autenticado
+    if (!socket.user && !isDevelopment) {
+      console.error(`🚨 BLOCKED: Unauthenticated user attempted to send message!`);
+      console.error(`🚨 Socket ID: ${socket.id}, IP: ${socket.handshake.address}`);
+      console.error(`🚨 Message data: ${JSON.stringify(data)}`);
+      socket.emit('error', { message: 'Authentication required to send messages.' });
+      return;
+    }
+
+    if (socket.isDevMode) {
+      console.log(`🧪 DEV MODE: Test user sending message - From: ${remitente_id}, To: ${destinatario_id}`);
+    } else {
+      console.log(`💬 Message attempt - From: ${remitente_id}, To: ${destinatario_id}, User: ${socket.user?.nombre || 'Unknown'}`);
+    }
 
     try {
       // Validar que todos los campos requeridos estén presentes
       if (!remitente_id || !destinatario_id || !contenido) {
+        console.warn(`⚠️ Incomplete message data: ${JSON.stringify(data)}`);
         socket.emit('error', { message: 'Datos incompletos para enviar mensaje.' });
         return;
+      }
+
+      // En modo desarrollo con usuario de prueba, usar ID de desarrollo
+      let actualRemitenteId = remitente_id;
+      if (socket.isDevMode && remitente_id === 'dev-test-user') {
+        actualRemitenteId = socket.user.id;
       }
 
       // Crear el mensaje en la base de datos
       const message = await prisma.mensajes.create({
         data: {
-          remitente_id,
+          remitente_id: actualRemitenteId,
           destinatario_id,
           contenido,
           url_imagen: url_imagen || null,
@@ -445,15 +539,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Algo salió mal!', details: err.message });
 });
 
-// Ruta raíz para compatibilidad con pruebas - ANTES de las rutas de API
-app.get('/', (req, res) => {
-  res.status(200).json({
-    message: 'Changánet API funcionando correctamente',
-    version: '1.0.0',
-    status: 'OK',
-    timestamp: new Date().toISOString()
-  });
-});
+// REMOVED: Duplicate route definition removed for cleaner code
+// The first route definition (line 261) handles the root endpoint
 
 // Ruta adicional para compatibilidad con pruebas de CORS
 app.options('*', cors());
@@ -490,7 +577,7 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-const PORT = process.env.PORT || 3002;
+const PORT = parseInt(process.env.PORT) || 3002;
 
 /**
  * Función para encontrar un puerto disponible automáticamente

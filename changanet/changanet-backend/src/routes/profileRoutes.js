@@ -7,10 +7,28 @@
 const express = require('express');
 const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('../middleware/authenticate');
+const multer = require('multer');
 // Importar los controladores que contienen la lógica de negocio para obtener y actualizar perfiles.
 const { getProfile, updateProfile } = require('../controllers/profileController');
 
 const prisma = new PrismaClient();
+
+// Configurar multer para subida de imágenes
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB límite
+  },
+  fileFilter: (req, file, cb) => {
+    // Solo permitir imágenes
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
 
 // Crear un enrutador de Express para agrupar las rutas relacionadas con los perfiles.
 const router = express.Router();
@@ -50,10 +68,11 @@ router.get('/:professionalId', getProfile);
 
 // Note: The authenticated route for own profile is defined above without :professionalId
 
-// Definir la ruta PUT para que un profesional autenticado actualice su propio perfil.
-// REQ-08, REQ-10: El profesional enviará una solicitud PUT a /api/profile con los datos actualizados en el cuerpo.
-// Esta ruta está protegida por el middleware de autenticación (ver server.js).
-router.put('/', updateProfile);
+// Definir la ruta PUT para actualizar perfil (profesional o cliente).
+// REQ-08, REQ-10: Los usuarios enviarán una solicitud PUT a /api/profile con los datos actualizados en el cuerpo.
+// Esta ruta está protegida por el middleware de autenticación.
+// Incluye multer para manejo de subida de imágenes de perfil.
+router.put('/', authenticateToken, upload.single('foto_perfil'), updateProfile);
 
 // Exportar el enrutador para que pueda ser usado por el servidor principal (server.js).
 module.exports = router;

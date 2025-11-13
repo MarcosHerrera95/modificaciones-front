@@ -1,11 +1,20 @@
 /**
- * Servicio de almacenamiento seguro usando Google Cloud Storage
- * Gestiona subida y acceso seguro a documentos de verificación
+ * Servicio de almacenamiento seguro usando Google Cloud Storage y Cloudinary
+ * Gestiona subida y acceso seguro a documentos de verificación e imágenes de perfil
  * REQ-36, REQ-40 - Almacenamiento seguro de documentos sensibles
+ * REQ-06 - Gestión de fotos de perfil con Cloudinary
  */
 
 const { Storage } = require('@google-cloud/storage');
+const cloudinary = require('cloudinary').v2;
 const path = require('path');
+
+// Configurar Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
 // Configurar Google Cloud Storage
 const storage = new Storage({
@@ -133,9 +142,53 @@ const uploadDocument = async (fileBuffer, fileName, mimeType, userId) => {
   }
 };
 
+/**
+ * Sube imagen a Cloudinary para perfiles de usuario
+ * @param {Buffer} buffer - Buffer de la imagen
+ * @param {Object} options - Opciones de subida (folder, etc.)
+ * @returns {Promise<Object>} Resultado de Cloudinary
+ */
+const uploadImage = async (buffer, options = {}) => {
+  try {
+    const result = await cloudinary.uploader.upload(buffer, {
+      folder: options.folder || 'changanet/profiles',
+      resource_type: 'image',
+      ...options
+    });
+
+    console.log('✅ Imagen subida a Cloudinary:', result.secure_url);
+    return result;
+  } catch (error) {
+    console.error('❌ Error subiendo imagen a Cloudinary:', error);
+    throw new Error('Error al subir la imagen');
+  }
+};
+
+/**
+ * Elimina imagen de Cloudinary
+ * @param {string} publicId - Public ID de la imagen en Cloudinary
+ * @returns {Promise<Object>} Resultado de la eliminación
+ */
+const deleteImage = async (publicId) => {
+  try {
+    // Extraer el public_id si viene con folder
+    const cleanPublicId = publicId.replace('changanet/', '');
+
+    const result = await cloudinary.uploader.destroy(`changanet/${cleanPublicId}`);
+
+    console.log('✅ Imagen eliminada de Cloudinary:', cleanPublicId);
+    return result;
+  } catch (error) {
+    console.error('❌ Error eliminando imagen de Cloudinary:', error);
+    throw new Error('Error al eliminar la imagen');
+  }
+};
+
 module.exports = {
   uploadVerificationDocument,
   getSignedUrl,
   validateFile,
-  uploadDocument
+  uploadDocument,
+  uploadImage,
+  deleteImage
 };

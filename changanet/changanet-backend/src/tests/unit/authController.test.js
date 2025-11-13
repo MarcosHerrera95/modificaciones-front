@@ -22,7 +22,7 @@ describe('Auth Controller', () => {
         email: 'test@example.com',
         password: '123456',
         name: 'Test User',
-        role: 'cliente'
+        rol: 'cliente'
       };
 
       const response = await request(app)
@@ -30,7 +30,7 @@ describe('Auth Controller', () => {
         .send(userData)
         .expect(201);
 
-      expect(response.body.message).toBe('Usuario creado. Revisa tu email para verificar tu cuenta.');
+      expect(response.body.message).toBe('Usuario registrado exitosamente. Revisa tu email para verificar la cuenta.');
 
       const user = await prisma.usuarios.findUnique({ where: { email: userData.email } });
       expect(user).toBeTruthy();
@@ -44,7 +44,7 @@ describe('Auth Controller', () => {
         email: 'duplicate@example.com',
         password: '123456',
         name: 'Duplicate User',
-        role: 'cliente'
+        rol: 'cliente'
       };
 
       // Crear usuario primero
@@ -56,9 +56,9 @@ describe('Auth Controller', () => {
       const response = await request(app)
         .post('/api/auth/register')
         .send(userData)
-        .expect(400);
+        .expect(409);
 
-      expect(response.body.error).toBe('Este email ya está registrado.');
+      expect(response.body.error).toBe('El email ya está registrado.');
     });
   });
 
@@ -68,7 +68,7 @@ describe('Auth Controller', () => {
         email: 'login@example.com',
         password: '123456',
         name: 'Login User',
-        role: 'cliente'
+        rol: 'cliente'
       };
 
       // Registrar usuario primero

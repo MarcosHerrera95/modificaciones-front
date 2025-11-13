@@ -19,16 +19,23 @@ exports.register = async (req, res) => {
   const { name, email, password, rol } = req.body;
 
   try {
-    // Validar que el rol sea especificado y válido
-    if (!rol) {
-      logger.warn('Registration failed: role not specified', {
-        service: 'auth',
-        email,
-        ip: req.ip
-      });
-      return res.status(400).json({ error: 'El rol es requerido. Use "cliente" o "profesional".' });
+    // Validar campos requeridos
+    if (!name || !email || !password || !rol) {
+      return res.status(400).json({ error: 'Todos los campos son requeridos: name, email, password, rol.' });
     }
 
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Formato de email inválido.' });
+    }
+
+    // Validar longitud de contraseña
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    }
+
+    // Validar que el rol sea especificado y válido
     if (!['cliente', 'profesional'].includes(rol)) {
       logger.warn('Registration failed: invalid role', {
         service: 'auth',
@@ -47,7 +54,7 @@ exports.register = async (req, res) => {
         email,
         ip: req.ip
       });
-      return res.status(400).json({ error: 'El email ya está registrado.' });
+      return res.status(409).json({ error: 'El email ya está registrado.' });
     }
 
     // Hash de la contraseña
@@ -129,6 +136,11 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Validar campos requeridos
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
+    }
+
     // Buscar usuario por email
     const user = await prisma.usuarios.findUnique({ where: { email } });
     if (!user) {

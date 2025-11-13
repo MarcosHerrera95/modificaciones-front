@@ -42,69 +42,94 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { userId } = req.user;
-  const { especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion } = req.body;
+  const { nombre, email, telefono, especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, direccion, preferencias_servicio } = req.body;
 
   try {
     const user = await prisma.usuarios.findUnique({ where: { id: userId } });
-    if (user.rol !== 'profesional') {
-      return res.status(403).json({ error: 'Solo los profesionales pueden actualizar un perfil.' });
-    }
 
-    let profile = await prisma.perfiles_profesionales.findUnique({ where: { usuario_id: userId } });
+    if (user.rol === 'profesional') {
+      // Update professional profile
+      let profile = await prisma.perfiles_profesionales.findUnique({ where: { usuario_id: userId } });
 
-    let url_foto_perfil = profile ? profile.url_foto_perfil : null;
+      let url_foto_perfil = profile ? profile.url_foto_perfil : null;
 
-    // Manejar subida de imagen si hay archivo
-    if (req.file) {
-      try {
-        // Eliminar imagen anterior si existe
-        if (url_foto_perfil) {
-          const publicId = url_foto_perfil.split('/').pop().split('.')[0];
-          await deleteImage(`changanet/${publicId}`);
+      // Handle image upload if file exists
+      if (req.file) {
+        try {
+          // Delete previous image if exists
+          if (url_foto_perfil) {
+            const publicId = url_foto_perfil.split('/').pop().split('.')[0];
+            await deleteImage(`changanet/${publicId}`);
+          }
+
+          // Upload new image to Cloudinary
+          const result = await uploadImage(req.file.buffer, { folder: 'changanet/profiles' });
+          url_foto_perfil = result.secure_url;
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          return res.status(500).json({ error: 'Error al subir la imagen.' });
         }
-
-        // Subir nueva imagen a Cloudinary
-        const result = await uploadImage(req.file.buffer, { folder: 'changanet/profiles' });
-        url_foto_perfil = result.secure_url;
-      } catch (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        return res.status(500).json({ error: 'Error al subir la imagen.' });
       }
-    }
 
-    if (profile) {
-      profile = await prisma.perfiles_profesionales.update({
-        where: { usuario_id: userId },
+      if (profile) {
+        profile = await prisma.perfiles_profesionales.update({
+          where: { usuario_id: userId },
+          data: {
+            especialidad,
+            anos_experiencia,
+            zona_cobertura,
+            tarifa_hora: parseFloat(tarifa_hora),
+            descripcion,
+            url_foto_perfil
+          },
+        });
+      } else {
+        profile = await prisma.perfiles_profesionales.create({
+          data: {
+            usuario_id: userId,
+            especialidad,
+            anos_experiencia,
+            zona_cobertura,
+            tarifa_hora: parseFloat(tarifa_hora),
+            descripcion,
+            url_foto_perfil
+          },
+        });
+      }
+
+      // Invalidate profile cache after update
+      await invalidateProfessionalProfile(userId);
+      console.log('🗑️ Professional profile cache invalidated');
+
+      res.status(200).json(profile);
+    } else if (user.rol === 'cliente') {
+      // Update client profile (basic user info)
+      const updatedUser = await prisma.usuarios.update({
+        where: { id: userId },
         data: {
-          especialidad,
-          anos_experiencia,
-          zona_cobertura,
-          tarifa_hora: parseFloat(tarifa_hora),
-          descripcion,
-          url_foto_perfil
+          nombre,
+          email,
+          telefono,
+          // Note: Currently only nombre, email, telefono are stored in usuarios table
+          // direccion and preferencias_servicio will be added in future schema updates
         },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          telefono: true,
+          rol: true,
+          esta_verificado: true
+        }
       });
+
+      console.log('✅ Client profile updated successfully');
+      res.status(200).json({ usuario: updatedUser });
     } else {
-      profile = await prisma.perfiles_profesionales.create({
-        data: {
-          usuario_id: userId,
-          especialidad,
-          anos_experiencia,
-          zona_cobertura,
-          tarifa_hora: parseFloat(tarifa_hora),
-          descripcion,
-          url_foto_perfil
-        },
-      });
+      return res.status(403).json({ error: 'Rol de usuario no válido.' });
     }
-
-    // Invalidar caché del perfil después de actualizar
-    await invalidateProfessionalProfile(userId);
-    console.log('🗑️ Caché de perfil invalidado');
-
-    res.status(200).json(profile);
   } catch (error) {
-    console.error(error);
+    console.error('Error updating profile:', error);
     res.status(500).json({ error: 'Error al actualizar el perfil.' });
   }
 };

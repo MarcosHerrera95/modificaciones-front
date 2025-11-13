@@ -146,6 +146,7 @@ exports.deleteUser = async (uid) => {
   } catch (error) {
     console.error('Error al eliminar usuario:', error);
     throw error;
+  }
 };
 
 /**

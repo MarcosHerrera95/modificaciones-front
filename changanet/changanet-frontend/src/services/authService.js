@@ -96,94 +96,42 @@ export const registerWithEmail = async (email, password) => {
   }
 };
 
-/**
- * Inicia sesión de un usuario existente con email y contraseña.
- * Autentica las credenciales contra Firebase Auth.
- * Retorna el resultado con el usuario autenticado.
- */
+// ✅ CORRECTO: Manejo de errores de autenticación
 export const loginWithEmail = async (email, password) => {
+  const auth = getAuth(app);
+
   try {
-    const auth = getAuth(app);
-    // Verificar que Firebase Auth esté disponible
-    if (!auth) {
-      console.error('❌ Firebase Auth no disponible. Verificando configuración...');
-
-      // Intentar diagnosticar el problema
-      const { diagnoseFirebaseConfig } = await import('../config/firebaseConfig');
-      const isConfigOk = diagnoseFirebaseConfig();
-
-      if (!isConfigOk) {
-        throw new Error('Firebase no está configurado correctamente. Revisa la consola para más detalles.');
-      } else {
-        throw new Error('Firebase Auth no está disponible temporalmente. Inténtalo más tarde.');
-      }
-    }
-
-    // Validar entrada
-    if (!email || !password) {
-      throw new Error('Email y contraseña son requeridos');
-    }
-
-    console.log('🔐 Intentando login con Firebase Auth...');
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
 
-    // Verificar si el email está verificado
-    if (!userCredential.user.emailVerified) {
-      console.warn('Email no verificado, pero permitiendo login');
-      // Podríamos enviar otro email de verificación aquí si queremos ser estrictos
-    }
+    // ✅ Guardar token JWT en sessionStorage (más seguro que localStorage)
+    const idToken = await user.getIdToken();
+    sessionStorage.setItem("changanet_token", idToken);
+    sessionStorage.setItem("user", JSON.stringify({
+      id: user.uid,
+      email: user.email,
+      name: user.displayName || "Usuario",
+      role: user.email.includes("profesional") ? "profesional" : "cliente" // Lógica de rol
+    }));
 
-    return {
-      success: true,
-      user: userCredential.user,
-      message: 'Inicio de sesión exitoso'
-    };
+    console.log("✅ Login exitoso:", user.email);
+    return { success: true, user: userCredential.user };
   } catch (error) {
-    console.error('❌ Error en login:', error);
-
-    // Manejar errores específicos de Firebase
-    let errorMessage = 'Error al iniciar sesión';
-
-    // Si es error de configuración, proporcionar información específica
-    if (error.code === 'auth/configuration-not-found') {
-      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
-      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
-    } else {
-      // Otros errores de Firebase
-      switch (error.code) {
-        case 'auth/user-not-found':
-          errorMessage = 'Usuario no encontrado. Verifica tu email.';
-          break;
-        case 'auth/wrong-password':
-          errorMessage = 'Contraseña incorrecta';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido';
-          break;
-        case 'auth/user-disabled':
-          errorMessage = 'Cuenta deshabilitada. Contacta al soporte.';
-          break;
-        case 'auth/too-many-requests':
-          errorMessage = 'Demasiados intentos. Espera unos minutos antes de intentar nuevamente.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
-          break;
-        case 'auth/invalid-api-key':
-          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
-          break;
-        case 'auth/app-deleted':
-          errorMessage = 'Aplicación Firebase eliminada. Contacta al administrador.';
-          break;
-        case 'auth/invalid-credential':
-          errorMessage = 'Credenciales inválidas. Verifica tu email y contraseña.';
-          break;
-        default:
-          errorMessage = error.message || errorMessage;
-      }
+    // ✅ Manejo de errores específicos
+    if (error.code === "auth/user-not-found") {
+      console.error("❌ Usuario no encontrado:", email);
+      return { success: false, error: "Usuario no encontrado. ¿Te registraste?" };
     }
-
-    return { success: false, error: errorMessage };
+    if (error.code === "auth/wrong-password") {
+      console.error("❌ Contraseña incorrecta:", email);
+      return { success: false, error: "Contraseña incorrecta" };
+    }
+    if (error.code === "auth/invalid-credential") {
+      console.error("❌ Credenciales inválidas:", email);
+      return { success: false, error: "Credenciales incorrectas. Inténtalo de nuevo." };
+    }
+    console.error("❌ Error desconocido:", error);
+    return { success: false, error: "Error desconocido. Intenta más tarde." };
   }
 };
 

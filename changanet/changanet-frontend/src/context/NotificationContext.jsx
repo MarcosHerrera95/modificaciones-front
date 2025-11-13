@@ -32,7 +32,19 @@ export const NotificationProvider = ({ children }) => {
         if (result.success) {
           console.log('FCM inicializado correctamente');
         } else {
-          console.error('Error inicializando FCM:', result.error);
+          // Manejar errores de FCM de manera apropiada
+          if (result.error === 'Permiso de notificaciones denegado') {
+            console.warn('Notificaciones push deshabilitadas por el usuario - continuando sin FCM');
+          } else {
+            console.error('Error inicializando FCM:', result.error);
+          }
+        }
+      }).catch((error) => {
+        // Manejar errores no esperados en la inicialización
+        if (error.message && error.message.includes('denegado')) {
+          console.warn('Notificaciones push deshabilitadas por el usuario');
+        } else {
+          console.error('Error inesperado inicializando FCM:', error);
         }
       });
 

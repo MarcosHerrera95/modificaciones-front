@@ -78,15 +78,17 @@ export const AuthProvider = ({ children }) => {
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY (solo si está disponible)
     try {
-      const { setUserContext } = require('../config/sentryConfig');
-      setUserContext({
-        id: userData.id,
-        email: userData.email,
-        nombre: userData.nombre,
-        rol: userData.rol
-      });
+      // Verificar si Sentry está disponible antes de intentar usarlo
+      if (typeof window !== 'undefined' && window.Sentry && window.Sentry.setUser) {
+        window.Sentry.setUser({
+          id: userData.id,
+          email: userData.email,
+          nombre: userData.nombre,
+          rol: userData.rol
+        });
+      }
     } catch (error) {
-      console.warn('Sentry no disponible para configurar contexto de usuario');
+      // Sentry no está disponible, continuar sin problemas
     }
   };
 
@@ -103,23 +105,38 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (name, email, password, role) => {
     try {
-      // Usar el proxy configurado en Vite (/api -> http://localhost:3002)
+      // Usar el proxy configurado en Vite (/api -> backend)
       const response = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, rol: role })
       });
+
+      // Verificar que la respuesta sea válida antes de parsear JSON
+      if (!response.ok) {
+        let errorMessage = 'Error al registrar usuario';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          // Si no se puede parsear el JSON, usar mensaje genérico
+          console.warn('No se pudo parsear respuesta de error:', parseError);
+        }
+        return { success: false, error: errorMessage };
+      }
+
+      // Solo parsear JSON si la respuesta es exitosa
       const data = await response.json();
 
-      if (response.ok) {
-        // Si el registro es exitoso, hacer login automático
-        if (data.token && data.user) {
-          login(data.user, data.token);
+      // Si el registro es exitoso, hacer login automático
+      if (data.token && data.user) {
+        login(data.user, data.token);
 
-          // Registrar métrica de registro en frontend (solo si Sentry está disponible)
-          try {
-            const { captureMessage } = require('../config/sentryConfig');
-            captureMessage('Usuario registrado desde frontend', 'info', {
+        // Registrar métrica de registro en frontend (solo si Sentry está disponible)
+        try {
+          // Verificar si Sentry está disponible antes de intentar usarlo
+          if (typeof window !== 'undefined' && window.Sentry && window.Sentry.captureMessage) {
+            window.Sentry.captureMessage('Usuario registrado desde frontend', 'info', {
               tags: {
                 event: 'user_registration_frontend',
                 user_role: data.user.rol,
@@ -134,17 +151,15 @@ export const AuthProvider = ({ children }) => {
                 business_impact: 'social_economic_environmental'
               }
             });
-          } catch (error) {
-            console.warn('Sentry no disponible para registrar métrica');
           }
+        } catch (error) {
+          // Sentry no está disponible, continuar sin problemas
         }
-        return { success: true, message: data.message || 'Usuario creado exitosamente.' };
-      } else {
-        return { success: false, error: data.error || 'Error al registrar usuario' };
       }
+      return { success: true, message: data.message || 'Usuario creado exitosamente.' };
     } catch (error) {
       console.error('Error en signup:', error);
-      return { success: false, error: 'Error de conexión. Inténtalo de nuevo.' };
+      return { success: false, error: 'No pudimos crear tu cuenta. Inténtalo de nuevo.' };
     }
   };
 

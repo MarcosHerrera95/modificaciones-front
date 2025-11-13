@@ -29,14 +29,24 @@ const Professionals = () => {
         urlParams.set('sort_by', sortBy);
 
         const response = await fetch(`/api/professionals?${urlParams.toString()}`);
-        const data = await response.json();
-        if (response.ok) {
-          setProfessionals(data.professionals);
-          const endTime = performance.now();
-          setSearchTime((endTime - startTime).toFixed(2));
-        } else {
-          console.error('Error al buscar profesionales:', data.error);
+
+        if (!response.ok) {
+          let errorMessage = 'Error al buscar profesionales';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (parseError) {
+            console.warn('No se pudo parsear respuesta de error:', parseError);
+          }
+          console.error('Error al buscar profesionales:', errorMessage);
+          setProfessionals([]); // Mostrar lista vacía en caso de error
+          return;
         }
+
+        const data = await response.json();
+        setProfessionals(data.professionals || []);
+        const endTime = performance.now();
+        setSearchTime((endTime - startTime).toFixed(2));
       } catch (error) {
         console.error('Error de red:', error);
       } finally {

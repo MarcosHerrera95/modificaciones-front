@@ -4,9 +4,9 @@ require('dotenv').config();
 
 // Configurar Cloudinary con credenciales
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'changanet-stor',
+  api_key: process.env.CLOUDINARY_API_KEY || '846814795685612',
+  api_secret: process.env.CLOUDINARY_API_SECRET || 'EXG02pFoj6Iu4aKN_iUI-K_fmtw'
 });
 
 // Subir imagen de prueba

@@ -8,14 +8,10 @@
  */
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { app } from "../config/firebaseConfig";
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
- * @descripción Renderiza botón accesible con estados de carga y manejo de autenticación (REQ-02)
+ * @descripción Renderiza botón accesible que redirige al flujo OAuth del backend (REQ-02)
  * @sprint Sprint 1 – Autenticación y Perfiles
  * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
  * @impacto Social: Diseño accesible con navegación por teclado y feedback visual claro
@@ -25,61 +21,11 @@ import { app } from "../config/firebaseConfig";
  */
 const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = "" }) => {
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
-  const navigate = useNavigate();
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     setLoading(true);
-    const auth = getAuth(app);
-    const provider = new GoogleAuthProvider();
-    provider.addScope('profile');
-    provider.addScope('email');
-
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const idToken = credential.idToken;
-
-      // Send to backend for registration/login
-      const response = await fetch('/api/auth/google-login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          nombre: user.displayName,
-          foto: user.photoURL,
-          rol: 'cliente'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Error en autenticación con backend');
-      }
-
-      const data = await response.json();
-
-      // Login successful - use AuthContext
-      login(data.user, data.token);
-      navigate('/dashboard');
-
-    } catch (error) {
-      console.error('Error en login con Google:', error);
-      let errorMessage = 'Error al iniciar sesión con Google';
-
-      if (error.code === 'auth/popup-closed-by-user') {
-        errorMessage = 'Inicio de sesión cancelado por el usuario';
-      } else if (error.code === 'auth/popup-blocked') {
-        errorMessage = 'Popup bloqueado por el navegador. Permita popups para este sitio.';
-      }
-
-      alert(errorMessage);
-    } finally {
-      setLoading(false);
-    }
+    // Redirect to backend OAuth flow
+    window.location.href = '/api/auth/google';
   };
 
   return (

@@ -7,6 +7,17 @@ exports.searchProfessionals = async (req, res) => {
   const { especialidad, zona_cobertura, precio_min, precio_max, sort_by = 'calificacion_promedio', page = 1, limit = 10 } = req.query;
 
   try {
+    // Validar parámetros
+    const validSortOptions = ['calificacion_promedio', 'tarifa_hora', 'distancia', 'disponibilidad'];
+    if (!validSortOptions.includes(sort_by)) {
+      return res.status(400).json({ error: 'Parámetro sort_by inválido. Opciones válidas: calificacion_promedio, tarifa_hora, distancia, disponibilidad.' });
+    }
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({ error: 'Parámetros de paginación inválidos.' });
+    }
     // Crear objeto de filtros para el caché
     const filters = {
       especialidad: especialidad || null,
@@ -49,23 +60,27 @@ exports.searchProfessionals = async (req, res) => {
 
     // Configurar ordenamiento (REQ-14)
     let orderBy = {};
+    let sortInMemory = false;
     switch (sort_by) {
       case 'calificacion_promedio':
-        orderBy = [{ calificacion_promedio: 'desc' }, { usuario: { nombre: 'asc' } }];
+        // Calificación promedio se calcula después, ordenar en memoria
+        sortInMemory = true;
+        orderBy = [{ usuario: { nombre: 'asc' } }];
         break;
       case 'tarifa_hora':
-        orderBy = [{ tarifa_hora: 'asc' }, { calificacion_promedio: 'desc' }];
+        orderBy = [{ tarifa_hora: 'asc' }];
         break;
       case 'distancia':
         // Para distancia: ordenar por zona_cobertura alfabéticamente (aproximación)
-        orderBy = [{ zona_cobertura: 'asc' }, { calificacion_promedio: 'desc' }];
+        orderBy = [{ zona_cobertura: 'asc' }];
         break;
       case 'disponibilidad':
         // Para disponibilidad: ordenar por estado de verificación (verificado primero)
-        orderBy = [{ estado_verificacion: 'asc' }, { calificacion_promedio: 'desc' }];
+        orderBy = [{ estado_verificacion: 'asc' }];
         break;
       default:
-        orderBy = [{ calificacion_promedio: 'desc' }, { usuario: { nombre: 'asc' } }];
+        sortInMemory = true;
+        orderBy = [{ usuario: { nombre: 'asc' } }];
     }
 
     console.log({ event: 'search_performed', filters, timestamp: new Date().toISOString() });
@@ -147,6 +162,18 @@ exports.searchProfessionals = async (req, res) => {
       total_resenas: statsMap.get(prof.usuario_id)?.total_resenas || 0,
       servicios_completados: statsMap.get(prof.usuario_id)?.servicios_completados || 0
     }));
+
+    // Ordenar en memoria si es necesario
+    if (sortInMemory) {
+      enrichedProfessionals.sort((a, b) => {
+        // Primero por calificación descendente
+        if (b.calificacion_promedio !== a.calificacion_promedio) {
+          return b.calificacion_promedio - a.calificacion_promedio;
+        }
+        // Luego por nombre ascendente
+        return a.usuario.nombre.localeCompare(b.usuario.nombre);
+      });
+    }
 
     const total = await prisma.perfiles_profesionales.count({ where });
     const totalPages = Math.ceil(total / limit);

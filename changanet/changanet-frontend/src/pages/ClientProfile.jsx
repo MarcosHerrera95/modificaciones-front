@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const ClientProfile = () => {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState({
     nombre: '',
     email: '',
@@ -13,6 +15,7 @@ const ClientProfile = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [preview, setPreview] = useState('');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const fileInputRef = useRef(null);
@@ -25,22 +28,50 @@ const ClientProfile = () => {
 
   const fetchProfile = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/profile', {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
       });
       if (response.ok) {
         const data = await response.json();
+        // For clients, backend returns { usuario: userData }
+        const userData = data.usuario || data;
+
         setProfile({
-          nombre: data.nombre || user.nombre || '',
-          email: data.email || user.email || '',
-          telefono: data.telefono || '',
-          direccion: data.direccion || '',
-          preferencias_servicio: data.preferencias_servicio || ''
+          nombre: userData.nombre || user?.nombre || '',
+          email: userData.email || user?.email || '',
+          telefono: userData.telefono || '',
+          direccion: userData.direccion || '',
+          preferencias_servicio: userData.preferencias_servicio || ''
         });
-        setPreview(data.url_foto_perfil || '');
+        setPreview(userData.url_foto_perfil || '');
+      } else {
+        console.error('Failed to fetch profile:', response.status);
+        // Fallback to user context data
+        if (user) {
+          setProfile({
+            nombre: user.nombre || '',
+            email: user.email || '',
+            telefono: user.telefono || '',
+            direccion: '',
+            preferencias_servicio: ''
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
+      // Fallback to user context data
+      if (user) {
+        setProfile({
+          nombre: user.nombre || '',
+          email: user.email || '',
+          telefono: user.telefono || '',
+          direccion: '',
+          preferencias_servicio: ''
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,28 +98,69 @@ const ClientProfile = () => {
     setSaving(true);
 
     try {
-      // Simular subida de foto si hay archivo seleccionado
+      let response;
+
       if (selectedFile) {
-        profile.url_foto_perfil = preview;
+        // If there's a file to upload, use FormData
+        const formData = new FormData();
+        formData.append('foto_perfil', selectedFile);
+        formData.append('nombre', profile.nombre);
+        formData.append('email', profile.email);
+        formData.append('telefono', profile.telefono);
+        // Note: direccion and preferencias_servicio are not stored in current schema
+
+        response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+            // Don't set Content-Type for FormData, let browser set it with boundary
+          },
+          body: formData
+        });
+      } else {
+        // No file, use JSON
+        const updateData = {
+          nombre: profile.nombre,
+          email: profile.email,
+          telefono: profile.telefono
+          // Note: direccion and preferencias_servicio are not stored in current schema
+        };
+
+        response = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          },
+          body: JSON.stringify(updateData)
+        });
       }
 
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: JSON.stringify(profile)
-      });
-
       if (response.ok) {
+        const data = await response.json();
+
+        // Update AuthContext with new user data to reflect changes immediately
+        if (data.usuario) {
+          const updatedUser = {
+            ...user,
+            nombre: data.usuario.nombre,
+            email: data.usuario.email,
+            telefono: data.usuario.telefono
+          };
+          login(updatedUser, localStorage.getItem('changanet_token'));
+        }
+
         setSuccess('Perfil cliente actualizado con éxito.');
         setSelectedFile(null);
+
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(''), 3000);
       } else {
         const data = await response.json();
         setError(data.error || 'Error al actualizar el perfil.');
       }
     } catch (err) {
+      console.error('Error updating profile:', err);
       setError('Error de conexión. Inténtalo de nuevo.');
     } finally {
       setSaving(false);
@@ -100,6 +172,12 @@ const ClientProfile = () => {
     setProfile(prev => ({ ...prev, [name]: value }));
   };
 
+  // Redirect if not logged in
+  if (!user) {
+    navigate('/login');
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-8">
@@ -110,19 +188,26 @@ const ClientProfile = () => {
           </div>
 
           <div className="bg-white rounded-3xl shadow-2xl p-8">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6">
-                {error}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600">Cargando perfil...</span>
               </div>
-            )}
+            ) : (
+              <>
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6">
+                    {error}
+                  </div>
+                )}
 
-            {success && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl mb-6">
-                {success}
-              </div>
-            )}
+                {success && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl mb-6">
+                    {success}
+                  </div>
+                )}
 
-            <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit}>
               {/* Photo Upload Section */}
               <div className="text-center mb-8">
                 <div className="relative inline-block">
@@ -230,6 +315,8 @@ const ClientProfile = () => {
                 </button>
               </div>
             </form>
+              </>
+            )}
           </div>
         </div>
       </div>

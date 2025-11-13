@@ -25,7 +25,14 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
         login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
         onClose();
       } else {
-        setError(result.error || 'Credenciales inválidas');
+        setError(result.error || 'Email o contraseña incorrectos. Verifica tus credenciales.');
+
+        // Si el error sugiere registro, mostrar opción adicional
+        if (result.shouldRedirectToRegister) {
+          setTimeout(() => {
+            setError(prev => prev + ' ¿No tienes cuenta? Regístrate gratis.');
+          }, 2000);
+        }
       }
     } catch (err) {
       setError('Error al iniciar sesión. Intenta nuevamente.');

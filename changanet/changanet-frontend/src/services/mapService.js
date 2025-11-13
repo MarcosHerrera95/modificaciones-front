@@ -164,9 +164,7 @@ export const initAutocomplete = async (inputElement, callback) => {
 
     // Crear instancia de Autocomplete
     const autocomplete = new placesLibrary.Autocomplete(inputElement, {
-      componentRestrictions: { country: 'ar' },
-      fields: ['formatted_address', 'geometry', 'place_id'],
-      types: ['geocode', 'establishment']
+      fields: ['formatted_address', 'geometry', 'place_id']
     });
 
     console.log('✅ Autocomplete creado exitosamente');

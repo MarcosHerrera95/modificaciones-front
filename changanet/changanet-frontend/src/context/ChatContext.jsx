@@ -49,6 +49,12 @@ export const ChatProvider = ({ children }) => {
 
       newSocket.on('connect_error', (error) => {
         console.error('❌ Error de conexión Socket.IO:', error);
+        console.error('❌ Error details:', {
+          message: error.message,
+          description: error.description,
+          context: error.context,
+          type: error.type
+        });
         setIsConnected(false);
       });
 
