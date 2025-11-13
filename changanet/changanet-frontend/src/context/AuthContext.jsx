@@ -103,6 +103,38 @@ export const AuthProvider = ({ children }) => {
     }, 100);
   };
 
+  const loginWithEmail = async (email, password) => {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Error al iniciar sesión';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (parseError) {
+          console.warn('No se pudo parsear respuesta de error:', parseError);
+        }
+        return { success: false, error: errorMessage };
+      }
+
+      const data = await response.json();
+
+      if (data.token && data.user) {
+        login(data.user, data.token);
+      }
+
+      return { success: true, user: data.user, token: data.token, message: data.message };
+    } catch (error) {
+      console.error('Error en loginWithEmail:', error);
+      return { success: false, error: 'Error de conexión. Inténtalo de nuevo.' };
+    }
+  };
+
   const signup = async (name, email, password, role) => {
     try {
       // Usar el proxy configurado en Vite (/api -> backend)
@@ -170,7 +202,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, signup, loginWithGoogle, fetchCurrentUser, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, signup, loginWithEmail, loginWithGoogle, fetchCurrentUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

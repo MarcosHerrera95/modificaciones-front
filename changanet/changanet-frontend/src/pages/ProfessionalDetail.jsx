@@ -6,6 +6,7 @@ import ChatWidget from '../components/ChatWidget';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import RatingDisplay from '../components/RatingDisplay';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
+import BackButton from '../components/BackButton';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -219,6 +220,11 @@ const ProfessionalDetail = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
       <div className="container mx-auto px-4 py-8">
+        {/* Back Button */}
+        <div className="mb-6">
+          <BackButton />
+        </div>
+
         {/* Header Section */}
         <div className="bg-white rounded-3xl shadow-2xl p-8 mb-8 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-100/30 to-turquoise-100/30 rounded-full -translate-y-48 translate-x-48"></div>

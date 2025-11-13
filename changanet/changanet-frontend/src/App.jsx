@@ -11,6 +11,7 @@ import Quotes from './pages/Quotes';
 import Availability from './pages/Availability';
 import ClientProfile from './pages/ClientProfile';
 import ProfessionalProfile from './pages/ProfessionalProfile';
+import ProfilePage from './pages/ProfilePage';
 import AuthCallback from './pages/AuthCallback';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
@@ -69,6 +70,7 @@ function App() {
                     <Route path="/disponibilidad" element={<Availability />} />
                     <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
                     <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
+                    <Route path="/perfil" element={<ProfilePage />} />
                     <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
                     <Route path="/registro-cliente" element={<ClientSignupPage />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />

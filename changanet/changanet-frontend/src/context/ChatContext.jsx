@@ -28,11 +28,12 @@ export const ChatProvider = ({ children }) => {
         auth: {
           token: localStorage.getItem('changanet_token') // Token correcto de Changánet
         },
-        transports: ['websocket', 'polling'], // Fallback para compatibilidad
+        transports: ['polling', 'websocket'], // Try polling first, then websocket
         timeout: 5000, // Timeout de conexión
         reconnection: true, // Reconexión automática
         reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionDelay: 1000,
+        forceNew: true // Force new connection
       });
 
       newSocket.on('connect', () => {

@@ -4,134 +4,115 @@
  * Incluye integración con backend para tokens JWT y comunicación postMessage.
  */
 
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup,
-  getAuth
-} from "firebase/auth";
-import { app } from "../config/firebaseConfig";
-
 /**
- * Registra un nuevo usuario usando email y contraseña.
- * Crea la cuenta en Firebase Auth y envía email de verificación.
- * Retorna el resultado de la operación con el usuario creado.
+ * Registra un nuevo usuario usando el backend de Changánet.
+ * Crea la cuenta en la base de datos y retorna token JWT.
  */
-export const registerWithEmail = async (email, password) => {
+export const registerWithEmail = async (email, password, name, role = 'cliente') => {
   try {
-    const auth = getAuth(app);
-    // Verificar que Firebase Auth esté disponible
-    if (!auth) {
-      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
-    }
-
     // Validar entrada
-    if (!email || !password) {
-      throw new Error('Email y contraseña son requeridos');
+    if (!email || !password || !name) {
+      throw new Error('Email, contraseña y nombre son requeridos');
     }
 
     if (password.length < 6) {
       throw new Error('La contraseña debe tener al menos 6 caracteres');
     }
 
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    // Usar el endpoint del backend
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        rol: role
+      }),
+    });
 
-    // Enviar email de verificación
-    try {
-      await sendEmailVerification(userCredential.user);
-    } catch (verificationError) {
-      console.warn('No se pudo enviar email de verificación:', verificationError);
-      // No fallar el registro por esto
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al registrar usuario');
     }
 
+    // Guardar token JWT
+    sessionStorage.setItem("changanet_token", data.token);
+    sessionStorage.setItem("user", JSON.stringify(data.user));
+
+    console.log("✅ Registro exitoso:", data.user.email);
     return {
       success: true,
-      user: userCredential.user,
-      message: 'Usuario registrado exitosamente. Revisa tu email para verificar la cuenta.'
+      user: data.user,
+      token: data.token,
+      message: data.message
     };
   } catch (error) {
     console.error('❌ Error en registro:', error);
 
-    // Manejar errores específicos de Firebase
     let errorMessage = 'Error al registrar usuario';
 
-    // Si es error de configuración, proporcionar información específica
-    if (error.code === 'auth/configuration-not-found') {
-      errorMessage = 'Error de configuración de Firebase. Verifica que el proyecto esté configurado correctamente en Firebase Console.';
-      console.error('🔧 Solución: Ve a https://console.firebase.google.com/project/changanet-notifications/settings/general y verifica la configuración.');
-    } else {
-      // Otros errores de Firebase
-      switch (error.code) {
-        case 'auth/email-already-in-use':
-          errorMessage = 'Este email ya está registrado. Intenta iniciar sesión en su lugar.';
-          break;
-        case 'auth/invalid-email':
-          errorMessage = 'Email inválido. Verifica el formato.';
-          break;
-        case 'auth/weak-password':
-          errorMessage = 'La contraseña debe tener al menos 6 caracteres.';
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
-          break;
-        case 'auth/invalid-api-key':
-          errorMessage = 'Clave API de Firebase inválida. Contacta al administrador.';
-          break;
-        case 'auth/app-deleted':
-          errorMessage = 'Aplicación Firebase eliminada. Contacta al administrador.';
-          break;
-        case 'auth/operation-not-allowed':
-          errorMessage = 'Registro de usuarios deshabilitado. Contacta al administrador.';
-          break;
-        default:
-          errorMessage = error.message || errorMessage;
-      }
+    if (error.message) {
+      errorMessage = error.message;
     }
 
     return { success: false, error: errorMessage };
   }
 };
 
-// ✅ CORRECTO: Manejo de errores de autenticación
+/**
+ * Inicia sesión usando el backend de Changánet.
+ * Autentica contra la base de datos y retorna token JWT.
+ */
 export const loginWithEmail = async (email, password) => {
-  const auth = getAuth(app);
-
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
+    // Validar entrada
+    if (!email || !password) {
+      throw new Error('Email y contraseña son requeridos');
+    }
 
-    // ✅ Guardar token JWT en sessionStorage (más seguro que localStorage)
-    const idToken = await user.getIdToken();
-    sessionStorage.setItem("changanet_token", idToken);
-    sessionStorage.setItem("user", JSON.stringify({
-      id: user.uid,
-      email: user.email,
-      name: user.displayName || "Usuario",
-      role: user.email.includes("profesional") ? "profesional" : "cliente" // Lógica de rol
-    }));
+    // Usar el endpoint del backend
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    });
 
-    console.log("✅ Login exitoso:", user.email);
-    return { success: true, user: userCredential.user };
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al iniciar sesión');
+    }
+
+    // Guardar token JWT
+    sessionStorage.setItem("changanet_token", data.token);
+    sessionStorage.setItem("user", JSON.stringify(data.user));
+
+    console.log("✅ Login exitoso:", data.user.email);
+    return {
+      success: true,
+      user: data.user,
+      token: data.token,
+      message: data.message
+    };
   } catch (error) {
-    // ✅ Manejo de errores específicos
-    if (error.code === "auth/user-not-found") {
-      console.error("❌ Usuario no encontrado:", email);
-      return { success: false, error: "Usuario no encontrado. ¿Te registraste?" };
+    console.error('❌ Error en login:', error);
+
+    let errorMessage = 'Error al iniciar sesión';
+
+    if (error.message) {
+      errorMessage = error.message;
     }
-    if (error.code === "auth/wrong-password") {
-      console.error("❌ Contraseña incorrecta:", email);
-      return { success: false, error: "Contraseña incorrecta" };
-    }
-    if (error.code === "auth/invalid-credential") {
-      console.error("❌ Credenciales inválidas:", email);
-      return { success: false, error: "Credenciales incorrectas. Inténtalo de nuevo." };
-    }
-    console.error("❌ Error desconocido:", error);
-    return { success: false, error: "Error desconocido. Intenta más tarde." };
+
+    return { success: false, error: errorMessage };
   }
 };
 

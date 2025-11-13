@@ -1,9 +1,12 @@
 import BackToAccountButton from '../components/ui/BackToAccountButton';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 
 const ProfessionalProfile = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState({
     nombre: '',
     email: '',
@@ -121,6 +124,9 @@ const ProfessionalProfile = () => {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
       <div className="container mx-auto px-4 py-8">
         <BackToAccountButton />
+        <div className="mb-6">
+          <BackButton />
+        </div>
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2">Mi Perfil Profesional</h1>
@@ -169,6 +175,45 @@ const ProfessionalProfile = () => {
                   Subir Foto
                 </button>
               </div>
+
+              {/* Identity Verification Section */}
+              {user && !user.esta_verificado && (
+                <div className="mt-8 p-6 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mr-4">
+                        <span className="text-2xl">🔐</span>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-amber-800">Verificar Identidad</h3>
+                        <p className="text-amber-700 text-sm">Aumenta la confianza y accede a más clientes</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => navigate('/verificar-identidad')}
+                      className="bg-[#E30613] text-white px-6 py-3 rounded-lg hover:bg-red-700 focus:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200 font-medium min-h-[44px] flex items-center gap-2"
+                      aria-label="Verificar identidad para aumentar confianza"
+                    >
+                      <span>🔐</span>
+                      <span className="hidden sm:inline">Verificar Identidad</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {user && user.esta_verificado && (
+                <div className="mt-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                  <div className="flex items-center">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mr-4">
+                      <span className="text-2xl">✅</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-800">Identidad Verificada</h3>
+                      <p className="text-emerald-700 text-sm">Tu identidad ha sido verificada exitosamente</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

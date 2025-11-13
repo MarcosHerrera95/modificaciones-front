@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QuickMessageModal from './QuickMessageModal';
+import BackButton from './BackButton';
 
 /**
  * @función QuoteRequestForm - Componente principal del formulario
@@ -90,6 +91,11 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
 
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <div className="flex justify-start">
+        <BackButton onClick={onClose} text="" />
+      </div>
+
       <div className="text-center">
         <h2 className="text-2xl font-bold text-[#1F2937] mb-2">¿Cómo quieres contactar?</h2>
         <p className="text-[#6B7280]">Elige la opción que más te convenga</p>

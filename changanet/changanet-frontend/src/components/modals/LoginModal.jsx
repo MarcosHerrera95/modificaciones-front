@@ -2,14 +2,14 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import GoogleLoginButton from '../GoogleLoginButton';
-import { loginWithEmail, loginWithGoogle, resetPassword } from '../../services/authService';
+import { resetPassword } from '../../services/authService';
 
 const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { loginWithEmail } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,12 +17,11 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
     setLoading(true);
 
     try {
-      // INTEGRACIÓN CON FIREBASE: Usar Firebase Authentication
+      // INTEGRACIÓN CON BACKEND: Usar autenticación del backend
       const result = await loginWithEmail(email, password);
 
       if (result.success) {
-        // INTEGRACIÓN CON CONTEXT: Guardar usuario de Firebase
-        login(result.user, result.user.accessToken || result.user.stsTokenManager?.accessToken);
+        // El login ya se maneja en el AuthContext
         onClose();
       } else {
         setError(result.error || 'Email o contraseña incorrectos. Verifica tus credenciales.');

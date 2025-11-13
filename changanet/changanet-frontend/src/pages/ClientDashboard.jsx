@@ -10,6 +10,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
+import BackButton from '../components/BackButton';
+import EditProfileButton from '../components/EditProfileButton';
 import '../styles/onboarding.css';
 
 const ClientDashboard = () => {
@@ -246,12 +248,7 @@ const ClientDashboard = () => {
         return (
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mi Perfil de Cliente</h3>
-            <button
-              onClick={() => navigate('/mi-perfil-cliente')}
-              className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
-            >
-              Editar Perfil
-            </button>
+            <EditProfileButton userType="cliente" />
           </div>
         );
 
@@ -333,6 +330,11 @@ const ClientDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Back Button */}
+        <div className="mb-6">
+          <BackButton />
+        </div>
+
         {/* Header */}
         <div className="mb-8" id="client-dashboard-header">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard de Cliente</h1>
