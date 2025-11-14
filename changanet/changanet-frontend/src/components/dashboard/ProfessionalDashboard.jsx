@@ -59,7 +59,9 @@ const ProfessionalDashboard = ({ user }) => {
       }
 
       if (notificationsRes.ok) {
-        const notifications = await notificationsRes.json();
+        const notificationsResponse = await notificationsRes.json();
+        console.log('Notifications API response:', notificationsResponse);
+        const notifications = notificationsResponse.notifications || [];
         setStats(prev => ({
           ...prev,
           unreadNotifications: notifications.filter(n => !n.esta_leido).length

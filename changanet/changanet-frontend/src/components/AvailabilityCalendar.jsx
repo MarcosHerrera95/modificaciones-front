@@ -12,7 +12,11 @@ const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
     const fetchAvailability = async () => {
       try {
         // INTEGRACIÓN CON BACKEND: Obtener disponibilidad
-        const response = await fetch(`/api/availability/${professionalId}?date=${selectedDate}`);
+        const response = await fetch(`/api/availability/${professionalId}?date=${selectedDate}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          }
+        });
         const data = await response.json();
         if (response.ok) {
           setAvailabilities(data);

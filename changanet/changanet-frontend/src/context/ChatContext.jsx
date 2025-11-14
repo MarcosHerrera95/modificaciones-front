@@ -23,12 +23,35 @@ export const ChatProvider = ({ children }) => {
     let newSocket = null;
 
     if (user) {
+      // Diagnostic logs for Socket.IO connection
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const token = localStorage.getItem('changanet_token');
+      console.log('🔍 Socket.IO Connection Diagnostics:');
+      console.log('🔍 Backend URL:', backendUrl);
+      console.log('🔍 Token present:', !!token);
+      console.log('🔍 Token length:', token ? token.length : 0);
+      console.log('🔍 User ID:', user.id);
+      console.log('🔍 Current timestamp:', new Date().toISOString());
+
+      // Test backend connectivity
+      fetch(`${backendUrl}/health`, { method: 'GET' })
+        .then(response => {
+          console.log('🔍 Backend health check:', response.status, response.ok ? 'OK' : 'FAILED');
+          if (!response.ok) {
+            console.error('🔍 Backend health check failed - server may not be running');
+          }
+        })
+        .catch(error => {
+          console.error('🔍 Backend health check error:', error.message);
+          console.error('🔍 This suggests the backend server is not running or unreachable');
+        });
+
       // Conectar Socket.IO
-      newSocket = io(import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002', {
+      newSocket = io(backendUrl, {
         auth: {
           token: localStorage.getItem('changanet_token') // Token correcto de Changánet
         },
-        transports: ['polling', 'websocket'], // Try polling first, then websocket
+        transports: ['websocket', 'polling'], // Prefer WebSocket over polling
         timeout: 5000, // Timeout de conexión
         reconnection: true, // Reconexión automática
         reconnectionAttempts: 5,
@@ -40,6 +63,13 @@ export const ChatProvider = ({ children }) => {
         console.log('✅ Conectado a Socket.IO');
         setIsConnected(true);
         // Unirse a la sala personal del usuario
+        newSocket.emit('join', user.id);
+      });
+
+      newSocket.on('reconnect', () => {
+        console.log('✅ Reconectado a Socket.IO');
+        setIsConnected(true);
+        // Re-unirse a la sala personal del usuario
         newSocket.emit('join', user.id);
       });
 
@@ -56,7 +86,23 @@ export const ChatProvider = ({ children }) => {
           context: error.context,
           type: error.type
         });
-        setIsConnected(false);
+        console.error('❌ Socket.IO connection config:', {
+          url: backendUrl,
+          transports: ['websocket', 'polling'],
+          timeout: 5000,
+          reconnection: true,
+          reconnectionAttempts: 5
+        });
+        console.error('❌ Browser network info:', {
+          userAgent: navigator.userAgent,
+          online: navigator.onLine,
+          protocol: window.location.protocol
+        });
+
+        // Only set disconnected if this is not a reconnection attempt
+        if (!newSocket.reconnecting) {
+          setIsConnected(false);
+        }
       });
 
       newSocket.on('receiveMessage', (message) => {

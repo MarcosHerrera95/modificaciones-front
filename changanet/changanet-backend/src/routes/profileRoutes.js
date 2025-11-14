@@ -36,6 +36,7 @@ const router = express.Router();
 // Definir la ruta GET para obtener el perfil propio (autenticado).
 // Esta ruta está protegida y devuelve el perfil del usuario autenticado.
 router.get('/', authenticateToken, async (req, res) => {
+  console.log('Profile route hit for user:', req.user?.id);
   const { userId } = req.user;
 
   try {
@@ -45,7 +46,24 @@ router.get('/', authenticateToken, async (req, res) => {
         include: { usuario: { select: { nombre: true, email: true, telefono: true } } }
       });
 
-      if (!profile) return res.status(404).json({ error: 'Perfil no encontrado.' });
+      if (!profile) {
+        // Return default profile data for professionals without profile
+        return res.status(200).json({
+          usuario_id: userId,
+          especialidad: null,
+          descripcion: '',
+          experiencia_anios: 0,
+          tarifa_hora: 0,
+          zona_cobertura: '',
+          calificacion_promedio: 0,
+          esta_disponible: true,
+          usuario: {
+            nombre: req.user.nombre,
+            email: req.user.email,
+            telefono: req.user.telefono
+          }
+        });
+      }
       res.status(200).json(profile);
     } else {
       // Para clientes, devolver info básica del usuario
