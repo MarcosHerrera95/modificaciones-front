@@ -3,7 +3,7 @@
  * Maneja todas las llamadas HTTP al backend con retry logic y manejo de errores
  */
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+const API_BASE_URL = '';
 
 /**
  * Headers de seguridad para todas las peticiones
@@ -82,9 +82,18 @@ async function apiRequest(url, options = {}, retryCount = 0) {
       throw new Error('Sesión expirada');
     }
 
-    // Si es un error 403 (prohibido), mostrar mensaje específico
+    // Si es un error 403 (prohibido), verificar si es usuario no encontrado
     if (response.status === 403) {
-      throw new Error('No tienes permisos para realizar esta acción');
+      const errorData = await response.json().catch(() => ({ message: 'No tienes permisos para realizar esta acción' }));
+      // Si el mensaje indica que el usuario no existe, limpiar token y recargar
+      if (errorData.message && errorData.message.includes('Usuario no encontrado')) {
+        console.warn('Usuario no encontrado en la base de datos. Limpiando token y recargando...');
+        localStorage.removeItem('changanet_token');
+        localStorage.removeItem('changanet_user');
+        window.location.reload();
+        throw new Error('Sesión inválida - recargando página');
+      }
+      throw new Error(errorData.message || 'No tienes permisos para realizar esta acción');
     }
 
     // Para otros errores, intentar reintento si es apropiado

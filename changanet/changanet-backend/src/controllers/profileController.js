@@ -76,7 +76,7 @@ exports.updateProfile = async (req, res) => {
           where: { usuario_id: userId },
           data: {
             especialidad,
-            anos_experiencia,
+            anos_experiencia: parseInt(anos_experiencia, 10),
             zona_cobertura,
             tarifa_hora: parseFloat(tarifa_hora),
             descripcion,
@@ -104,12 +104,33 @@ exports.updateProfile = async (req, res) => {
       res.status(200).json(profile);
     } else if (user.rol === 'cliente') {
       // Update client profile (basic user info)
+      let url_foto_perfil = user.url_foto_perfil;
+
+      // Handle image upload if file exists
+      if (req.file) {
+        try {
+          // Delete previous image if exists
+          if (url_foto_perfil) {
+            const publicId = url_foto_perfil.split('/').pop().split('.')[0];
+            await deleteImage(`changanet/${publicId}`);
+          }
+
+          // Upload new image to Cloudinary
+          const result = await uploadImage(req.file.buffer, { folder: 'changanet/profiles' });
+          url_foto_perfil = result.secure_url;
+        } catch (uploadError) {
+          console.error('Error uploading client image:', uploadError);
+          return res.status(500).json({ error: 'Error al subir la imagen.' });
+        }
+      }
+
       const updatedUser = await prisma.usuarios.update({
         where: { id: userId },
         data: {
           nombre,
           email,
           telefono,
+          url_foto_perfil,
           // Note: Currently only nombre, email, telefono are stored in usuarios table
           // direccion and preferencias_servicio will be added in future schema updates
         },
@@ -119,7 +140,8 @@ exports.updateProfile = async (req, res) => {
           email: true,
           telefono: true,
           rol: true,
-          esta_verificado: true
+          esta_verificado: true,
+          url_foto_perfil: true
         }
       });
 

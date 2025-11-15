@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import ProfessionalCard from '../components/ProfessionalCard';
 
 const Professionals = () => {
+  console.log('🚀 Professionals component mounted');
   const [professionals, setProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTime, setSearchTime] = useState(null);
@@ -12,12 +13,15 @@ const Professionals = () => {
   const [zonaCobertura, setZonaCobertura] = useState('');
   const [precioMin, setPrecioMin] = useState('');
   const [precioMax, setPrecioMax] = useState('');
+  const [selectedProfessionals, setSelectedProfessionals] = useState([]);
   const location = useLocation();
 
   useEffect(() => {
+    console.log('🔄 useEffect triggered, fetching professionals');
     const fetchProfessionals = async () => {
       const startTime = performance.now();
       setLoading(true);
+      console.log('⏳ Starting fetch...');
       try {
         // Construir query string con filtros adicionales
         const urlParams = new URLSearchParams(location.search);
@@ -27,8 +31,16 @@ const Professionals = () => {
 
         // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
         urlParams.set('sort_by', sortBy);
+        urlParams.set('limit', '100'); // Mostrar hasta 100 profesionales
 
-        const response = await fetch(`/api/professionals?${urlParams.toString()}`);
+        const url = `/api/professionals?${urlParams.toString()}`;
+        console.log('🌐 Fetching URL:', url);
+        const response = await fetch(url, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
+        });
+        console.log('📡 Response status:', response.status);
 
         if (!response.ok) {
           let errorMessage = 'Error al buscar profesionales';
@@ -44,7 +56,11 @@ const Professionals = () => {
         }
 
         const data = await response.json();
+        console.log('📊 API Response:', data);
+        console.log('👥 Professionals received:', data.professionals?.length || 0);
+        console.log('👥 First professional:', data.professionals?.[0]);
         setProfessionals(data.professionals || []);
+        console.log('💾 Set professionals to state:', data.professionals?.length);
         const endTime = performance.now();
         setSearchTime((endTime - startTime).toFixed(2));
       } catch (error) {
@@ -64,7 +80,36 @@ const Professionals = () => {
     ? sortedProfessionals.filter(p => p.estado_verificacion === 'verificado')
     : sortedProfessionals;
 
+  console.log('🎯 Filtered professionals:', filteredProfessionals.length, 'out of', sortedProfessionals.length);
+
+  // Funciones para manejar selección
+  const handleSelectProfessional = (professionalId) => {
+    setSelectedProfessionals(prev =>
+      prev.includes(professionalId)
+        ? prev.filter(id => id !== professionalId)
+        : [...prev, professionalId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProfessionals.length === filteredProfessionals.length) {
+      setSelectedProfessionals([]);
+    } else {
+      setSelectedProfessionals(filteredProfessionals.map(p => p.usuario_id));
+    }
+  };
+
+  const handleRequestServices = () => {
+    if (selectedProfessionals.length === 0) {
+      alert('Por favor selecciona al menos un profesional');
+      return;
+    }
+    alert(`Solicitando servicios a ${selectedProfessionals.length} profesional(es) seleccionado(s)`);
+    // Aquí iría la lógica para enviar las solicitudes
+  };
+
   if (loading) {
+    console.log('⏳ Still loading...');
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
         <div className="text-center animate-fade-in">
@@ -85,6 +130,11 @@ const Professionals = () => {
           </h1>
           <p className="text-gray-600 text-xl font-medium">
             {filteredProfessionals.length} profesionales encontrados para ti
+            {selectedProfessionals.length > 0 && (
+              <span className="text-emerald-600 font-semibold ml-4">
+                • {selectedProfessionals.length} seleccionado(s)
+              </span>
+            )}
             {searchTime && (
               <span className="text-sm text-emerald-600 ml-2">
                 (búsqueda en {searchTime}ms)
@@ -146,8 +196,8 @@ const Professionals = () => {
             </div>
           </div>
 
-          {/* Sort Options */}
-          <div className="flex items-center justify-center mt-4 pt-4 border-t border-gray-200">
+          {/* Sort Options and Selection Controls */}
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center space-x-4">
               <span className="text-gray-700 font-medium">Ordenar por:</span>
               <select
@@ -160,6 +210,24 @@ const Professionals = () => {
                 <option value="distancia">📍 Más cercano</option>
                 <option value="disponibilidad">✅ Más disponible</option>
               </select>
+            </div>
+
+            {/* Selection Controls */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={handleSelectAll}
+                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              >
+                {selectedProfessionals.length === filteredProfessionals.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
+              </button>
+              {selectedProfessionals.length > 0 && (
+                <button
+                  onClick={handleRequestServices}
+                  className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-semibold"
+                >
+                  Solicitar Servicios ({selectedProfessionals.length})
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -181,10 +249,43 @@ const Professionals = () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-            {filteredProfessionals.map((professional) => (
-              <ProfessionalCard key={professional.usuario_id} professional={professional} />
-            ))}
+          <div>
+            {/* Lista de profesionales */}
+            <div className="mb-8">
+              <h3 className="text-xl font-bold mb-6 text-center">Lista de Profesionales Disponibles</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredProfessionals.map((professional) => (
+                  <div key={professional.usuario_id} className={`bg-white p-4 rounded-lg shadow-md border-2 transition-all ${selectedProfessionals.includes(professional.usuario_id) ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center mb-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedProfessionals.includes(professional.usuario_id)}
+                        onChange={() => handleSelectProfessional(professional.usuario_id)}
+                        className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">Seleccionar</span>
+                    </div>
+                    <img
+                      src={professional.usuario?.url_foto_perfil || 'https://placehold.co/100x100?text=👷'}
+                      alt={professional.usuario?.nombre}
+                      className="w-16 h-16 rounded-full mx-auto mb-2"
+                    />
+                    <h4 className="font-bold text-center">{professional.usuario?.nombre}</h4>
+                    <p className="text-sm text-center text-gray-600">{professional.especialidad}</p>
+                    <p className="text-sm text-center text-gray-500">{professional.zona_cobertura}</p>
+                    <p className="text-sm text-center font-semibold text-green-600">${professional.tarifa_hora}/hora</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Grid original con ProfessionalCard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+              {console.log('🎨 Rendering grid with', filteredProfessionals.length, 'professionals')}
+              {filteredProfessionals.map((professional) => (
+                <ProfessionalCard key={professional.usuario_id} professional={professional} />
+              ))}
+            </div>
           </div>
         )}
 

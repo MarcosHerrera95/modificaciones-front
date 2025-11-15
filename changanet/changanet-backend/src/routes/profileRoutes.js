@@ -30,6 +30,16 @@ const upload = multer({
   }
 });
 
+// Middleware que aplica multer solo si hay archivos
+const conditionalUpload = (req, res, next) => {
+  // Si el Content-Type es multipart/form-data, aplicar multer
+  if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+    return upload.single('foto_perfil')(req, res, next);
+  }
+  // Si no es multipart, continuar sin multer
+  next();
+};
+
 // Crear un enrutador de Express para agrupar las rutas relacionadas con los perfiles.
 const router = express.Router();
 
@@ -66,10 +76,10 @@ router.get('/', authenticateToken, async (req, res) => {
       }
       res.status(200).json(profile);
     } else {
-      // Para clientes, devolver info básica del usuario
+      // Para clientes, devolver info básica del usuario incluyendo foto de perfil
       const user = await prisma.usuarios.findUnique({
         where: { id: userId },
-        select: { id: true, nombre: true, email: true, telefono: true, rol: true }
+        select: { id: true, nombre: true, email: true, telefono: true, rol: true, url_foto_perfil: true }
       });
       res.status(200).json({ usuario: user });
     }
@@ -89,8 +99,8 @@ router.get('/:professionalId', getProfile);
 // Definir la ruta PUT para actualizar perfil (profesional o cliente).
 // REQ-08, REQ-10: Los usuarios enviarán una solicitud PUT a /api/profile con los datos actualizados en el cuerpo.
 // Esta ruta está protegida por el middleware de autenticación.
-// Incluye multer para manejo de subida de imágenes de perfil.
-router.put('/', authenticateToken, upload.single('foto_perfil'), updateProfile);
+// Incluye multer condicional para manejo de subida de imágenes de perfil.
+router.put('/', authenticateToken, conditionalUpload, updateProfile);
 
 // Exportar el enrutador para que pueda ser usado por el servidor principal (server.js).
 module.exports = router;

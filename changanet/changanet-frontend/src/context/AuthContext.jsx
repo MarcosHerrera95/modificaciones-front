@@ -3,6 +3,7 @@
  * Gestiona el estado de autenticación del usuario y proporciona métodos de login/logout.
  */
 import { createContext, useState, useEffect, useContext } from 'react';
+import { setUserContext } from '../config/sentryConfig';
 
 export const AuthContext = createContext();
 
@@ -77,19 +78,7 @@ export const AuthProvider = ({ children }) => {
     setUser(userWithName);
 
     // CONFIGURAR CONTEXTO DE USUARIO EN SENTRY (solo si está disponible)
-    try {
-      // Verificar si Sentry está disponible antes de intentar usarlo
-      if (typeof window !== 'undefined' && window.Sentry && window.Sentry.setUser) {
-        window.Sentry.setUser({
-          id: userData.id,
-          email: userData.email,
-          nombre: userData.nombre,
-          rol: userData.rol
-        });
-      }
-    } catch (error) {
-      // Sentry no está disponible, continuar sin problemas
-    }
+    setUserContext(userWithName);
   };
 
   // Método para manejar login con Google (puede ser usado por el GoogleLoginButton)

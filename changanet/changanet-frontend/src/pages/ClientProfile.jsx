@@ -194,79 +194,57 @@ const ClientProfile = () => {
           </div>
 
           <div className="bg-white rounded-3xl shadow-2xl p-8">
-            {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600">Cargando perfil...</span>
-              </div>
-            ) : (
-              <>
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6">
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl mb-6">
-                    {success}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit}>
-              {/* Photo Upload Section */}
-              <div className="text-center mb-8">
-                <div className="relative inline-block">
-                  <div className="w-40 h-40 mx-auto bg-gray-100 rounded-full border-4 border-gray-200 flex items-center justify-center overflow-hidden shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                    {preview ? (
-                      <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" />
-                    ) : (
-                      <svg className="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    )}
-                  </div>
+            {/* Photo Upload Section - Always Visible */}
+            <div className="text-center mb-8">
+              <div className="relative inline-block">
+                <div className="w-40 h-40 mx-auto bg-gray-100 rounded-full border-4 border-gray-200 flex items-center justify-center overflow-hidden shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300">
+                  {preview ? (
+                    <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" />
+                  ) : (
+                    <svg className="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  )}
                 </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={handleUploadPhoto}
-                  className="mt-4 bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 hover:shadow-md hover:scale-105 transition-all duration-300"
-                >
-                  Subir Foto
-                </button>
               </div>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={handleUploadPhoto}
+                className="mt-4 bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 hover:shadow-md hover:scale-105 transition-all duration-300"
+                disabled={loading}
+              >
+                Subir Foto
+              </button>
+            </div>
 
-              {/* Identity Verification Section */}
-              {user && !user.esta_verificado && (
-                <div className="mt-8 p-6 bg-amber-50 border border-amber-200 rounded-2xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mr-4">
-                        <span className="text-2xl">🔐</span>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-amber-800">Verificar Identidad</h3>
-                        <p className="text-amber-700 text-sm">Aumenta la confianza y accede a más funciones</p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => navigate('/verificar-identidad')}
-                      className="bg-[#E30613] text-white px-6 py-3 rounded-lg hover:bg-red-700 focus:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200 font-medium min-h-[44px] flex items-center gap-2"
-                      aria-label="Verificar identidad para aumentar confianza"
-                    >
-                      <span>🔐</span>
-                      <span className="hidden sm:inline">Verificar Identidad</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+            {/* Status Messages - Always Visible */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6">
+                {error}
+              </div>
+            )}
+
+            {success && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl mb-6">
+                {success}
+              </div>
+            )}
+
+            {loading && (
+              <div className="flex items-center justify-center py-6 mb-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <span className="ml-3 text-gray-600 text-sm">Actualizando perfil...</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
 
               {user && user.esta_verificado && (
                 <div className="mt-8 p-6 bg-emerald-50 border border-emerald-200 rounded-2xl">
@@ -360,8 +338,6 @@ const ClientProfile = () => {
                 </button>
               </div>
             </form>
-              </>
-            )}
           </div>
         </div>
       </div>

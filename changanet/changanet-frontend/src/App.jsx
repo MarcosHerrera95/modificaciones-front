@@ -47,6 +47,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 // Componente temporal para registro de profesional (reemplazado por ProfessionalSignupPage)
 
 function App() {
+  console.log('🎯 App component rendering');
   return (
     <AuthProvider>
       <NotificationProvider>

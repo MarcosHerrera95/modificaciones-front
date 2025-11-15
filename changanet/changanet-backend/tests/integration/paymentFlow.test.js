@@ -5,6 +5,7 @@
 
 const request = require('supertest');
 const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
 const app = require('../../src/server');
 
 const prisma = new PrismaClient();
@@ -59,7 +60,6 @@ describe('Flujo de Pagos con Custodia - Integration Tests', () => {
     });
 
     // Generar tokens JWT
-    const jwt = require('jsonwebtoken');
     clientToken = jwt.sign({ userId: clientUser.id, role: clientUser.rol }, process.env.JWT_SECRET);
     professionalToken = jwt.sign({ userId: professionalUser.id, role: professionalUser.rol }, process.env.JWT_SECRET);
   });

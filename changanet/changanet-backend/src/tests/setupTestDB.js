@@ -9,7 +9,7 @@ require('dotenv').config({ path: '.env.test' });
 
 // Forzar DATABASE_URL para pruebas si estamos en modo test
 if (process.env.NODE_ENV === 'test') {
-  process.env.DATABASE_URL = "postgresql://postgres@localhost:5432/changanet_test?schema=public";
+  process.env.DATABASE_URL = "file:./changanet_test.db";
 }
 
 const prisma = new PrismaClient();

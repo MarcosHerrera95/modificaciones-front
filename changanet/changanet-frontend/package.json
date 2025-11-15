@@ -91,6 +91,7 @@
     },
     "testMatch": [
       "<rootDir>/tests/**/*.test.{js,jsx}"
-    ]
+    ],
+    "extensionsToTreatAsEsm": [".jsx"]
   }
 }

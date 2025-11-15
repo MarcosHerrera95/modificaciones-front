@@ -35,6 +35,11 @@ const MapWidget = ({
         // Inicializar Google Maps
         const googleMaps = await initGoogleMaps();
 
+        // Verificar si Google Maps está disponible
+        if (!googleMaps) {
+          throw new Error('Google Maps no está disponible. Verifica la configuración de la API key.');
+        }
+
         // Determinar centro del mapa
         const mapCenter = center || defaultCenter;
 
@@ -57,12 +62,12 @@ const MapWidget = ({
           ]
         };
 
-        mapInstanceRef.current = new googleMaps.Map(mapRef.current, mapOptions);
+        mapInstanceRef.current = new googleMaps.maps.Map(mapRef.current, mapOptions);
 
         // Agregar marcadores
         if (markers && markers.length > 0) {
           markers.forEach(markerData => {
-            const marker = new googleMaps.Marker({
+            const marker = new googleMaps.maps.Marker({
               position: markerData.position,
               map: mapInstanceRef.current,
               title: markerData.title || 'Ubicación',
@@ -73,14 +78,14 @@ const MapWidget = ({
                     <circle cx="20" cy="20" r="8" fill="white"/>
                   </svg>
                 `),
-                scaledSize: new googleMaps.Size(40, 40),
-                anchor: new googleMaps.Point(20, 40)
+                scaledSize: new googleMaps.maps.Size(40, 40),
+                anchor: new googleMaps.maps.Point(20, 40)
               }
             });
 
             // Agregar info window si hay contenido
             if (markerData.infoContent) {
-              const infoWindow = new googleMaps.InfoWindow({
+              const infoWindow = new googleMaps.maps.InfoWindow({
                 content: markerData.infoContent
               });
 
@@ -92,7 +97,7 @@ const MapWidget = ({
 
           // Ajustar zoom para mostrar todos los marcadores
           if (markers.length > 1) {
-            const bounds = new googleMaps.LatLngBounds();
+            const bounds = new googleMaps.maps.LatLngBounds();
             markers.forEach(marker => {
               bounds.extend(marker.position);
             });

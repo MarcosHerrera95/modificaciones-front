@@ -24,26 +24,30 @@ export const ChatProvider = ({ children }) => {
 
     if (user) {
       // Diagnostic logs for Socket.IO connection
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const backendUrl = 'http://localhost:3002'; // Updated to match backend port
       const token = localStorage.getItem('changanet_token');
       console.log('🔍 Socket.IO Connection Diagnostics:');
       console.log('🔍 Backend URL:', backendUrl);
+      console.log('🔍 VITE_BACKEND_URL env var:', import.meta.env.VITE_BACKEND_URL);
       console.log('🔍 Token present:', !!token);
       console.log('🔍 Token length:', token ? token.length : 0);
       console.log('🔍 User ID:', user.id);
       console.log('🔍 Current timestamp:', new Date().toISOString());
 
       // Test backend connectivity
-      fetch(`${backendUrl}/health`, { method: 'GET' })
+      const healthUrl = '/health';
+      console.log('🔍 Attempting health check fetch to:', healthUrl);
+      fetch(healthUrl, { method: 'GET' })
         .then(response => {
           console.log('🔍 Backend health check:', response.status, response.ok ? 'OK' : 'FAILED');
           if (!response.ok) {
-            console.error('🔍 Backend health check failed - server may not be running');
+            console.error('🔍 Backend health check failed - server may not be running or wrong port');
           }
         })
         .catch(error => {
           console.error('🔍 Backend health check error:', error.message);
-          console.error('🔍 This suggests the backend server is not running or unreachable');
+          console.error('🔍 Full error:', error);
+          console.error('🔍 This suggests the backend server is not running or unreachable on', backendUrl);
         });
 
       // Conectar Socket.IO
@@ -185,7 +189,7 @@ export const ChatProvider = ({ children }) => {
 
   const loadMessageHistory = async (otherUserId) => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/messages?with=${otherUserId}`, {
+      const response = await fetch(`/api/messages?with=${otherUserId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }

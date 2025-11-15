@@ -52,18 +52,39 @@ const ProfessionalCard = ({ professional }) => {
         // Obtener coordenadas del profesional
         const profCoords = getSimulatedCoordinates(professional.zona_cobertura);
 
-        // Intentar usar Google Distance Matrix API
-        try {
-          const result = await getDistanceMatrix(
-            { lat: clientLat, lng: clientLon },
-            { lat: profCoords.lat, lng: profCoords.lng }
-          );
-          setDistance(`${result.distance} (${result.duration})`);
-        } catch (apiError) {
-          console.warn('Distance Matrix API no disponible, usando cálculo alternativo');
-          // Fallback: fórmula de Haversine
+        // Verificar si tenemos API key de Google Maps
+        const hasGoogleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+        if (hasGoogleMapsKey) {
+          // Intentar usar Google Distance Matrix API
+          try {
+            const result = await getDistanceMatrix(
+              { lat: clientLat, lng: clientLon },
+              { lat: profCoords.lat, lng: profCoords.lng }
+            );
+
+            // Mostrar distancia y duración si están disponibles
+            let distanceText = '';
+            if (result.distance) {
+              distanceText = result.distance.text;
+            }
+            if (result.duration) {
+              distanceText += distanceText ? ` (${result.duration.text})` : result.duration.text;
+            }
+            if (distanceText) {
+              setDistance(distanceText);
+            } else {
+              throw new Error('No distance data available');
+            }
+          } catch (apiError) {
+            // Google Maps no disponible, usar cálculo alternativo
+            const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
+            setDistance(`${dist.toFixed(1)} km (aprox.)`);
+          }
+        } else {
+          // No hay API key, usar cálculo alternativo directamente
           const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
-          setDistance(`${dist.toFixed(1)} km`);
+          setDistance(`${dist.toFixed(1)} km (aprox.)`);
         }
       } catch (error) {
         console.error('Error calculando distancia:', error);

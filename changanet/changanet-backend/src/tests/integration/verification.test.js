@@ -4,6 +4,7 @@
 
 const request = require('supertest');
 const { PrismaClient } = require('@prisma/client');
+const jwt = require('jsonwebtoken');
 const app = require('../../server');
 
 const prisma = new PrismaClient();
@@ -48,7 +49,6 @@ describe('Sistema de Verificación de Identidad', () => {
     });
 
     // Generar tokens JWT (simulados para pruebas)
-    const jwt = require('jsonwebtoken');
     testToken = jwt.sign({ userId: testUser.id, role: testUser.rol }, process.env.JWT_SECRET);
     adminToken = jwt.sign({ userId: adminUser.id, role: adminUser.rol }, process.env.JWT_SECRET);
   });

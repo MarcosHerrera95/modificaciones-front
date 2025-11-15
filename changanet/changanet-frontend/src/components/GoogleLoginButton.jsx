@@ -1,17 +1,19 @@
 // src/components/GoogleLoginButton.jsx
 /**
  * @component GoogleLoginButton - Botón de login con Google
- * @descripción Componente UI para autenticación con Google OAuth (REQ-02)
+ * @descripción Componente UI para autenticación con Google OAuth usando Firebase Web SDK (REQ-02)
  * @sprint Sprint 1 – Autenticación y Perfiles
  * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
  * @impacto Social: Interfaz accesible con navegación por teclado y estados claros
  */
 
 import { useState } from 'react';
+import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth } from '../config/firebaseConfig';
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
- * @descripción Renderiza botón accesible que redirige al flujo OAuth del backend (REQ-02)
+ * @descripción Renderiza botón accesible que usa Firebase Auth para login con Google (REQ-02)
  * @sprint Sprint 1 – Autenticación y Perfiles
  * @tarjeta Tarjeta 2: [Frontend] Implementar Login con Google OAuth
  * @impacto Social: Diseño accesible con navegación por teclado y feedback visual claro
@@ -22,10 +24,44 @@ import { useState } from 'react';
 const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = "" }) => {
   const [loading, setLoading] = useState(false);
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     setLoading(true);
-    // Redirect to backend OAuth flow
-    window.location.href = '/api/auth/google';
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Enviar datos del usuario a backend para crear/actualizar usuario
+      const response = await fetch('/api/auth/google-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          nombre: user.displayName,
+          foto: user.photoURL
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error en login con Google');
+      }
+
+      const data = await response.json();
+
+      // Guardar token y datos de usuario
+      localStorage.setItem('changanet_token', data.token);
+      localStorage.setItem('changanet_user', JSON.stringify(data.user));
+
+      // Redirigir al dashboard apropiado
+      window.location.href = data.user.rol === 'profesional' ? '/dashboard-profesional' : '/dashboard-cliente';
+    } catch (error) {
+      console.error('Error en login con Google:', error);
+      alert('Error al iniciar sesión con Google: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

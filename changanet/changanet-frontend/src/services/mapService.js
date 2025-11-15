@@ -8,145 +8,92 @@
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 
 // Estado del servicio
-let googleMaps = null;
-let placesLibrary = null;
-let mapsLibrary = null;
 let isInitialized = false;
 
 /**
  * Inicializa Google Maps API usando la nueva API funcional
- * Llama setOptions solo una vez al inicio de la aplicación
  */
-export const initGoogleMaps = async () => {
-  try {
-    if (!isInitialized) {
-      // Verificar que la API key esté disponible
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      if (!apiKey) {
-        throw new Error('Google Maps API key no configurada. Verifica VITE_GOOGLE_MAPS_API_KEY en .env.local');
-      }
+const initializeGoogleMaps = async () => {
+  if (!isInitialized) {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    console.log('Google Maps API Key:', apiKey ? `Present (starts with: ${apiKey.substring(0, 10)}...)` : 'Missing');
+    console.log('API Key length:', apiKey ? apiKey.length : 0);
+    console.log('API Key format check:', apiKey && apiKey.startsWith('AIza') ? 'Valid format' : 'Invalid format');
 
-      console.log('🔄 Inicializando Google Maps API con nueva API funcional...');
-      console.log('API Key presente:', !!apiKey);
-
-      // Configurar opciones globales UNA SOLA VEZ
-      setOptions({
-        apiKey: apiKey,
-        version: 'weekly'
-      });
-
-      isInitialized = true;
-      console.log('✅ Google Maps API configurada globalmente');
+    if (!apiKey) {
+      console.error('CRITICAL: VITE_GOOGLE_MAPS_API_KEY is not set in environment variables');
+      throw new Error('Google Maps API key is missing');
     }
 
-    if (!googleMaps) {
-      // Cargar las bibliotecas necesarias
-      console.log('📚 Cargando bibliotecas maps y places...');
-      [mapsLibrary, placesLibrary] = await Promise.all([
-        importLibrary('maps'),
-        importLibrary('places')
-      ]);
-
-      googleMaps = { maps: mapsLibrary, places: placesLibrary };
-      console.log('✅ Bibliotecas maps y places cargadas');
-    }
-
-    return googleMaps;
-  } catch (error) {
-    console.error('❌ Error inicializando Google Maps:', error);
-    console.error('Detalles del error:', error.message);
-    console.error('Stack trace:', error.stack);
-    throw new Error(`No se pudo inicializar Google Maps API: ${error.message}`);
-  }
-};
-
-// Estado del servicio
-let placesService = null;
-
-/**
- * Inicializa Places Service usando la nueva API
- */
-const initPlacesService = () => {
-  if (!placesService && googleMaps && placesLibrary) {
-    const mapDiv = document.createElement('div');
-    const map = new mapsLibrary.Map(mapDiv, {
-      center: { lat: -34.6037, lng: -58.3816 }, // Buenos Aires
-      zoom: 12
+    setOptions({
+      apiKey: apiKey,
+      version: 'weekly',
+      libraries: ['places', 'geometry', 'routes']
     });
-    placesService = new placesLibrary.PlacesService(map);
-  }
-  return placesService;
-};
-
-/**
- * Geocodifica una dirección a coordenadas
- * @param {string} address - Dirección a geocodificar
- * @returns {Promise<{lat: number, lng: number}>}
- */
-export const geocodeAddress = async (address) => {
-  try {
-    await initGoogleMaps();
-
-    const geocoder = new googleMaps.Geocoder();
-
-    return new Promise((resolve, reject) => {
-      geocoder.geocode({ address }, (results, status) => {
-        if (status === googleMaps.GeocoderStatus.OK && results[0]) {
-          const location = results[0].geometry.location;
-          resolve({
-            lat: location.lat(),
-            lng: location.lng()
-          });
-        } else {
-          reject(new Error(`Geocodificación fallida: ${status}`));
-        }
-      });
-    });
-  } catch (error) {
-    console.error('Error en geocodificación:', error);
-    throw error;
+    isInitialized = true;
+    console.log('Google Maps API initialized successfully');
   }
 };
 
-/**
- * Calcula distancia y tiempo entre dos puntos usando Distance Matrix API
- * @param {Object} origin - {lat, lng} o dirección
- * @param {Object} destination - {lat, lng} o dirección
- * @returns {Promise<{distance: string, duration: string, distanceValue: number}>}
- */
+
 export const getDistanceMatrix = async (origin, destination) => {
   try {
-    await initGoogleMaps();
+    console.log('🔍 Attempting to calculate distance matrix with Google Maps API...');
+    console.log('📍 Origin:', origin);
+    console.log('📍 Destination:', destination);
 
-    const service = new googleMaps.DistanceMatrixService();
+    // Validar que la API key esté configurada
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('La clave de API de Google Maps no está configurada. Verifica VITE_GOOGLE_MAPS_API_KEY en .env.local');
+    }
 
-    return new Promise((resolve, reject) => {
-      service.getDistanceMatrix({
-        origins: [origin],
-        destinations: [destination],
-        travelMode: googleMaps.TravelMode.DRIVING,
-        unitSystem: googleMaps.UnitSystem.METRIC
-      }, (response, status) => {
-        if (status === googleMaps.DistanceMatrixStatus.OK) {
-          const element = response.rows[0].elements[0];
+    await initializeGoogleMaps();
 
-          if (element.status === 'OK') {
-            resolve({
-              distance: element.distance.text,
-              duration: element.duration.text,
-              distanceValue: element.distance.value // en metros
-            });
-          } else {
-            reject(new Error(`No se pudo calcular la distancia: ${element.status}`));
-          }
-        } else {
-          reject(new Error(`Error en Distance Matrix: ${status}`));
-        }
-      });
+    // Usar la nueva API funcional correcta para Distance Matrix
+    const { DistanceMatrixService } = await importLibrary("routes");
+    const service = new DistanceMatrixService();
+
+    console.log('✅ DistanceMatrixService initialized, making request...');
+
+    const response = await service.getDistanceMatrix({
+      origins: [origin],
+      destinations: [destination],
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.METRIC
     });
+
+    console.log('✅ Distance Matrix API response received successfully');
+    console.log('📊 Response status:', response.rows?.[0]?.elements?.[0]?.status);
+
+    if (!response.rows?.[0]?.elements?.[0]) {
+      throw new Error('No se recibió respuesta válida de la API de Distance Matrix');
+    }
+
+    return response.rows[0].elements[0];
   } catch (error) {
-    console.error('Error calculando distancia:', error);
-    throw error;
+    console.error("❌ Error calculando distancia con Google Maps:", error.message);
+
+    // Mensajes de error amigables para el usuario
+    if (error.message && error.message.includes('REQUEST_DENIED')) {
+      console.error('🚫 DIAGNOSIS: La API de Distance Matrix está denegada');
+      console.error('🔧 SOLUCIONES RECOMENDADAS:');
+      console.error('   1. Habilita Distance Matrix API en Google Cloud Console');
+      console.error('   2. Activa la facturación en el proyecto changanet-notifications-477520');
+      console.error('   3. Verifica restricciones de la clave API (debe incluir localhost:5174 y app.changanet.com.ar)');
+      console.error('   4. Asegúrate de que Maps JavaScript API y Places API estén habilitadas');
+
+      // Lanzar error con mensaje amigable
+      throw new Error('La API de Google Maps no está disponible. Verifica la configuración en Google Cloud Console.');
+    }
+
+    if (error.message && error.message.includes('API key')) {
+      throw new Error('Clave de API de Google Maps inválida o expirada.');
+    }
+
+    // Para otros errores, usar fallback automático
+    console.warn('⚠️  Error en Google Maps API, usando cálculo alternativo de distancia');
+    throw new Error('Error temporal en el servicio de mapas. Se usará distancia aproximada.');
   }
 };
 
@@ -158,43 +105,25 @@ export const getDistanceMatrix = async (origin, destination) => {
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
-    console.log('🔄 Inicializando autocompletado con Autocomplete class...');
-    await initGoogleMaps();
-    console.log('✅ Google Maps inicializado, creando Autocomplete...');
-
-    // Crear instancia de Autocomplete
-    const autocomplete = new placesLibrary.Autocomplete(inputElement, {
-      fields: ['formatted_address', 'geometry', 'place_id']
+    await initializeGoogleMaps();
+    const { Autocomplete } = await importLibrary('places');
+    const autocomplete = new Autocomplete(inputElement, {
+      types: ['geocode'],
+      componentRestrictions: { country: 'AR' }
     });
 
-    console.log('✅ Autocomplete creado exitosamente');
-
-    // Event listener para cuando se selecciona un lugar
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
-
-      if (!place.geometry || !place.geometry.location) {
-        console.warn('No se encontraron detalles del lugar seleccionado');
-        return;
+      if (place.geometry) {
+        callback({
+          address: place.formatted_address,
+          location: place.geometry.location
+        });
       }
-
-      const location = {
-        address: place.formatted_address,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        placeId: place.place_id
-      };
-
-      console.log('📍 Lugar seleccionado:', location);
-      callback(location);
     });
-
-    return autocomplete;
   } catch (error) {
-    console.error('❌ Error inicializando autocompletado:', error);
-    console.error('Detalles del error:', error.message);
-    console.error('Stack trace:', error.stack);
-    throw error;
+    console.error('Error al inicializar Places API:', error);
+    throw new Error('No se pudo cargar Google Maps Places API');
   }
 };
 
@@ -247,8 +176,6 @@ export const getSimulatedCoordinates = (zonaCobertura) => {
 };
 
 export default {
-  initGoogleMaps,
-  geocodeAddress,
   getDistanceMatrix,
   initAutocomplete,
   calculateHaversineDistance,

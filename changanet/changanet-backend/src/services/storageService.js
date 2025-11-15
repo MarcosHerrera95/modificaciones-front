@@ -125,44 +125,101 @@ const validateFile = (buffer, mimeType, originalName) => {
 };
 
 /**
- * Sube documento genérico a Google Cloud Storage
- * @param {Buffer} fileBuffer - Buffer del archivo
- * @param {string} fileName - Nombre del archivo
- * @param {string} mimeType - Tipo MIME
- * @param {string} userId - ID del usuario
- * @returns {Promise<string>} Nombre del archivo subido
+ * Sube documento de verificación a Cloudinary
+ * @param {Buffer} buffer - Buffer del documento
+ * @param {string} fileName - Nombre original del archivo
+ * @param {string} mimeType - Tipo MIME del archivo
+ * @param {string} userId - ID del usuario para organización
+ * @returns {Promise<string>} URL segura del documento subido
  */
-const uploadDocument = async (fileBuffer, fileName, mimeType, userId) => {
+const uploadDocument = async (buffer, fileName, mimeType, userId) => {
   try {
-    // Usar la nueva función específica para verificación
-    return await uploadVerificationDocument(fileBuffer, fileName, userId);
+    // Determinar el tipo de recurso basado en el MIME type
+    let resourceType = 'raw'; // Default para documentos
+    if (mimeType.startsWith('image/')) {
+      resourceType = 'image';
+    }
+
+    // Crear un stream desde el buffer
+    const stream = require('stream');
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(buffer);
+
+    const uploadOptions = {
+      folder: `changanet/verifications/${userId}`,
+      resource_type: resourceType,
+      public_id: `verification_${Date.now()}_${fileName}`,
+      // Configuración adicional para documentos
+      type: 'upload',
+      access_mode: 'authenticated' // Los documentos de verificación son privados
+    };
+
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) {
+          console.error('❌ Error subiendo documento a Cloudinary:', error);
+          reject(new Error('Error al subir el documento'));
+        } else {
+          console.log('✅ Documento subido a Cloudinary:', result.secure_url);
+          resolve(result.secure_url);
+        }
+      });
+
+      bufferStream.pipe(uploadStream);
+    });
   } catch (error) {
-    console.error('❌ Error subiendo documento:', error);
-    throw error;
+    console.error('❌ Error subiendo documento a Cloudinary:', error);
+    throw new Error('Error al subir el documento');
   }
 };
 
 /**
  * Sube imagen a Cloudinary para perfiles de usuario
- * @param {Buffer} buffer - Buffer de la imagen
+ * @param {Buffer|string} buffer - Buffer de la imagen o path del archivo
  * @param {Object} options - Opciones de subida (folder, etc.)
  * @returns {Promise<Object>} Resultado de Cloudinary
  */
 const uploadImage = async (buffer, options = {}) => {
   try {
-    const result = await cloudinary.uploader.upload(buffer, {
+    // Para buffers, necesitamos usar el método de subida directo sin path
+    const uploadOptions = {
       folder: options.folder || 'changanet/profiles',
       resource_type: 'image',
       ...options
-    });
+    };
 
-    console.log('✅ Imagen subida a Cloudinary:', result.secure_url);
-    return result;
+    // Si es un buffer, usar upload_stream que es más apropiado para buffers
+    if (Buffer.isBuffer(buffer)) {
+      // Crear un stream desde el buffer
+      const stream = require('stream');
+      const bufferStream = new stream.PassThrough();
+      bufferStream.end(buffer);
+
+      return new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+          if (error) {
+            console.error('❌ Error subiendo imagen a Cloudinary:', error);
+            reject(new Error('Error al subir la imagen'));
+          } else {
+            console.log('✅ Imagen subida a Cloudinary:', result.secure_url);
+            resolve(result);
+          }
+        });
+
+        bufferStream.pipe(uploadStream);
+      });
+    } else {
+      // Para otros tipos (como URLs), usar el método normal
+      const result = await cloudinary.uploader.upload(buffer, uploadOptions);
+      console.log('✅ Imagen subida a Cloudinary:', result.secure_url);
+      return result;
+    }
   } catch (error) {
     console.error('❌ Error subiendo imagen a Cloudinary:', error);
     throw new Error('Error al subir la imagen');
   }
 };
+
 
 /**
  * Elimina imagen de Cloudinary

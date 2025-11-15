@@ -84,6 +84,7 @@ const serviceRoutes = require('./routes/servicesRoutes');
 const galleryRoutes = require('./routes/galleryRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
+const professionalsRoutes = require('./routes/professionalsRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
@@ -268,10 +269,14 @@ const corsOrigins = [
   "http://localhost:5174",
   "http://localhost:5175",
   "http://localhost:5176",
+  "http://localhost:5177",
+  "http://localhost:5178",
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "http://127.0.0.1:5175",
   "http://127.0.0.1:5176",
+  "http://127.0.0.1:5177",
+  "http://127.0.0.1:5178",
   "http://localhost:3000"
 ];
 
@@ -295,7 +300,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control']
 }));
 
 // Middleware para parsear JSON con límite de tamaño
@@ -362,8 +367,8 @@ app.use('/api/auth', authRoutes);
 // Rutas de perfiles de usuario
 app.use('/api/profile', profileRoutes);
 
-// Rutas de búsqueda de profesionales
-app.use('/api/professionals', searchRoutes);
+// Rutas de profesionales
+app.use('/api/professionals', professionalsRoutes);
 
 // Rutas de mensajería con autenticación requerida
 app.use('/api/messages', authenticateToken, messageRoutes);
