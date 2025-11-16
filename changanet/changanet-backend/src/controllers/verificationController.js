@@ -1,5 +1,9 @@
 /**
  * Controlador para gestión de verificación de identidad.
+ * Implementa sección 7.8 del PRD: Verificación de Identidad y Reputación
+ * REQ-36: Subir documento de identidad
+ * REQ-37: Mostrar insignia "Verificado"
+ * REQ-40: Administradores aprueban/rechazan solicitudes
  * Maneja solicitudes de verificación, consultas de estado y operaciones administrativas.
  */
 
@@ -8,6 +12,8 @@ const { uploadVerificationDocument, getSignedUrl, validateFile } = require('../s
 
 /**
  * Solicita verificación de identidad subiendo un documento
+ * REQ-36: Permite subir documento de identidad
+ * Crea solicitud pendiente para revisión administrativa
  */
 async function requestVerification(req, res) {
   try {
@@ -105,6 +111,8 @@ async function getPendingVerifications(req, res) {
 
 /**
  * Aprueba una solicitud de verificación (solo administradores)
+ * REQ-37: Otorga insignia "Verificado" al aprobar
+ * REQ-40: Administradores pueden aprobar solicitudes
  */
 async function approveVerification(req, res) {
   try {

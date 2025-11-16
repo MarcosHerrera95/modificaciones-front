@@ -1,4 +1,7 @@
 // src/routes/availabilityRoutes.js
+// Rutas para gestión de disponibilidad y agenda
+// Implementa sección 7.6 del PRD: Gestión de Disponibilidad y Agenda
+
 const express = require('express');
 const { createAvailability, getAvailability, updateAvailability, deleteAvailability } = require('../controllers/availabilityController');
 const { authenticateToken } = require('../middleware/authenticate');

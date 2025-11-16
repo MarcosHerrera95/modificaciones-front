@@ -1,7 +1,8 @@
 /**
  * Servicio de mapas para Changánet - Google Maps API Integration
+ * Implementa sección 14 del PRD: Geolocalización y Mapa Interactivo
  * Maneja geocodificación, autocompletado y cálculo de distancias
- * REQ-09, REQ-12, REQ-15
+ * REQ-09 (zona de cobertura), REQ-12 (radio de búsqueda), REQ-15 (cálculo de distancia)
  * Usa la nueva API funcional de @googlemaps/js-api-loader
  */
 
@@ -9,6 +10,9 @@ import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 
 // Estado del servicio
 let isInitialized = false;
+
+// Cache para resultados de distancia
+const distanceCache = new Map();
 
 /**
  * Inicializa Google Maps API usando la nueva API funcional
@@ -38,6 +42,15 @@ const initializeGoogleMaps = async () => {
 
 
 export const getDistanceMatrix = async (origin, destination) => {
+  // Crear clave de cache
+  const cacheKey = `${JSON.stringify(origin)}-${JSON.stringify(destination)}`;
+
+  // Verificar si ya tenemos el resultado en cache
+  if (distanceCache.has(cacheKey)) {
+    console.log('📋 Using cached distance result');
+    return distanceCache.get(cacheKey);
+  }
+
   try {
     console.log('🔍 Attempting to calculate distance matrix...');
     console.log('📍 Origin:', origin);
@@ -72,7 +85,9 @@ export const getDistanceMatrix = async (origin, destination) => {
       throw new Error('No se recibió respuesta válida de la API de Distance Matrix');
     }
 
-    return response.rows[0].elements[0];
+    const result = response.rows[0].elements[0];
+    distanceCache.set(cacheKey, result); // Cache the result
+    return result;
   } catch (error) {
     console.error("❌ Error calculando distancia con Google Maps:", error.message);
 
@@ -97,7 +112,7 @@ export const getDistanceMatrix = async (origin, destination) => {
     );
 
     // Retornar objeto compatible con Distance Matrix API
-    return {
+    const fallbackResult = {
       distance: {
         text: `${Math.round(distanceKm)} km`,
         value: Math.round(distanceKm * 1000) // metros
@@ -108,6 +123,9 @@ export const getDistanceMatrix = async (origin, destination) => {
       },
       status: 'OK'
     };
+
+    distanceCache.set(cacheKey, fallbackResult); // Cache the fallback result
+    return fallbackResult;
   }
 };
 

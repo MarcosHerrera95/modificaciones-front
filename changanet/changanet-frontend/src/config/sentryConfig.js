@@ -27,7 +27,7 @@ export function initializeSentry() {
     }
 
     // Verificar que el DSN tenga un formato válido
-    if (!dsn.startsWith('https://') || !dsn.includes('@') || !dsn.includes('.ingest.sentry.io/')) {
+    if (!dsn.startsWith('https://') || !dsn.includes('@') || !dsn.includes('.ingest.') || !dsn.includes('.sentry.io/')) {
       console.warn('⚠️ VITE_SENTRY_DSN tiene un formato inválido - Sentry no se inicializará');
       return;
     }

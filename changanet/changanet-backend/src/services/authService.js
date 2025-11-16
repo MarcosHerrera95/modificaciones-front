@@ -1,6 +1,7 @@
 /**
  * Servicio de autenticación usando Firebase Auth Admin SDK.
  * Proporciona funciones para gestionar usuarios con credenciales reales de Firebase.
+ * Complementa la autenticación principal con integración OAuth (REQ-02)
  */
 
 const { auth } = require('../config/firebaseAdmin');
@@ -10,6 +11,7 @@ const prisma = new PrismaClient();
 /**
  * Crea un nuevo usuario en Firebase Auth con email y contraseña.
  * Utiliza el Admin SDK para crear usuarios desde el servidor.
+ * Parte de la integración OAuth (REQ-02)
  */
 exports.createUserWithEmailAndPassword = async (email, password, displayName = null) => {
   try {

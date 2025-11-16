@@ -1,9 +1,23 @@
+/**
+ * Controlador de mensajería
+ * Implementa sección 7.4 del PRD: Mensajería Interna
+ * REQ-16: Chat interno en página del perfil
+ * REQ-17: Envío de mensajes de texto
+ * REQ-18: Envío de imágenes
+ * REQ-19: Notificaciones de nuevos mensajes (push y email)
+ * REQ-20: Historial de conversaciones
+ */
+
 // src/controllers/messageController.js
 const { PrismaClient } = require('@prisma/client');
 const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
 const { getMessageHistory: getHistory, markMessagesAsRead } = require('../services/chatService');
 const prisma = new PrismaClient();
 
+/**
+ * Obtiene historial de mensajes entre dos usuarios
+ * REQ-20: Mantiene historial de conversaciones
+ */
 exports.getMessageHistory = async (req, res) => {
   const { id: userId } = req.user;
   const { with: otherUserId } = req.query;
@@ -22,7 +36,12 @@ exports.getMessageHistory = async (req, res) => {
   }
 };
 
-// VERIFICACIÓN: Función para enviar mensaje con notificación push usando VAPID key
+/**
+ * Envía mensaje a otro usuario
+ * REQ-17: Permite enviar mensajes de texto
+ * REQ-18: Permite enviar imágenes
+ * REQ-19: Envía notificaciones push y email
+ */
 exports.sendMessage = async (req, res) => {
   const { id: senderId } = req.user;
   const { recipientId, content, url_imagen, servicio_id } = req.body;

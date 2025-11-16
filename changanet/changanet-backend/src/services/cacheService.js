@@ -1,149 +1,174 @@
 /**
  * Servicio de caché Redis para Changánet
  * Implementa estrategias de caché para búsquedas frecuentes y datos de alto acceso
+ * Mejora rendimiento de queries repetitivas y reduce carga en base de datos
  */
 
-const redis = require('redis');
+const redis = require('redis'); // Librería cliente Redis para Node.js
 
-// Configuración del cliente Redis
+// Variable global para almacenar instancia del cliente Redis
 let redisClient = null;
 
 /**
- * Inicializa la conexión a Redis
+ * Inicializa la conexión a Redis con configuración robusta
+ * Maneja fallos gracefully permitiendo funcionamiento sin caché
  */
 async function initializeRedis() {
   try {
-    // Solo inicializar si Redis está configurado
+    // Verificar si Redis está configurado en variables de entorno
     if (!process.env.REDIS_HOST && !process.env.REDIS_PORT) {
-      console.log('ℹ️ Redis no configurado, funcionando sin caché');
-      redisClient = null;
-      return;
+      console.log('ℹ️ Redis no configurado, funcionando sin caché'); // Log informativo
+      redisClient = null; // Deshabilitar caché explícitamente
+      return; // Salir temprano sin error
     }
 
+    // Crear cliente Redis con configuración completa y tolerante a fallos
     redisClient = redis.createClient({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: process.env.REDIS_PORT || 6379,
-      password: process.env.REDIS_PASSWORD || undefined,
-      // Configuración para evitar timeouts
+      host: process.env.REDIS_HOST || 'localhost', // Host desde env o default
+      port: process.env.REDIS_PORT || 6379,        // Puerto desde env o default 6379
+      password: process.env.REDIS_PASSWORD || undefined, // Password si está configurado
+      // Configuración de socket para estabilidad de conexión
       socket: {
-        connectTimeout: 5000,
-        commandTimeout: 3000,
-        lazyConnect: true,
+        connectTimeout: 5000,    // Timeout de conexión inicial: 5 segundos
+        commandTimeout: 3000,    // Timeout por comando: 3 segundos
+        lazyConnect: true,       // Conectar solo cuando se necesite
       },
-      // Reintentar conexiones
+      // Estrategia de reintento para manejar fallos temporales
       retry_strategy: (options) => {
+        // Si conexión es rechazada, no reintentar (problema de configuración)
         if (options.error && options.error.code === 'ECONNREFUSED') {
           console.warn('Redis connection refused, skipping cache');
           return null; // No reintentar
         }
+        // Si tiempo total de reintento supera 1 hora, desistir
         if (options.total_retry_time > 1000 * 60 * 60) {
           console.warn('Redis retry time exhausted, skipping cache');
           return null; // No reintentar
         }
+        // Si se superan 3 intentos, desistir
         if (options.attempt > 3) {
           console.warn('Redis max attempts reached, skipping cache');
           return null; // No reintentar
         }
+        // Calcular delay exponencial con máximo de 3 segundos
         return Math.min(options.attempt * 100, 3000);
       }
     });
 
+    // Configurar manejadores de eventos para monitoreo de conexión
     redisClient.on('error', (err) => {
       console.warn('Redis Client Error (continuando sin caché):', err.message);
-      redisClient = null;
+      redisClient = null; // Deshabilitar caché ante errores
     });
 
     redisClient.on('connect', () => {
-      console.log('✅ Conectado a Redis');
+      console.log('✅ Conectado a Redis'); // Log de conexión exitosa
     });
 
     redisClient.on('ready', () => {
-      console.log('✅ Redis listo para usar');
+      console.log('✅ Redis listo para usar'); // Log cuando Redis está operativo
     });
 
+    // Establecer conexión inicial
     await redisClient.connect();
   } catch (error) {
+    // Capturar cualquier error durante inicialización
     console.warn('Redis no disponible, funcionando sin caché:', error.message);
-    redisClient = null;
+    redisClient = null; // Asegurar que caché esté deshabilitado
   }
 }
 
 /**
- * Obtiene un valor del caché
- * @param {string} key - Clave del caché
- * @returns {Promise<string|null>} Valor almacenado o null si no existe
+ * Obtiene un valor del caché Redis
+ * @param {string} key - Clave del caché a buscar
+ * @returns {Promise<string|null>} Valor almacenado o null si no existe/clave expiró
  */
 async function get(key) {
+  // Verificar si Redis está disponible antes de intentar operación
   if (!redisClient) return null;
 
   try {
+    // Ejecutar comando GET de Redis para obtener valor
     const value = await redisClient.get(key);
-    return value;
+    return value; // Retornar valor encontrado o null si no existe
   } catch (error) {
+    // Log de error pero no fallar - caché es opcional
     console.warn('Error obteniendo de caché:', error.message);
-    return null;
+    return null; // Retornar null para indicar fallo
   }
 }
 
 /**
- * Almacena un valor en el caché con TTL
- * @param {string} key - Clave del caché
- * @param {string} value - Valor a almacenar
+ * Almacena un valor en el caché con tiempo de expiración
+ * @param {string} key - Clave única para el valor
+ * @param {string} value - Valor a almacenar (debe ser string)
  * @param {number} ttlSeconds - Tiempo de vida en segundos (default: 300 = 5 minutos)
  */
 async function set(key, value, ttlSeconds = 300) {
+  // Si no hay Redis disponible, salir silenciosamente
   if (!redisClient) return;
 
   try {
+    // Usar setEx para almacenar con TTL automático
     await redisClient.setEx(key, ttlSeconds, value);
   } catch (error) {
+    // Log de error pero continuar - caché es opcional
     console.warn('Error almacenando en caché:', error.message);
   }
 }
 
 /**
- * Elimina una clave del caché
- * @param {string} key - Clave a eliminar
+ * Elimina una clave específica del caché
+ * @param {string} key - Clave a eliminar del caché
  */
 async function del(key) {
+  // Si no hay Redis disponible, salir silenciosamente
   if (!redisClient) return;
 
   try {
+    // Ejecutar comando DEL de Redis
     await redisClient.del(key);
   } catch (error) {
+    // Log de error pero continuar - operación no crítica
     console.warn('Error eliminando del caché:', error.message);
   }
 }
 
 /**
- * Cache para resultados de búsqueda de profesionales
- * @param {Object} filters - Filtros de búsqueda
- * @param {Array} results - Resultados de la búsqueda
+ * Almacena resultados de búsqueda de profesionales en caché
+ * @param {Object} filters - Objeto con filtros aplicados (especialidad, zona, precio, etc.)
+ * @param {Array} results - Resultados paginados de la búsqueda con metadata
  */
 async function cacheProfessionalSearch(filters, results) {
+  // Generar clave única basada en filtros para evitar colisiones
   const cacheKey = `search:professionals:${JSON.stringify(filters)}`;
-  await set(cacheKey, JSON.stringify(results), 600); // 10 minutos
+  // Almacenar por 10 minutos (búsquedas cambian frecuentemente)
+  await set(cacheKey, JSON.stringify(results), 600);
 }
 
 /**
- * Obtiene resultados de búsqueda cacheados
- * @param {Object} filters - Filtros de búsqueda
- * @returns {Promise<Array|null>} Resultados cacheados o null
+ * Recupera resultados de búsqueda de profesionales desde caché
+ * @param {Object} filters - Filtros de búsqueda para generar clave de caché
+ * @returns {Promise<Array|null>} Resultados cacheados o null si no existen/expiraron
  */
 async function getCachedProfessionalSearch(filters) {
+  // Generar misma clave que en cacheProfessionalSearch
   const cacheKey = `search:professionals:${JSON.stringify(filters)}`;
+  // Intentar obtener valor del caché
   const cached = await get(cacheKey);
 
   if (cached) {
     try {
+      // Parsear JSON almacenado de vuelta a objeto
       return JSON.parse(cached);
     } catch (error) {
+      // Log si hay corrupción de datos en caché
       console.warn('Error parseando caché de búsqueda:', error.message);
-      return null;
+      return null; // Retornar null para forzar nueva consulta
     }
   }
 
-  return null;
+  return null; // No encontrado en caché
 }
 
 /**

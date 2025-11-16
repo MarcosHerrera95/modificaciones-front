@@ -1,5 +1,6 @@
 /**
  * Rutas para el sistema de verificación de identidad.
+ * Implementa sección 7.8 del PRD: Verificación de Identidad y Reputación
  * Define endpoints para solicitudes de verificación y gestión administrativa.
  */
 

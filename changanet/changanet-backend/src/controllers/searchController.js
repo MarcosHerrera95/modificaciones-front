@@ -1,3 +1,13 @@
+/**
+ * Controlador para sistema de búsqueda de profesionales
+ * Implementa sección 7.3 del PRD: Sistema de Búsqueda y Filtros
+ * REQ-11: Búsqueda por palabra clave
+ * REQ-12: Filtros por especialidad, ciudad, barrio y radio
+ * REQ-13: Filtro por rango de precio
+ * REQ-14: Ordenamiento por calificación, cercanía y disponibilidad
+ * REQ-15: Tarjeta resumen con foto, nombre, calificación, distancia
+ */
+
 // src/controllers/searchController.js
 const { PrismaClient } = require('@prisma/client');
 const { getCachedProfessionalSearch, cacheProfessionalSearch } = require('../services/cacheService');
@@ -24,234 +34,271 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   return distance;
 }
 
+/**
+ * Busca profesionales con filtros avanzados y paginación
+ * REQ-11: Búsqueda por especialidad
+ * REQ-12: Filtros por zona y precio
+ * REQ-13: Rango de precio
+ * REQ-14: Ordenamiento por calificación, precio, distancia
+ * REQ-15: Incluye estadísticas calculadas (reseñas, servicios completados)
+ * Soporta caché para optimización
+ */
 exports.searchProfessionals = async (req, res) => {
+  // Extraer parámetros de búsqueda de la query string (REQ-11: búsqueda por múltiples criterios)
   const {
-    especialidad,
-    zona_cobertura,
-    precio_min,
-    precio_max,
-    sort_by = 'calificacion_promedio',
-    page = 1,
-    limit = 10,
-    user_lat,  // Latitud del usuario para cálculo de distancia
-    user_lng   // Longitud del usuario para cálculo de distancia
+    especialidad,     // Filtro por especialidad del profesional
+    zona_cobertura,   // Filtro por zona/barrio de cobertura
+    precio_min,       // Filtro de precio mínimo por hora
+    precio_max,       // Filtro de precio máximo por hora
+    sort_by = 'calificacion_promedio', // Ordenamiento: calificación, precio, distancia, disponibilidad
+    page = 1,         // Número de página para paginación
+    limit = 10,       // Cantidad de resultados por página
+    user_lat,         // Latitud del usuario para cálculo de distancia (REQ-14)
+    user_lng          // Longitud del usuario para cálculo de distancia (REQ-14)
   } = req.query;
 
   try {
-    // Validar parámetros
+    // Validar que el parámetro de ordenamiento sea válido (REQ-14: opciones de ordenamiento)
     const validSortOptions = ['calificacion_promedio', 'tarifa_hora', 'distancia', 'disponibilidad'];
     if (!validSortOptions.includes(sort_by)) {
       return res.status(400).json({ error: 'Parámetro sort_by inválido. Opciones válidas: calificacion_promedio, tarifa_hora, distancia, disponibilidad.' });
     }
 
+    // Convertir y validar parámetros de paginación
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     if (pageNum < 1 || limitNum < 1 || limitNum > 100) {
       return res.status(400).json({ error: 'Parámetros de paginación inválidos.' });
     }
-    // Crear objeto de filtros para el caché
+    // Crear objeto normalizado de filtros para caché y consultas
     const filters = {
-      especialidad: especialidad || null,
-      zona_cobertura: zona_cobertura || null,
-      precio_min: precio_min ? parseFloat(precio_min) : null,
-      precio_max: precio_max ? parseFloat(precio_max) : null,
-      sort_by: sort_by || 'calificacion_promedio',
-      page: parseInt(page),
-      limit: parseInt(limit),
-      user_lat: user_lat ? parseFloat(user_lat) : null,
-      user_lng: user_lng ? parseFloat(user_lng) : null
+      especialidad: especialidad || null,           // Especialidad a buscar
+      zona_cobertura: zona_cobertura || null,       // Zona geográfica
+      precio_min: precio_min ? parseFloat(precio_min) : null,  // Precio mínimo
+      precio_max: precio_max ? parseFloat(precio_max) : null,  // Precio máximo
+      sort_by: sort_by || 'calificacion_promedio',  // Criterio de ordenamiento
+      page: parseInt(page),                         // Página actual
+      limit: parseInt(limit),                       // Resultados por página
+      user_lat: user_lat ? parseFloat(user_lat) : null,  // Latitud usuario
+      user_lng: user_lng ? parseFloat(user_lng) : null    // Longitud usuario
     };
 
-    // Intentar obtener resultados del caché
+    // Intentar obtener resultados desde caché para mejorar rendimiento
     const cachedResults = await getCachedProfessionalSearch(filters);
     if (cachedResults) {
-      console.log('🔍 Resultados obtenidos del caché');
-      return res.status(200).json(cachedResults);
+      console.log('🔍 Resultados obtenidos del caché'); // Log para monitoreo
+      return res.status(200).json(cachedResults); // Retornar resultados cacheados
     }
 
+    // Inicializar objeto de condiciones WHERE para Prisma
     const where = {};
 
-    // Búsqueda por especialidad con ILIKE (REQ-11)
+    // Aplicar filtro de búsqueda por especialidad (REQ-11: búsqueda por palabra clave)
     if (especialidad) {
-      where.especialidad = { contains: especialidad };
+      where.especialidad = { contains: especialidad }; // Búsqueda insensible a mayúsculas
     }
 
-    // Filtro por zona/barrio (REQ-12)
+    // Aplicar filtro por zona/barrio de cobertura (REQ-12: filtro geográfico)
     if (zona_cobertura) {
-      where.zona_cobertura = { contains: zona_cobertura };
+      where.zona_cobertura = { contains: zona_cobertura }; // Búsqueda parcial
     }
 
-    // Filtro por rango de precio (REQ-13)
+    // Aplicar filtro por rango de precios (REQ-13: filtro económico)
     if (precio_min || precio_max) {
-      where.tarifa_hora = {};
-      if (precio_min) where.tarifa_hora.gte = parseFloat(precio_min);
-      if (precio_max) where.tarifa_hora.lte = parseFloat(precio_max);
+      where.tarifa_hora = {}; // Inicializar objeto de condiciones para tarifa
+      if (precio_min) where.tarifa_hora.gte = parseFloat(precio_min); // Mayor o igual
+      if (precio_max) where.tarifa_hora.lte = parseFloat(precio_max); // Menor o igual
     }
 
+    // Calcular offset para paginación (saltar registros anteriores)
     const skip = (page - 1) * limit;
+    // Definir límite de resultados por página
     const take = parseInt(limit);
 
-    // Configurar ordenamiento (REQ-14)
-    let orderBy = {};
-    let sortInMemory = false;
+    // Configurar lógica de ordenamiento según parámetro sort_by (REQ-14)
+    let orderBy = {};        // Configuración de ordenamiento para Prisma
+    let sortInMemory = false; // Flag para ordenamiento post-consulta
     switch (sort_by) {
       case 'calificacion_promedio':
-        // Calificación promedio se calcula después, ordenar en memoria
+        // Calificación se calcula después de consulta, requiere ordenamiento en memoria
         sortInMemory = true;
-        orderBy = [{ usuario: { nombre: 'asc' } }];
+        orderBy = [{ usuario: { nombre: 'asc' } }]; // Ordenamiento base por nombre
         break;
       case 'tarifa_hora':
+        // Ordenamiento directo por tarifa en base de datos
         orderBy = [{ tarifa_hora: 'asc' }];
         break;
       case 'distancia':
-        // Para distancia real: ordenar en memoria si hay coordenadas, sino por zona
+        // Ordenamiento por distancia requiere cálculo post-consulta
         if (user_lat && user_lng) {
-          sortInMemory = true;
-          orderBy = [{ zona_cobertura: 'asc' }]; // Fallback para DB
+          sortInMemory = true;  // Calcular distancias y ordenar en memoria
+          orderBy = [{ zona_cobertura: 'asc' }]; // Fallback básico para DB
         } else {
+          // Sin coordenadas de usuario, ordenar por zona alfabéticamente
           orderBy = [{ zona_cobertura: 'asc' }];
         }
         break;
       case 'disponibilidad':
-        // Para disponibilidad: ordenar por estado de verificación (verificado primero)
+        // Ordenar por estado de verificación (verificados primero)
         orderBy = [{ estado_verificacion: 'asc' }];
         break;
       default:
+        // Caso por defecto: ordenamiento en memoria por nombre
         sortInMemory = true;
         orderBy = [{ usuario: { nombre: 'asc' } }];
     }
 
+    // Registrar evento de búsqueda para analytics y monitoreo
     console.log({ event: 'search_performed', filters, timestamp: new Date().toISOString() });
 
+    // Ejecutar consulta principal a la base de datos con filtros aplicados
     const professionals = await prisma.perfiles_profesionales.findMany({
-      where,
-      skip,
-      take,
-      orderBy,
-      include: {
+      where,     // Condiciones de filtro aplicadas
+      skip,      // Offset para paginación
+      take,      // Límite de resultados
+      orderBy,   // Configuración de ordenamiento
+      include: { // Incluir datos relacionados del usuario
         usuario: {
-          select: { id: true, nombre: true, email: true },
+          select: { id: true, nombre: true, email: true }, // Solo campos necesarios
         },
       },
     });
 
-    // Calcular distancias reales si se proporcionaron coordenadas del usuario
+    // Calcular distancias geográficas si el usuario proporcionó coordenadas (REQ-14)
     if (user_lat && user_lng) {
       professionals.forEach(prof => {
+        // Verificar que el profesional tenga coordenadas guardadas
         if (prof.latitud && prof.longitud) {
+          // Calcular distancia usando fórmula de Haversine
           prof.distancia_km = calculateDistance(
-            parseFloat(user_lat),
-            parseFloat(user_lng),
-            prof.latitud,
-            prof.longitud
+            parseFloat(user_lat),   // Latitud del usuario
+            parseFloat(user_lng),   // Longitud del usuario
+            prof.latitud,           // Latitud del profesional
+            prof.longitud           // Longitud del profesional
           );
         } else {
-          prof.distancia_km = null; // No se puede calcular distancia
+          // Profesional sin coordenadas - distancia no calculable
+          prof.distancia_km = null;
         }
       });
     }
 
-    // Optimizar consultas: precargar datos relacionados para evitar N+1
-    const professionalIds = professionals.map(p => p.usuario_id);
+    // Optimizar rendimiento: precargar estadísticas para evitar consultas N+1
+    const professionalIds = professionals.map(p => p.usuario_id); // IDs de profesionales encontrados
+
+    // Ejecutar consultas paralelas para obtener reseñas y servicios completados
     const [reviewsData, services] = await Promise.all([
+      // Obtener todas las reseñas de estos profesionales
       prisma.resenas.findMany({
         where: {
           servicio: {
-            profesional_id: { in: professionalIds }
+            profesional_id: { in: professionalIds } // Servicios de estos profesionales
           }
         },
         select: {
-          calificacion: true,
+          calificacion: true,  // Solo necesitamos la calificación
           servicio: {
-            select: { profesional_id: true }
+            select: { profesional_id: true } // Para agrupar por profesional
           }
         }
       }),
+      // Contar servicios completados por profesional
       prisma.servicios.groupBy({
-        by: ['profesional_id'],
-        where: { profesional_id: { in: professionalIds }, estado: 'COMPLETADO' },
-        _count: { id: true }
+        by: ['profesional_id'],  // Agrupar por ID de profesional
+        where: {
+          profesional_id: { in: professionalIds },
+          estado: 'COMPLETADO'  // Solo servicios finalizados
+        },
+        _count: { id: true }  // Contar cantidad de servicios
       })
     ]);
 
-    // Crear mapa de estadísticas para acceso rápido
+    // Crear mapa de estadísticas para acceso O(1) durante procesamiento
     const statsMap = new Map();
     professionalIds.forEach(id => {
       statsMap.set(id, {
-        calificacion_promedio: 0,
-        total_resenas: 0,
-        servicios_completados: 0
+        calificacion_promedio: 0,    // Promedio de calificaciones
+        total_resenas: 0,           // Cantidad total de reseñas
+        servicios_completados: 0    // Servicios finalizados
       });
     });
 
-    // Procesar reseñas
+    // Procesar reseñas para calcular estadísticas por profesional
     reviewsData.forEach(review => {
-      const profId = review.servicio.profesional_id;
-      const stats = statsMap.get(profId);
+      const profId = review.servicio.profesional_id; // ID del profesional de esta reseña
+      const stats = statsMap.get(profId); // Obtener estadísticas del profesional
       if (stats) {
-        stats.total_resenas++;
-        stats.calificacion_promedio += review.calificacion;
+        stats.total_resenas++; // Incrementar contador de reseñas
+        stats.calificacion_promedio += review.calificacion; // Sumar calificación para promedio
       }
     });
 
-    // Calcular promedio
+    // Calcular promedio de calificaciones para cada profesional
     statsMap.forEach(stats => {
       if (stats.total_resenas > 0) {
+        // Dividir suma total por cantidad de reseñas
         stats.calificacion_promedio = stats.calificacion_promedio / stats.total_resenas;
       }
+      // Si no hay reseñas, calificación_promedio permanece en 0
     });
 
-    // Procesar servicios completados
+    // Asignar cantidad de servicios completados a cada profesional
     services.forEach(serviceStat => {
       const stats = statsMap.get(serviceStat.profesional_id);
       if (stats) {
+        // Asignar conteo de servicios completados
         stats.servicios_completados = serviceStat._count.id;
       }
     });
 
-    // Enriquecer resultados con estadísticas calculadas
+    // Enriquecer resultados con estadísticas calculadas (REQ-15: tarjeta resumen)
     const enrichedProfessionals = professionals.map(prof => ({
-      ...prof,
+      ...prof, // Copiar todos los campos del perfil profesional
+      // Agregar estadísticas calculadas con valores por defecto
       calificacion_promedio: statsMap.get(prof.usuario_id)?.calificacion_promedio || 0,
       total_resenas: statsMap.get(prof.usuario_id)?.total_resenas || 0,
       servicios_completados: statsMap.get(prof.usuario_id)?.servicios_completados || 0
     }));
 
-    // Ordenar en memoria si es necesario
+    // Aplicar ordenamiento en memoria si fue configurado (sortInMemory = true)
     if (sortInMemory) {
       enrichedProfessionals.sort((a, b) => {
+        // Ordenamiento específico por distancia si se solicitó y hay coordenadas
         if (sort_by === 'distancia' && user_lat && user_lng) {
-          // Ordenar por distancia ascendente si hay coordenadas
-          const distA = a.distancia_km || Infinity;
+          const distA = a.distancia_km || Infinity; // Usar infinito si no hay distancia
           const distB = b.distancia_km || Infinity;
           if (distA !== distB) {
-            return distA - distB;
+            return distA - distB; // Orden ascendente por distancia
           }
         }
 
-        // Ordenar por calificación descendente (default o fallback)
+        // Ordenamiento por calificación descendente (más alta primero)
         if (b.calificacion_promedio !== a.calificacion_promedio) {
           return b.calificacion_promedio - a.calificacion_promedio;
         }
-        // Luego por nombre ascendente
+        // Criterio de desempate: orden alfabético por nombre
         return a.usuario.nombre.localeCompare(b.usuario.nombre);
       });
     }
 
+    // Contar total de resultados sin paginación para metadata
     const total = await prisma.perfiles_profesionales.count({ where });
+    // Calcular total de páginas disponibles
     const totalPages = Math.ceil(total / limit);
 
+    // Estructurar respuesta final con resultados y metadata de paginación
     const results = {
-      professionals: enrichedProfessionals,
-      total,
-      page: parseInt(page),
-      totalPages,
+      professionals: enrichedProfessionals, // Resultados enriquecidos con estadísticas
+      total,           // Total de profesionales encontrados
+      page: parseInt(page),     // Página actual
+      totalPages,     // Total de páginas disponibles
     };
 
-    // Almacenar en caché para futuras consultas
+    // Almacenar resultados en caché para mejorar rendimiento de búsquedas futuras
     await cacheProfessionalSearch(filters, results);
-    console.log('💾 Resultados almacenados en caché');
+    console.log('💾 Resultados almacenados en caché'); // Log para monitoreo
 
+    // Responder con resultados de búsqueda (REQ-15: tarjeta resumen incluida)
     res.status(200).json(results);
   } catch (error) {
     console.error('Error searching professionals:', error);

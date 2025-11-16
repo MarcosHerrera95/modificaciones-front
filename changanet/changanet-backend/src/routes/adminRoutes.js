@@ -1,4 +1,7 @@
 // src/routes/adminRoutes.js
+// Rutas del panel de administración
+// Implementa sección 15 del PRD: Panel de Administración
+
 const express = require('express');
 const { authenticateToken } = require('../middleware/authenticate');
 const adminController = require('../controllers/adminController');

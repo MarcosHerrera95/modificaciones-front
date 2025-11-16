@@ -27,41 +27,6 @@ El dashboard incluye métricas de:
 - **Errores de Negocio**: Errores por tipo y componente
 - **Actividad Triple Impacto**: Métricas de impacto social/económico/ambiental
 
-## 🔧 Configuración de Stripe
-
-### Variables de Entorno
-
-Agregar al archivo `.env`:
-
-```env
-# Stripe
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-```
-
-### Configuración de Webhooks
-
-1. En el dashboard de Stripe, crear un webhook endpoint:
-   - URL: `https://tu-dominio/api/stripe/webhook`
-   - Eventos: `checkout.session.completed`, `payment_intent.succeeded`
-
-2. Copiar el webhook secret al `.env`
-
-### Flujo de Pago con Stripe
-
-1. **Crear Sesión**: `POST /api/stripe/create-session`
-2. **Redireccionar**: Usuario paga en Stripe Checkout
-3. **Webhook**: Stripe confirma el pago
-4. **Liberar Fondos**: Fondos disponibles para el profesional
-
-## 🏦 Cuentas Conectadas de Stripe
-
-Los profesionales pueden conectar sus cuentas bancarias:
-
-1. **Crear Enlace**: `POST /api/stripe/account-link`
-2. **Onboarding**: Profesional completa verificación en Stripe
-3. **Pagos**: Fondos se transfieren automáticamente
 
 ## 📊 Métricas Disponibles
 
@@ -100,10 +65,9 @@ Para desarrollo local:
    - Grafana: http://localhost:3000
    - Prometheus: http://localhost:9090
 
-3. Configurar Stripe en modo sandbox para testing
+3. Configurar servicios de pago en modo sandbox para testing
 
 ## 📚 Documentación Adicional
 
-- [Stripe Connect Documentation](https://stripe.com/docs/connect)
 - [Prometheus Metrics](https://prometheus.io/docs/concepts/metric_types/)
 - [Grafana Dashboards](https://grafana.com/docs/grafana/latest/dashboards/)

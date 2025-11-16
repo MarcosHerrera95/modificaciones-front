@@ -1,4 +1,7 @@
 // src/routes/messageRoutes.js
+// Rutas para mensajería interna
+// Implementa sección 7.4 del PRD: Mensajería Interna
+
 const express = require('express');
 const { authenticateToken } = require('../middleware/authenticate');
 const {

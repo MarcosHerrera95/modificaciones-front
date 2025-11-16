@@ -4,9 +4,11 @@ import ProfessionalCard from '../components/ProfessionalCard';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import BackButton from '../components/BackButton';
 import useProfessionals from '../hooks/useProfessionals';
+import { useAuth } from '../context/AuthContext';
 
 const Professionals = () => {
   console.log('🚀 Professionals component mounted');
+  const { user } = useAuth();
   const {
     professionals: filteredProfessionals,
     loading,
@@ -185,22 +187,24 @@ const Professionals = () => {
             </div>
 
             {/* Selection Controls */}
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={handleSelectAll}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                {selectedProfessionals.length === filteredProfessionals.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
-              </button>
-              {selectedProfessionals.length > 0 && (
+            {user && (
+              <div className="flex items-center space-x-4">
                 <button
-                  onClick={handleRequestServices}
-                  className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-semibold"
+                  onClick={handleSelectAll}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                 >
-                  Solicitar Servicios ({selectedProfessionals.length})
+                  {selectedProfessionals.length === filteredProfessionals.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
                 </button>
-              )}
-            </div>
+                {selectedProfessionals.length > 0 && (
+                  <button
+                    onClick={handleRequestServices}
+                    className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-semibold"
+                  >
+                    Solicitar Servicios ({selectedProfessionals.length})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -228,15 +232,17 @@ const Professionals = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProfessionals.map((professional) => (
                   <div key={professional.usuario_id} className={`bg-white p-4 rounded-lg shadow-md border-2 transition-all ${selectedProfessionals.includes(professional.usuario_id) ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'}`}>
-                    <div className="flex items-center mb-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedProfessionals.includes(professional.usuario_id)}
-                        onChange={() => handleSelectProfessional(professional.usuario_id)}
-                        className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-                      />
-                      <span className="ml-2 text-sm font-medium text-gray-700">Seleccionar</span>
-                    </div>
+                    {user && (
+                      <div className="flex items-center mb-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedProfessionals.includes(professional.usuario_id)}
+                          onChange={() => handleSelectProfessional(professional.usuario_id)}
+                          className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Seleccionar</span>
+                      </div>
+                    )}
                     <img
                       src={professional.usuario?.url_foto_perfil || 'https://placehold.co/100x100?text=👷'}
                       alt={professional.usuario?.nombre}

@@ -97,7 +97,6 @@ model perfiles_profesionales {
   estado_verificacion String @default("pendiente")
   verificado_en    DateTime?
   url_documento_verificacion String?
-  stripe_account_id String? // ID de cuenta conectada de Stripe para profesionales
 
   @@index([especialidad])
   @@index([zona_cobertura])

@@ -1,5 +1,9 @@
 /**
  * Servicio de verificación de identidad para profesionales.
+ * Implementa sección 7.8 del PRD: Verificación de Identidad y Reputación
+ * REQ-36: Subida de documentos de identidad
+ * REQ-37: Otorgamiento de insignia "Verificado"
+ * REQ-40: Gestión administrativa de solicitudes
  * Gestiona solicitudes de verificación, subida de documentos y aprobación/rechazo manual.
  */
 

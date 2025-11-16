@@ -1,8 +1,21 @@
+/**
+ * Controlador de pagos integrados
+ * Implementa sección 7.9 del PRD: Pagos Integrados y Comisiones
+ * REQ-41: Integración con pasarelas de pago
+ * REQ-42: Custodia de fondos hasta aprobación
+ * REQ-43: Comisión configurable (5-10%)
+ * REQ-44: Retiro de fondos por profesionales
+ * REQ-45: Generación de comprobantes
+ */
+
 const paymentService = require('../services/paymentsService');
 const logger = require('../services/logger');
 
 /**
  * Crea una preferencia de pago con custodia de fondos
+ * REQ-41: Integración con pasarelas de pago
+ * REQ-42: Custodia de fondos hasta aprobación
+ * REQ-43: Comisión configurable (10%)
  */
 async function createPaymentPreference(req, res) {
   try {
@@ -207,6 +220,7 @@ async function handleWebhook(req, res) {
 
 /**
  * Permite a profesionales retirar fondos
+ * REQ-44: Retiro de fondos a cuenta bancaria
  */
 async function withdrawFunds(req, res) {
   try {
@@ -249,6 +263,7 @@ async function withdrawFunds(req, res) {
 
 /**
  * Genera comprobante de pago
+ * REQ-45: Generación de comprobantes de pago
  */
 async function generateReceipt(req, res) {
   try {

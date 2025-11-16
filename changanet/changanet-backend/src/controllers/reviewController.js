@@ -1,3 +1,13 @@
+/**
+ * Controlador de reseñas y valoraciones
+ * Implementa sección 7.5 del PRD: Sistema de Reseñas y Valoraciones
+ * REQ-21: Calificación con estrellas (1-5)
+ * REQ-22: Comentarios escritos
+ * REQ-23: Adjuntar fotos del servicio
+ * REQ-24: Calcular calificación promedio
+ * REQ-25: Solo usuarios que completaron servicio pueden reseñar
+ */
+
 // src/controllers/reviewController.js
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
@@ -5,6 +15,14 @@ const { createNotification, NOTIFICATION_TYPES } = require('../services/notifica
 const { sendPushNotification } = require('../services/pushNotificationService');
 const prisma = new PrismaClient();
 
+/**
+ * Crea una nueva reseña para un servicio completado
+ * REQ-21: Calificación con estrellas
+ * REQ-22: Comentario escrito
+ * REQ-23: Adjuntar foto
+ * REQ-24: Actualiza calificación promedio del profesional
+ * REQ-25: Solo para servicios completados por el cliente
+ */
 exports.createReview = async (req, res) => {
   const { id: userId } = req.user;
   const { servicio_id, calificacion, comentario } = req.body;

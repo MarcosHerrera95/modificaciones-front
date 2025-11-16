@@ -1,9 +1,24 @@
+/**
+ * Controlador para gestión de perfiles de usuarios
+ * Implementa sección 7.2 del PRD: Gestión de Perfiles Profesionales
+ * REQ-06: Subir foto de perfil
+ * REQ-07: Seleccionar especialidad
+ * REQ-08: Ingresar años de experiencia
+ * REQ-09: Definir zona de cobertura geográfica
+ * REQ-10: Indicar tarifas (por hora, por servicio)
+ */
+
 // src/controllers/profileController.js
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
 const { getCachedProfessionalProfile, cacheProfessionalProfile, invalidateProfessionalProfile } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
+/**
+ * Obtiene perfil público de un profesional
+ * Incluye caché para optimización de rendimiento
+ * REQ-07, REQ-09: Muestra especialidad y zona de cobertura
+ */
 exports.getProfile = async (req, res) => {
   const { professionalId } = req.params;
 
@@ -40,6 +55,12 @@ exports.getProfile = async (req, res) => {
   }
 };
 
+/**
+ * Actualiza perfil de usuario (profesional o cliente)
+ * REQ-06: Maneja subida de foto de perfil
+ * REQ-07-10: Actualiza especialidad, experiencia, zona, tarifas
+ * Soporta tanto perfiles profesionales como clientes
+ */
 exports.updateProfile = async (req, res) => {
   const { userId } = req.user;
   const { nombre, email, telefono, especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, direccion, preferencias_servicio, latitud, longitud } = req.body;

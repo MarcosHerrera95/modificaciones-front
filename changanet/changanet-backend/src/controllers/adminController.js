@@ -1,3 +1,9 @@
+/**
+ * Controlador de panel de administración
+ * Implementa sección 15 del PRD: Panel de Administración
+ * Gestiona usuarios, estadísticas, disputas y operaciones administrativas
+ */
+
 // src/controllers/adminController.js
 const { PrismaClient } = require('@prisma/client');
 const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');

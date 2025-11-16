@@ -61,7 +61,10 @@ router.get('/client/services', async (req, res) => {
   try {
     const services = await prisma.servicios.findMany({
       where: { cliente_id: clientId },
-      include: { profesional: { select: { nombre: true } } },
+      include: {
+        profesional: { select: { nombre: true } }
+        // servicio_recurrente: true // Commented out due to schema mismatch
+      },
       orderBy: { creado_en: 'desc' }
     });
     res.status(200).json(services);
@@ -79,7 +82,10 @@ router.get('/professional/services', async (req, res) => {
   try {
     const services = await prisma.servicios.findMany({
       where: { profesional_id: professionalId },
-      include: { cliente: { select: { nombre: true } } },
+      include: {
+        cliente: { select: { nombre: true } }
+        // servicio_recurrente: true // Commented out due to schema mismatch
+      },
       orderBy: { creado_en: 'desc' }
     });
     res.status(200).json(services);

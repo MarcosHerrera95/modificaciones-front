@@ -1,3 +1,13 @@
+/**
+ * Servicio de pagos integrados con Mercado Pago
+ * Implementa sección 7.9 del PRD: Pagos Integrados y Comisiones
+ * REQ-41: Integración con pasarelas de pago
+ * REQ-42: Custodia de fondos
+ * REQ-43: Comisión configurable
+ * REQ-44: Retiro de fondos
+ * REQ-45: Comprobantes de pago
+ */
+
 const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();

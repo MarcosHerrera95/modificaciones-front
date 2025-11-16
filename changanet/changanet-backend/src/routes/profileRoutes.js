@@ -1,6 +1,7 @@
 // src/routes/profileRoutes.js
 // FUNCIÓN: Define los endpoints para la visualización y actualización de perfiles de profesionales.
-// RELACIÓN PRD: REQ-06 (Foto), REQ-07 (Especialidad), REQ-08 (Experiencia), REQ-09 (Zona), REQ-10 (Tarifas).
+// RELACIÓN PRD: Sección 7.2 Gestión de Perfiles Profesionales
+// REQ-06 (Foto), REQ-07 (Especialidad), REQ-08 (Experiencia), REQ-09 (Zona), REQ-10 (Tarifas).
 // TARJETA BACKEND: Tarjeta 2: [Backend] Implementar API para Gestión de Perfiles Profesionales.
 // SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
 

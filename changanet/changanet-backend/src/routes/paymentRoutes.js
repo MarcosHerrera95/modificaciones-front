@@ -1,3 +1,8 @@
+/**
+ * Rutas para sistema de pagos integrados
+ * Implementa sección 7.9 del PRD: Pagos Integrados y Comisiones
+ */
+
 const express = require('express');
 const paymentController = require('../controllers/paymentController');
 const { authenticateToken } = require('../middleware/authenticate');

@@ -1,4 +1,7 @@
 // src/routes/reviewRoutes.js
+// Rutas para sistema de reseñas y valoraciones
+// Implementa sección 7.5 del PRD: Sistema de Reseñas y Valoraciones
+
 const express = require('express');
 const multer = require('multer');
 const { createReview, getReviewsByProfessional, checkReviewEligibility } = require('../controllers/reviewController');

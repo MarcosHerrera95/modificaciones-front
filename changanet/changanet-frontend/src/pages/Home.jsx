@@ -1,37 +1,23 @@
-import Hero from '../components/Hero';
-import { Link } from 'react-router-dom';
+/**
+ * Página principal (Home) de Changánet
+ * Landing page que presenta la plataforma, estadísticas, triple impacto y testimonios
+ * Implementa la experiencia inicial del usuario según objetivos del PRD
+ */
+
+/**
+ * Componente Home - Página principal de Changánet
+ * Renderiza landing page con hero, estadísticas, triple impacto y testimonios
+ * Implementa experiencia inicial del usuario según objetivos de plataforma
+ */
+
+import Hero from '../components/Hero'; // Componente hero con banner principal
+import { Link } from 'react-router-dom'; // Para navegación interna de React Router
 
 const Home = () => {
   return (
-    <div>
-      <Hero />
+    <div> {/* Contenedor principal de la página */}
+      <Hero /> {/* Componente hero con título, subtítulo y call-to-action principal */}
 
-      {/* Stats Section */}
-      <div className="py-20 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-30" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
-        }}></div>
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div className="animate-fade-in">
-              <div className="text-5xl font-black text-gradient mb-3">10,000+</div>
-              <p className="text-gray-600 font-medium">Profesionales Registrados</p>
-            </div>
-            <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
-              <div className="text-5xl font-black text-gradient mb-3">50,000+</div>
-              <p className="text-gray-600 font-medium">Servicios Completados</p>
-            </div>
-            <div className="animate-fade-in" style={{ animationDelay: '0.2s' }}>
-              <div className="text-5xl font-black text-gradient mb-3">4.8/5</div>
-              <p className="text-gray-600 font-medium">Calificación Promedio</p>
-            </div>
-            <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}>
-              <div className="text-5xl font-black text-gradient mb-3">25%</div>
-              <p className="text-gray-600 font-medium">Reducción CO2</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Triple Impacto Section */}
       <div className="py-24 bg-white relative">
@@ -94,79 +80,6 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Testimonials Section */}
-      <div className="py-24 bg-gradient-to-br from-gray-50 via-emerald-50 to-teal-50 relative">
-        <div className="container mx-auto px-4">
-          <h2 className="text-5xl font-black text-center mb-20 text-gray-800 animate-fade-in">
-            Lo que dicen nuestros usuarios
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <div className="card-glow p-8 rounded-3xl hover-lift animate-fade-in">
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mr-6 shadow-lg">
-                  <span className="text-white font-bold text-xl">MC</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-800 text-xl">María Clara</h4>
-                  <div className="flex text-amber-400 mt-1">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 italic text-lg leading-relaxed">
-                "Encontré un plomero excelente en minutos. El servicio fue impecable y el precio justo. ¡Recomiendo Changánet!"
-              </p>
-            </div>
-
-            <div className="card-glow p-8 rounded-3xl hover-lift animate-fade-in" style={{ animationDelay: '0.2s' }}>
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-teal-500 rounded-2xl flex items-center justify-center mr-6 shadow-lg">
-                  <span className="text-white font-bold text-xl">JR</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-800 text-xl">Juan Rodríguez</h4>
-                  <div className="flex text-amber-400 mt-1">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 italic text-lg leading-relaxed">
-                "Como electricista, Changánet me ha dado visibilidad y clientes constantes. La plataforma es muy profesional."
-              </p>
-            </div>
-
-            <div className="card-glow p-8 rounded-3xl hover-lift animate-fade-in" style={{ animationDelay: '0.4s' }}>
-              <div className="flex items-center mb-6">
-                <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl flex items-center justify-center mr-6 shadow-lg">
-                  <span className="text-white font-bold text-xl">LS</span>
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-800 text-xl">Laura Sánchez</h4>
-                  <div className="flex text-amber-400 mt-1">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                      </svg>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <p className="text-gray-600 italic text-lg leading-relaxed">
-                "Me encanta que prioricen el impacto ambiental. Saber que optimizan rutas hace que me sienta bien contratando servicios."
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Call to Action Section */}
       <div className="py-24 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 text-white relative overflow-hidden">

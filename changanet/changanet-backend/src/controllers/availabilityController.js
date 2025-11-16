@@ -1,8 +1,24 @@
+/**
+ * Controlador de gestión de disponibilidad y agenda
+ * Implementa sección 7.6 del PRD: Gestión de Disponibilidad y Agenda
+ * REQ-26: Calendario editable para profesionales
+ * REQ-27: Marcar horarios disponibles/no disponibles
+ * REQ-28: Clientes ven disponibilidad en tiempo real
+ * REQ-29: Agendar servicios directamente
+ * REQ-30: Confirmación automática al agendar
+ */
+
 // src/controllers/availabilityController.js
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('../services/notificationService');
 const prisma = new PrismaClient();
 
+/**
+ * Crea un nuevo horario de disponibilidad para profesional
+ * REQ-26: Calendario editable
+ * REQ-27: Marcar horarios disponibles
+ * Valida solapamiento de horarios
+ */
 exports.createAvailability = async (req, res) => {
   const { id: userId } = req.user;
   const { fecha, hora_inicio, hora_fin, esta_disponible } = req.body;
@@ -56,6 +72,11 @@ exports.createAvailability = async (req, res) => {
   }
 };
 
+/**
+ * Obtiene disponibilidad de un profesional para una fecha específica
+ * REQ-28: Clientes ven disponibilidad en tiempo real
+ * Solo muestra horarios marcados como disponibles
+ */
 exports.getAvailability = async (req, res) => {
   const { professionalId } = req.params;
   const { date } = req.query;
