@@ -118,7 +118,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated }) => {
             <h2 className="text-2xl font-bold text-gray-800">Editar Perfil Profesional</h2>
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 text-2xl"
+              className="text-emerald-500 hover:text-emerald-700 text-2xl"
             >
               ×
             </button>

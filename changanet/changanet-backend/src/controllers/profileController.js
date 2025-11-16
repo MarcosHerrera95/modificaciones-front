@@ -42,7 +42,7 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { userId } = req.user;
-  const { nombre, email, telefono, especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, direccion, preferencias_servicio } = req.body;
+  const { nombre, email, telefono, especialidad, anos_experiencia, zona_cobertura, tarifa_hora, descripcion, direccion, preferencias_servicio, latitud, longitud } = req.body;
 
   try {
     const user = await prisma.usuarios.findUnique({ where: { id: userId } });
@@ -78,6 +78,8 @@ exports.updateProfile = async (req, res) => {
             especialidad,
             anos_experiencia: parseInt(anos_experiencia, 10),
             zona_cobertura,
+            latitud: latitud ? parseFloat(latitud) : undefined,
+            longitud: longitud ? parseFloat(longitud) : undefined,
             tarifa_hora: parseFloat(tarifa_hora),
             descripcion,
             url_foto_perfil
@@ -90,6 +92,8 @@ exports.updateProfile = async (req, res) => {
             especialidad,
             anos_experiencia,
             zona_cobertura,
+            latitud: latitud ? parseFloat(latitud) : undefined,
+            longitud: longitud ? parseFloat(longitud) : undefined,
             tarifa_hora: parseFloat(tarifa_hora),
             descripcion,
             url_foto_perfil

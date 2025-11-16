@@ -104,12 +104,6 @@ const Footer = () => {
                 </button>
               </li>
               <li>
-                <button onClick={() => handleLinkClick('/profesionales')} className="text-gray-300 hover:text-emerald-400 transition-colors duration-200 flex items-center">
-                  <span className="mr-2">🔧</span>
-                  Servicios
-                </button>
-              </li>
-              <li>
                 <button onClick={() => handleLinkClick('/contacto')} className="text-gray-300 hover:text-emerald-400 transition-colors duration-200 flex items-center">
                   <span className="mr-2">📞</span>
                   Contacto

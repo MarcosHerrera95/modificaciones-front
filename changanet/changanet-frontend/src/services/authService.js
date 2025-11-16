@@ -188,49 +188,84 @@ export const loginWithFacebook = async () => {
 };
 
 /**
- * Envía un email de recuperación de contraseña usando Firebase Auth.
+ * Envía un email de recuperación de contraseña usando el backend.
  * El usuario recibe un enlace para restablecer su contraseña.
  */
-export const resetPassword = async (email) => {
+export const forgotPassword = async (email) => {
   try {
-    const auth = getAuth(app);
-    // Verificar que Firebase Auth esté disponible
-    if (!auth) {
-      throw new Error('Servicio de autenticación no disponible. Verifica la configuración de Firebase.');
-    }
-
     // Validar email
     if (!email) {
       throw new Error('Email es requerido');
     }
 
-    await sendPasswordResetEmail(auth, email);
+    // Usar el endpoint del backend
+    const response = await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al enviar email de recuperación');
+    }
 
     return {
       success: true,
-      message: 'Email de recuperación enviado. Revisa tu bandeja de entrada.'
+      message: data.message || 'Email de recuperación enviado. Revisa tu bandeja de entrada.'
+    };
+  } catch (error) {
+    console.error('Error en forgot password:', error);
+
+    let errorMessage = 'Error al enviar email de recuperación';
+
+    if (error.message) {
+      errorMessage = error.message;
+    }
+
+    return { success: false, error: errorMessage };
+  }
+};
+
+/**
+ * Restablece la contraseña usando el token del backend.
+ */
+export const resetPassword = async (token, newPassword) => {
+  try {
+    // Validar parámetros
+    if (!token || !newPassword) {
+      throw new Error('Token y nueva contraseña son requeridos');
+    }
+
+    // Usar el endpoint del backend
+    const response = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ token, newPassword }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Error al restablecer contraseña');
+    }
+
+    return {
+      success: true,
+      message: data.message || 'Contraseña restablecida exitosamente'
     };
   } catch (error) {
     console.error('Error en reset password:', error);
 
-    // Manejar errores específicos de Firebase
-    let errorMessage = 'Error al enviar email de recuperación';
+    let errorMessage = 'Error al restablecer contraseña';
 
-    switch (error.code) {
-      case 'auth/user-not-found':
-        errorMessage = 'No existe una cuenta con este email';
-        break;
-      case 'auth/invalid-email':
-        errorMessage = 'Email inválido';
-        break;
-      case 'auth/too-many-requests':
-        errorMessage = 'Demasiadas solicitudes. Inténtalo más tarde';
-        break;
-      case 'auth/network-request-failed':
-        errorMessage = 'Error de conexión. Verifica tu internet';
-        break;
-      default:
-        errorMessage = error.message || errorMessage;
+    if (error.message) {
+      errorMessage = error.message;
     }
 
     return { success: false, error: errorMessage };

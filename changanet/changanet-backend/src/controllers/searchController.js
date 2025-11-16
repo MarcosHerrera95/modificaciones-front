@@ -3,8 +3,39 @@ const { PrismaClient } = require('@prisma/client');
 const { getCachedProfessionalSearch, cacheProfessionalSearch } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
+/**
+ * Calcula la distancia en kilómetros entre dos puntos GPS usando la fórmula de Haversine
+ * @param {number} lat1 - Latitud del punto 1
+ * @param {number} lon1 - Longitud del punto 1
+ * @param {number} lat2 - Latitud del punto 2
+ * @param {number} lon2 - Longitud del punto 2
+ * @returns {number} Distancia en kilómetros
+ */
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radio de la Tierra en kilómetros
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  const distance = R * c;
+  return distance;
+}
+
 exports.searchProfessionals = async (req, res) => {
-  const { especialidad, zona_cobertura, precio_min, precio_max, sort_by = 'calificacion_promedio', page = 1, limit = 10 } = req.query;
+  const {
+    especialidad,
+    zona_cobertura,
+    precio_min,
+    precio_max,
+    sort_by = 'calificacion_promedio',
+    page = 1,
+    limit = 10,
+    user_lat,  // Latitud del usuario para cálculo de distancia
+    user_lng   // Longitud del usuario para cálculo de distancia
+  } = req.query;
 
   try {
     // Validar parámetros
@@ -26,7 +57,9 @@ exports.searchProfessionals = async (req, res) => {
       precio_max: precio_max ? parseFloat(precio_max) : null,
       sort_by: sort_by || 'calificacion_promedio',
       page: parseInt(page),
-      limit: parseInt(limit)
+      limit: parseInt(limit),
+      user_lat: user_lat ? parseFloat(user_lat) : null,
+      user_lng: user_lng ? parseFloat(user_lng) : null
     };
 
     // Intentar obtener resultados del caché
@@ -71,8 +104,13 @@ exports.searchProfessionals = async (req, res) => {
         orderBy = [{ tarifa_hora: 'asc' }];
         break;
       case 'distancia':
-        // Para distancia: ordenar por zona_cobertura alfabéticamente (aproximación)
-        orderBy = [{ zona_cobertura: 'asc' }];
+        // Para distancia real: ordenar en memoria si hay coordenadas, sino por zona
+        if (user_lat && user_lng) {
+          sortInMemory = true;
+          orderBy = [{ zona_cobertura: 'asc' }]; // Fallback para DB
+        } else {
+          orderBy = [{ zona_cobertura: 'asc' }];
+        }
         break;
       case 'disponibilidad':
         // Para disponibilidad: ordenar por estado de verificación (verificado primero)
@@ -96,6 +134,22 @@ exports.searchProfessionals = async (req, res) => {
         },
       },
     });
+
+    // Calcular distancias reales si se proporcionaron coordenadas del usuario
+    if (user_lat && user_lng) {
+      professionals.forEach(prof => {
+        if (prof.latitud && prof.longitud) {
+          prof.distancia_km = calculateDistance(
+            parseFloat(user_lat),
+            parseFloat(user_lng),
+            prof.latitud,
+            prof.longitud
+          );
+        } else {
+          prof.distancia_km = null; // No se puede calcular distancia
+        }
+      });
+    }
 
     // Optimizar consultas: precargar datos relacionados para evitar N+1
     const professionalIds = professionals.map(p => p.usuario_id);
@@ -166,7 +220,16 @@ exports.searchProfessionals = async (req, res) => {
     // Ordenar en memoria si es necesario
     if (sortInMemory) {
       enrichedProfessionals.sort((a, b) => {
-        // Primero por calificación descendente
+        if (sort_by === 'distancia' && user_lat && user_lng) {
+          // Ordenar por distancia ascendente si hay coordenadas
+          const distA = a.distancia_km || Infinity;
+          const distB = b.distancia_km || Infinity;
+          if (distA !== distB) {
+            return distA - distB;
+          }
+        }
+
+        // Ordenar por calificación descendente (default o fallback)
         if (b.calificacion_promedio !== a.calificacion_promedio) {
           return b.calificacion_promedio - a.calificacion_promedio;
         }

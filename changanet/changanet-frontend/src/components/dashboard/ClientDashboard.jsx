@@ -113,10 +113,10 @@ const ClientDashboard = ({ user }) => {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
           <div className="flex items-center">
             <div className="p-2 bg-emerald-100 rounded-lg">
-              <span className="text-xl">🔧</span>
+              <span className="text-xl">📊</span>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-600">Servicios Activos</p>
+              <p className="text-sm font-medium text-gray-600">Estadísticas</p>
               <p className="text-xl font-bold text-gray-800">{stats.activeServices}</p>
             </div>
           </div>

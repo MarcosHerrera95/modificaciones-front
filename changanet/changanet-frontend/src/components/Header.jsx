@@ -6,14 +6,25 @@ import SignupModal from './modals/SignupModal';
 import { useModal } from '../context/ModalContext';
 import NotificationBell from './NotificationBell';
 import useSmartNavigation from '../hooks/useSmartNavigation';
-import { HomeIcon, WrenchIcon } from '@heroicons/react/24/outline';
+import { useAccessibility } from '../hooks/useAccessibility';
+import { AdjustmentsHorizontalIcon } from '@heroicons/react/24/outline';
 
 const Header = () => {
   const smartNavigate = useSmartNavigation();
   const { user, logout } = useAuth();
   const { showSignup, setShowSignup, showLogin, setShowLogin } = useModal();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showAccessibilityMenu, setShowAccessibilityMenu] = useState(false);
   const navigate = useNavigate();
+
+  // Hook de accesibilidad
+  const {
+    fontSize,
+    increaseFontSize,
+    decreaseFontSize,
+    resetFontSize,
+    announceToScreenReader
+  } = useAccessibility();
 
   const handleLogout = () => {
     logout();
@@ -42,21 +53,75 @@ const Header = () => {
           </button>
 
           <nav className="hidden md:flex space-x-8">
-            <button onClick={() => smartNavigate('/')} type="button" aria-label="Ir a Inicio" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md min-h-[44px] touch-manipulation">
-              <span className="flex items-center space-x-2">
-                <HomeIcon className="w-6 h-6" />
-                <span>Inicio</span>
-              </span>
-            </button>
-            <button onClick={() => smartNavigate('/profesionales')} type="button" aria-label="Ir a Servicios" className="bg-white text-gray-700 font-medium transition-all duration-300 px-4 py-3 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md min-h-[44px] touch-manipulation">
-              <span className="flex items-center space-x-2">
-                <WrenchIcon className="w-6 h-6" />
-                <span>Servicios</span>
-              </span>
-            </button>
           </nav>
 
           <div className="flex items-center space-x-3">
+            {/* Menú de accesibilidad */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAccessibilityMenu(!showAccessibilityMenu)}
+                type="button"
+                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Opciones de accesibilidad"
+                aria-expanded={showAccessibilityMenu}
+                aria-haspopup="true"
+              >
+                <AdjustmentsHorizontalIcon className="w-5 h-5" />
+              </button>
+
+              {showAccessibilityMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-2 border-b border-gray-200">
+                    <h3 className="text-sm font-medium text-gray-900">Accesibilidad</h3>
+                    <p className="text-xs text-gray-600">Tamaño de fuente: {fontSize}px</p>
+                  </div>
+
+                  <div className="px-4 py-3 space-y-3">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700 block mb-2">
+                        Tamaño de fuente
+                      </label>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => {
+                            decreaseFontSize();
+                            announceToScreenReader('Tamaño de fuente reducido');
+                          }}
+                          type="button"
+                          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                          aria-label="Reducir tamaño de fuente"
+                        >
+                          A-
+                        </button>
+                        <button
+                          onClick={() => {
+                            resetFontSize();
+                            announceToScreenReader('Tamaño de fuente restablecido');
+                          }}
+                          type="button"
+                          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                          aria-label="Restablecer tamaño de fuente"
+                        >
+                          A
+                        </button>
+                        <button
+                          onClick={() => {
+                            increaseFontSize();
+                            announceToScreenReader('Tamaño de fuente aumentado');
+                          }}
+                          type="button"
+                          className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+                          aria-label="Aumentar tamaño de fuente"
+                        >
+                          A+
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {user ? (
               <>
                 <NotificationBell />
@@ -111,28 +176,6 @@ const Header = () => {
         {isMenuOpen && (
           <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-emerald-100/50 shadow-xl animate-slide-up">
             <nav className="container mx-auto px-4 py-6 space-y-4">
-              <button
-                onClick={() => {
-                  smartNavigate('/');
-                  setIsMenuOpen(false);
-                }}
-                type="button"
-                aria-label="Ir a Inicio"
-                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300 min-h-[44px] touch-manipulation">
-                <HomeIcon className="w-6 h-6" />
-                <span>Inicio</span>
-              </button>
-              <button
-                onClick={() => {
-                  smartNavigate('/profesionales');
-                  setIsMenuOpen(false);
-                }}
-                type="button"
-                aria-label="Ir a Servicios"
-                className="flex items-center space-x-3 bg-white text-gray-700 font-medium py-3 px-4 rounded-lg hover:brightness-95 hover:scale-105 hover:shadow-md transition-all duration-300 min-h-[44px] touch-manipulation">
-                <WrenchIcon className="w-6 h-6" />
-                <span>Servicios</span>
-              </button>
             </nav>
           </div>
         )}

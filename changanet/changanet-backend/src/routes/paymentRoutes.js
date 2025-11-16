@@ -20,4 +20,25 @@ router.get('/status/:paymentId', authenticateToken, paymentController.getPayment
 // Webhook para notificaciones de Mercado Pago (sin autenticación)
 router.post('/webhook', paymentController.handleWebhook);
 
+// POST /api/payments/withdraw
+// Permite a profesionales retirar fondos a su cuenta bancaria
+router.post('/withdraw', authenticateToken, paymentController.withdrawFunds);
+
+// GET /api/payments/receipt/:paymentId
+// Genera y obtiene comprobante de pago
+router.get('/receipt/:paymentId', authenticateToken, paymentController.generateReceipt);
+
+// POST /api/payments/auto-release
+// Liberación automática de fondos (para cron jobs - sin autenticación requerida)
+router.post('/auto-release', async (req, res) => {
+  try {
+    const { autoReleaseFunds } = require('../services/paymentsService');
+    const result = await autoReleaseFunds();
+    res.json(result);
+  } catch (error) {
+    console.error('Error en auto-release:', error);
+    res.status(500).json({ error: 'Error en liberación automática' });
+  }
+});
+
 module.exports = router;

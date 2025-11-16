@@ -234,6 +234,9 @@ exports.registerProfessional = async (req, res) => {
       return res.status(400).json({ error: 'El email ya está registrado.' });
     }
 
+    // RB-01: Un profesional solo puede tener un perfil activo
+    // Nota: Esta validación se aplica al crear el perfil, pero el usuario aún no existe
+
     // Hash de la contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -326,6 +329,126 @@ exports.getCurrentUser = async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo usuario actual:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+};
+
+/**
+ * Solicitar recuperación de contraseña
+ */
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    // Buscar usuario por email
+    const user = await prisma.usuarios.findUnique({ where: { email } });
+    if (!user) {
+      // No revelar si el email existe o no por seguridad
+      return res.status(200).json({ message: 'Si el email existe, se enviará un enlace de recuperación.' });
+    }
+
+    // Generar token de recuperación
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiration = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    // Guardar token en la base de datos
+    await prisma.usuarios.update({
+      where: { id: user.id },
+      data: {
+        token_verificacion: resetToken,
+        token_expiracion: tokenExpiration
+      }
+    });
+
+    // Enviar email de recuperación
+    try {
+      const { sendPasswordResetEmail } = require('../services/emailService');
+      await sendPasswordResetEmail(user.email, resetToken);
+      logger.info('Password reset email sent', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email
+      });
+    } catch (emailError) {
+      logger.warn('Failed to send password reset email', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        error: emailError.message
+      });
+      // No fallar la solicitud por error en email
+    }
+
+    res.status(200).json({ message: 'Si el email existe, se enviará un enlace de recuperación.' });
+  } catch (error) {
+    logger.error('Forgot password error', {
+      service: 'auth',
+      email,
+      error: error.message
+    });
+    res.status(500).json({ error: 'Error al procesar la solicitud de recuperación.' });
+  }
+};
+
+/**
+ * Restablecer contraseña
+ */
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  try {
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: 'Token y nueva contraseña requeridos' });
+    }
+
+    // Validar longitud de contraseña
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    }
+
+    // Buscar usuario con el token
+    const user = await prisma.usuarios.findUnique({
+      where: { token_verificacion: token }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Token inválido' });
+    }
+
+    // Verificar si el token no ha expirado
+    if (user.token_expiracion && user.token_expiracion < new Date()) {
+      return res.status(400).json({ error: 'Token expirado' });
+    }
+
+    // Hash de la nueva contraseña
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Actualizar contraseña y limpiar tokens
+    await prisma.usuarios.update({
+      where: { id: user.id },
+      data: {
+        hash_contrasena: hashedPassword,
+        token_verificacion: null,
+        token_expiracion: null
+      }
+    });
+
+    logger.info('Password reset successfully', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email
+    });
+
+    res.status(200).json({ message: 'Contraseña restablecida exitosamente' });
+  } catch (error) {
+    logger.error('Reset password error', {
+      service: 'auth',
+      error: error.message
+    });
+    res.status(500).json({ error: 'Error al restablecer contraseña' });
   }
 };
 
@@ -476,5 +599,7 @@ module.exports = {
   googleLogin: exports.googleLogin,
   registerProfessional: exports.registerProfessional,
   getCurrentUser: exports.getCurrentUser,
-  verifyEmail: exports.verifyEmail
+  verifyEmail: exports.verifyEmail,
+  forgotPassword: exports.forgotPassword,
+  resetPassword: exports.resetPassword
 };

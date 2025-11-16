@@ -205,9 +205,80 @@ async function handleWebhook(req, res) {
   }
 }
 
+/**
+ * Permite a profesionales retirar fondos
+ */
+async function withdrawFunds(req, res) {
+  try {
+    const { id: professionalId } = req.user;
+    const { amount, bankDetails } = req.body;
+
+    // Validar campos requeridos
+    if (!amount || !bankDetails) {
+      return res.status(400).json({
+        error: 'Faltan campos requeridos: amount, bankDetails',
+      });
+    }
+
+    const result = await paymentService.withdrawFunds(professionalId, amount, bankDetails);
+
+    logger.info('Funds withdrawal successful', {
+      service: 'payments',
+      userId: professionalId,
+      amount,
+      ip: req.ip
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Funds withdrawal error', {
+      service: 'payments',
+      userId: req.user?.id,
+      amount: req.body?.amount,
+      error,
+      ip: req.ip
+    });
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
+/**
+ * Genera comprobante de pago
+ */
+async function generateReceipt(req, res) {
+  try {
+    const { paymentId } = req.params;
+
+    if (!paymentId) {
+      return res.status(400).json({
+        error: 'Se requiere paymentId',
+      });
+    }
+
+    const result = await paymentService.generatePaymentReceipt(paymentId);
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error('Error generando comprobante:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
 module.exports = {
   createPaymentPreference,
   releaseFunds,
   getPaymentStatus,
   handleWebhook,
+  withdrawFunds,
+  generateReceipt,
 };

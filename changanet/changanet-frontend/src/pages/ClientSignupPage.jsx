@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import GoogleLoginButton from '../components/GoogleLoginButton';
 
 const ClientSignupPage = () => {
   const [formData, setFormData] = useState({
@@ -19,7 +20,8 @@ const ClientSignupPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signup } = useAuth();
+  const [success, setSuccess] = useState('');
+  const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -55,13 +57,9 @@ const ClientSignupPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Login automático después del registro exitoso
-        if (data.token && data.user) {
-          // Usar el método login del AuthContext
-          const { login } = useAuth();
-          login(data.user, data.token);
-        }
-        navigate('/mi-cuenta');
+        // Mostrar mensaje de verificación de email en lugar de login automático
+        setSuccess('¡Registro exitoso! Revisa tu email para verificar tu cuenta antes de iniciar sesión.');
+        // No hacer login automático, esperar verificación de email
       } else {
         setError(data.error || 'Error al crear la cuenta');
       }
@@ -90,6 +88,13 @@ const ClientSignupPage = () => {
           <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl flex items-center">
             <span className="text-red-500 mr-3">⚠️</span>
             <span className="text-sm">{error}</span>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl flex items-center">
+            <span className="text-emerald-500 mr-3">✅</span>
+            <span className="text-sm">{success}</span>
           </div>
         )}
 
@@ -196,6 +201,22 @@ const ClientSignupPage = () => {
             )}
           </button>
         </form>
+
+        {/* Social Login */}
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">O regístrate con</span>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <GoogleLoginButton text="Registrarse con Google" />
+          </div>
+        </div>
 
         <div className="mt-8 text-center">
           <p className="text-gray-600 mb-4">

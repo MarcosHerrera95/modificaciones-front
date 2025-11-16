@@ -38,7 +38,7 @@ const QuickMessageModal = ({ isOpen, onClose, professionalName, onSendMessage })
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="text-emerald-500 hover:text-emerald-700 text-2xl min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Cerrar modal de mensaje rápido"
             >
               ×

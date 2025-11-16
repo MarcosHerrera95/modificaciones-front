@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import BackButton from '../components/BackButton';
 import EditProfileButton from '../components/EditProfileButton';
+import ClientOnboardingWizard from '../components/ClientOnboardingWizard';
 import '../styles/onboarding.css';
 
 const ClientDashboard = () => {
@@ -26,8 +27,9 @@ const ClientDashboard = () => {
     totalSpent: 0
   });
   const [recentActivity, setRecentActivity] = useState([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Verificar permisos
+  // Verificar permisos y mostrar onboarding
   useEffect(() => {
     console.log('ClientDashboard - User:', user);
     console.log('ClientDashboard - User role:', user?.role || user?.rol);
@@ -36,6 +38,13 @@ const ClientDashboard = () => {
       navigate('/');
       return;
     }
+
+    // Check if user has completed onboarding
+    const onboardingCompleted = localStorage.getItem(`changanet_onboarding_${user.id}_cliente`);
+    if (!onboardingCompleted) {
+      setShowOnboarding(true);
+    }
+
     // Don't load data immediately, wait for user to be fully set
     const timer = setTimeout(() => {
       if (user && (user.role === 'cliente' || user.rol === 'cliente')) {
@@ -152,7 +161,15 @@ const ClientDashboard = () => {
 
   // Función para iniciar onboarding manualmente (para testing)
   const handleStartOnboarding = () => {
-    startOnboarding('cliente');
+    setShowOnboarding(true);
+  };
+
+  // Handler para completar onboarding
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+    if (user) {
+      localStorage.setItem(`changanet_onboarding_${user.id}_cliente`, 'completed');
+    }
   };
 
   const renderTabContent = () => {
@@ -257,7 +274,7 @@ const ClientDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Servicios Contratados</h3>
             <button
-              onClick={() => navigate('/mis-servicios-cliente')}
+              onClick={() => navigate('/cliente/servicios')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Ver Servicios
@@ -270,7 +287,7 @@ const ClientDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Cotizaciones</h3>
             <button
-              onClick={() => navigate('/cotizaciones-cliente')}
+              onClick={() => navigate('/cliente/cotizaciones')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Cotizaciones
@@ -296,7 +313,7 @@ const ClientDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Reseñas</h3>
             <button
-              onClick={() => navigate('/mis-resenas')}
+              onClick={() => navigate('/cliente/resenas')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Ver Reseñas
@@ -377,6 +394,11 @@ const ClientDashboard = () => {
           {renderTabContent()}
         </div>
       </div>
+
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <ClientOnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
     </div>
   );
 };

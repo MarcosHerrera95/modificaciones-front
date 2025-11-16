@@ -2,7 +2,7 @@
 globalThis.import = {
   meta: {
     env: {
-      VITE_API_URL: 'http://localhost:3002',
+      VITE_API_URL: 'http://localhost:3004',
       VITE_FIREBASE_API_KEY: 'test-key',
       VITE_FIREBASE_AUTH_DOMAIN: 'test.firebaseapp.com',
       VITE_FIREBASE_PROJECT_ID: 'test-project',

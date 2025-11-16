@@ -8,8 +8,10 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * @función GoogleLoginButton - Componente de botón Google OAuth
@@ -23,6 +25,8 @@ import { auth } from '../config/firebaseConfig';
  */
 const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = "" }) => {
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -50,12 +54,11 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
 
       const data = await response.json();
 
-      // Guardar token y datos de usuario
-      localStorage.setItem('changanet_token', data.token);
-      localStorage.setItem('changanet_user', JSON.stringify(data.user));
+      // Usar AuthContext para login
+      login(data.user, data.token);
 
-      // Redirigir al dashboard apropiado
-      window.location.href = data.user.rol === 'profesional' ? '/dashboard-profesional' : '/dashboard-cliente';
+      // Redirigir al dashboard
+      navigate('/mi-cuenta');
     } catch (error) {
       console.error('Error en login con Google:', error);
       alert('Error al iniciar sesión con Google: ' + error.message);

@@ -1,86 +1,34 @@
 // src/pages/Professionals.jsx
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import ProfessionalCard from '../components/ProfessionalCard';
+import QuoteRequestForm from '../components/QuoteRequestForm';
+import BackButton from '../components/BackButton';
+import useProfessionals from '../hooks/useProfessionals';
 
 const Professionals = () => {
   console.log('🚀 Professionals component mounted');
-  const [professionals, setProfessionals] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTime, setSearchTime] = useState(null);
-  const [sortBy, setSortBy] = useState('calificacion_promedio');
-  const [filterVerified, setFilterVerified] = useState(false);
-  const [zonaCobertura, setZonaCobertura] = useState('');
-  const [precioMin, setPrecioMin] = useState('');
-  const [precioMax, setPrecioMax] = useState('');
+  const {
+    professionals: filteredProfessionals,
+    loading,
+    searchTime,
+    sortBy,
+    setSortBy,
+    filterVerified,
+    setFilterVerified,
+    zonaCobertura,
+    setZonaCobertura,
+    precioMin,
+    setPrecioMin,
+    precioMax,
+    setPrecioMax,
+    especialidad,
+    setEspecialidad
+  } = useProfessionals();
   const [selectedProfessionals, setSelectedProfessionals] = useState([]);
-  const location = useLocation();
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
+  const [currentProfessional, setCurrentProfessional] = useState(null);
 
-  useEffect(() => {
-    console.log('🔄 useEffect triggered, fetching professionals');
-    const fetchProfessionals = async () => {
-      const startTime = performance.now();
-      setLoading(true);
-      console.log('⏳ Starting fetch...');
-      try {
-        // Construir query string con filtros adicionales
-        const urlParams = new URLSearchParams(location.search);
-        if (zonaCobertura) urlParams.set('zona_cobertura', zonaCobertura);
-        if (precioMin) urlParams.set('precio_min', precioMin);
-        if (precioMax) urlParams.set('precio_max', precioMax);
-
-        // INTEGRACIÓN CON BACKEND: Buscar profesionales con filtros
-        urlParams.set('sort_by', sortBy);
-        urlParams.set('limit', '100'); // Mostrar hasta 100 profesionales
-
-        const url = `/api/professionals?${urlParams.toString()}`;
-        console.log('🌐 Fetching URL:', url);
-        const response = await fetch(url, {
-          headers: {
-            'Cache-Control': 'no-cache'
-          }
-        });
-        console.log('📡 Response status:', response.status);
-
-        if (!response.ok) {
-          let errorMessage = 'Error al buscar profesionales';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch (parseError) {
-            console.warn('No se pudo parsear respuesta de error:', parseError);
-          }
-          console.error('Error al buscar profesionales:', errorMessage);
-          setProfessionals([]); // Mostrar lista vacía en caso de error
-          return;
-        }
-
-        const data = await response.json();
-        console.log('📊 API Response:', data);
-        console.log('👥 Professionals received:', data.professionals?.length || 0);
-        console.log('👥 First professional:', data.professionals?.[0]);
-        setProfessionals(data.professionals || []);
-        console.log('💾 Set professionals to state:', data.professionals?.length);
-        const endTime = performance.now();
-        setSearchTime((endTime - startTime).toFixed(2));
-      } catch (error) {
-        console.error('Error de red:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfessionals();
-  }, [location.search, zonaCobertura, precioMin, precioMax, sortBy]);
-
-  // El ordenamiento ahora se hace en el backend, así que solo usamos los resultados tal cual
-  const sortedProfessionals = professionals;
-
-  const filteredProfessionals = filterVerified
-    ? sortedProfessionals.filter(p => p.estado_verificacion === 'verificado')
-    : sortedProfessionals;
-
-  console.log('🎯 Filtered professionals:', filteredProfessionals.length, 'out of', sortedProfessionals.length);
+  console.log('🎯 Filtered professionals:', filteredProfessionals.length);
 
   // Funciones para manejar selección
   const handleSelectProfessional = (professionalId) => {
@@ -104,8 +52,15 @@ const Professionals = () => {
       alert('Por favor selecciona al menos un profesional');
       return;
     }
-    alert(`Solicitando servicios a ${selectedProfessionals.length} profesional(es) seleccionado(s)`);
-    // Aquí iría la lógica para enviar las solicitudes
+
+    // For now, handle one professional at a time
+    const professionalId = selectedProfessionals[0];
+    const professional = filteredProfessionals.find(p => p.usuario_id === professionalId);
+
+    if (professional) {
+      setCurrentProfessional(professional);
+      setShowQuoteModal(true);
+    }
   };
 
   if (loading) {
@@ -123,6 +78,11 @@ const Professionals = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
       <div className="container mx-auto px-4 py-12">
+        {/* Back Button */}
+        <div className="mb-6">
+          <BackButton />
+        </div>
+
         {/* Header */}
         <div className="mb-12 text-center animate-fade-in">
           <h1 className="text-5xl font-black mb-6 text-gradient">
@@ -145,7 +105,7 @@ const Professionals = () => {
 
         {/* Filters and Sort */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-center">
             {/* Verified Filter */}
             <div className="flex items-center space-x-2">
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -158,6 +118,18 @@ const Professionals = () => {
                 <span className="text-gray-700 font-medium">Solo verificados</span>
                 <span className="text-emerald-600">✅</span>
               </label>
+            </div>
+
+            {/* Specialty Filter */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Especialidad</label>
+              <input
+                type="text"
+                placeholder="Ej: Plomero, Electricista"
+                value={especialidad}
+                onChange={(e) => setEspecialidad(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              />
             </div>
 
             {/* Location Filter */}
@@ -301,6 +273,34 @@ const Professionals = () => {
           </div>
         )}
       </div>
+
+      {/* Quote Request Modal */}
+      {showQuoteModal && currentProfessional && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto relative">
+            <button
+              onClick={() => {
+                setShowQuoteModal(false);
+                setCurrentProfessional(null);
+                setSelectedProfessionals([]); // Clear selection after request
+              }}
+              className="absolute top-4 right-4 text-emerald-500 hover:text-emerald-700 text-2xl z-10"
+              aria-label="Cerrar modal"
+            >
+              ×
+            </button>
+            <QuoteRequestForm
+              professionalName={currentProfessional.usuario?.nombre}
+              professionalId={currentProfessional.usuario_id}
+              onClose={() => {
+                setShowQuoteModal(false);
+                setCurrentProfessional(null);
+                setSelectedProfessionals([]); // Clear selection after request
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -14,7 +14,8 @@ const Quotes = () => {
   const fetchQuotes = async () => {
     if (!user) return;
     try {
-      const endpoint = user.role === 'cliente' ? '/api/quotes/client' : '/api/quotes/professional';
+      const userRole = user.rol || user.role;
+      const endpoint = userRole === 'cliente' ? '/api/quotes/client' : '/api/quotes/professional';
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
       });
@@ -63,7 +64,7 @@ const Quotes = () => {
         <BackToAccountButton />
 
         <h1 className="text-3xl font-bold mb-6 text-gray-800">
-          {user.role === 'cliente' ? 'Mis Cotizaciones' : 'Cotizaciones Recibidas'}
+          {(user.rol || user.role) === 'cliente' ? 'Mis Cotizaciones' : 'Cotizaciones Recibidas'}
         </h1>
 
         {quotes.length === 0 ? (
@@ -77,7 +78,7 @@ const Quotes = () => {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      {user.role === 'cliente'
+                      {(user.rol || user.role) === 'cliente'
                         ? `Profesional: ${quote.profesional.nombre}`
                         : `Cliente: ${quote.cliente.nombre}`}
                     </h3>
@@ -102,7 +103,7 @@ const Quotes = () => {
                   </div>
                 </div>
 
-                {user.role === 'profesional' && quote.estado === 'pendiente' && (
+                {(user.rol || user.role) === 'profesional' && quote.estado === 'pendiente' && (
                   <div className="flex space-x-4">
                     <button
                       onClick={() => {

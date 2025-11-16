@@ -224,4 +224,81 @@ router.get('/search/:query', async (req, res) => {
   }
 });
 
+// Obtener servicios del cliente autenticado
+router.get('/client', authenticateToken, async (req, res) => {
+  try {
+    const { id: clientId } = req.user;
+
+    const services = await prisma.servicios.findMany({
+      where: { cliente_id: clientId },
+      include: {
+        profesional: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true,
+            url_foto_perfil: true
+          }
+        },
+        resena: true
+      },
+      orderBy: { creado_en: 'desc' }
+    });
+
+    res.json({ services });
+  } catch (error) {
+    console.error('Error al obtener servicios del cliente:', error);
+    res.status(500).json({ error: 'Error al obtener servicios del cliente' });
+  }
+});
+
+// Actualizar estado del servicio (cliente puede marcar como completado)
+router.put('/:id/status', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    const { id: userId } = req.user;
+
+    const service = await prisma.servicios.findUnique({
+      where: { id: parseInt(id) }
+    });
+
+    if (!service) {
+      return res.status(404).json({ error: 'Servicio no encontrado' });
+    }
+
+    if (service.cliente_id !== userId) {
+      return res.status(403).json({ error: 'No tienes permiso para actualizar este servicio' });
+    }
+
+    // Solo permitir ciertos estados
+    const allowedStatuses = ['completado', 'cancelado'];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Estado no válido' });
+    }
+
+    const updatedService = await prisma.servicios.update({
+      where: { id: parseInt(id) },
+      data: {
+        estado: status,
+        completado_en: status === 'completado' ? new Date() : undefined
+      },
+      include: {
+        profesional: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.json(updatedService);
+  } catch (error) {
+    console.error('Error al actualizar estado del servicio:', error);
+    res.status(500).json({ error: 'Error al actualizar estado del servicio' });
+  }
+});
+
 module.exports = router;

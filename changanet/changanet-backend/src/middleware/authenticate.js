@@ -67,13 +67,27 @@ exports.authenticateToken = (req, res, next) => {
           email: true,
           nombre: true,
           rol: true,
-          esta_verificado: true
+          esta_verificado: true,
+          bloqueado: true
         }
       });
 
       if (!userData) {
         console.error('Usuario no encontrado en la base de datos:', user.userId);
         return res.sendStatus(403); // Usuario no encontrado
+      }
+
+      // RB-05: Los usuarios bloqueados por mal comportamiento no pueden acceder al sistema
+      if (userData.bloqueado) {
+        console.warn('Acceso denegado: usuario bloqueado', {
+          userId: userData.id,
+          email: userData.email,
+          ip: req.ip
+        });
+        return res.status(403).json({
+          error: 'Cuenta suspendida',
+          message: 'Tu cuenta ha sido bloqueada. Contacta al soporte para más información.'
+        });
       }
 
       req.user = {

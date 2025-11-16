@@ -1,84 +1,63 @@
 /**
  * @page ProfessionalSignupPage - Página de registro para profesionales
- * @descripción Formulario completo para registro de profesionales (REQ-06 a REQ-10)
+ * @descripción Formulario completo para registro de profesionales con asistente virtual (REQ-06 a REQ-10)
  * @sprint Sprint 1 – Autenticación y Perfiles
  * @tarjeta Tarjeta 2: [Frontend] Implementar Registro Profesional
+ * @optimización Asistente virtual para mejorar onboarding
  * @impacto Social: Simplifica el acceso de profesionales al sistema
  */
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import VirtualAssistantWizard from '../components/VirtualAssistantWizard';
 
 const ProfessionalSignupPage = () => {
-  const [formData, setFormData] = useState({
+  const [showWizard, setShowWizard] = useState(false);
+  const [basicInfo, setBasicInfo] = useState({
     email: '',
     password: '',
-    name: '',
-    specialty: '',
-    yearsExperience: '',
-    coverageArea: '',
-    hourlyRate: '',
-    profilePicture: null
+    name: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { signup } = useAuth();
   const navigate = useNavigate();
 
-  const handleInputChange = (e) => {
+  const handleBasicInfoChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setBasicInfo(prev => ({
       ...prev,
       [name]: value
     }));
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validar tipo de archivo
-      if (!file.type.startsWith('image/')) {
-        setError('Solo se permiten archivos de imagen');
-        return;
-      }
-      // Validar tamaño (5MB máximo)
-      if (file.size > 5 * 1024 * 1024) {
-        setError('La imagen no puede superar los 5MB');
-        return;
-      }
-      setFormData(prev => ({
-        ...prev,
-        profilePicture: file
-      }));
+  const handleStartWizard = (e) => {
+    e.preventDefault();
+    if (!basicInfo.name || !basicInfo.email || !basicInfo.password) {
+      setError('Completa todos los campos básicos');
+      return;
     }
+    setShowWizard(true);
+    setError('');
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleWizardComplete = async (wizardData) => {
     setLoading(true);
     setError('');
 
     try {
-      // Preparar datos del profesional incluyendo perfil
+      // Combinar datos básicos con datos del wizard
       const professionalData = {
-        nombre: formData.name,
-        email: formData.email,
-        password: formData.password,
-        telefono: formData.telefono || null,
-        especialidad: formData.specialty,
-        anos_experiencia: formData.yearsExperience ? parseInt(formData.yearsExperience) : null,
-        zona_cobertura: formData.coverageArea,
-        tarifa_hora: formData.hourlyRate ? parseFloat(formData.hourlyRate) : 0,
-        descripcion: `Profesional en ${formData.specialty} con ${formData.yearsExperience || 0} años de experiencia. Zona: ${formData.coverageArea}.`
+        nombre: basicInfo.name,
+        email: basicInfo.email,
+        password: basicInfo.password,
+        especialidad: wizardData.specialty,
+        anos_experiencia: wizardData.yearsExperience ? parseInt(wizardData.yearsExperience) : null,
+        zona_cobertura: wizardData.coverageArea,
+        tarifa_hora: wizardData.hourlyRate ? parseFloat(wizardData.hourlyRate) : 0,
+        descripcion: wizardData.description || `Profesional en ${wizardData.specialty} con ${wizardData.yearsExperience || 0} años de experiencia. Zona: ${wizardData.coverageArea}.`
       };
-
-      // Si hay imagen, subirla primero
-      if (formData.profilePicture) {
-        // TODO: Implementar subida de imagen al backend
-        // Por ahora, continuar sin imagen
-        console.log('Imagen seleccionada, pero subida no implementada aún');
-      }
 
       const response = await fetch('/api/auth/register-professional', {
         method: 'POST',
@@ -90,7 +69,6 @@ const ProfessionalSignupPage = () => {
       if (response.ok) {
         // Login automático después del registro exitoso
         if (data.token && data.user) {
-          // Usar el método login del AuthContext
           const { login } = useAuth();
           login(data.user, data.token);
         }
@@ -106,13 +84,27 @@ const ProfessionalSignupPage = () => {
     }
   };
 
+  if (showWizard) {
+    return (
+      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <VirtualAssistantWizard
+          onComplete={handleWizardComplete}
+          initialData={{
+            name: basicInfo.name,
+            email: basicInfo.email
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto bg-white rounded-lg shadow-md p-8">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">Únete como Profesional</h2>
           <p className="mt-2 text-gray-600">
-            Crea tu perfil profesional y comienza a ofrecer servicios
+            Crea tu perfil profesional con nuestra guía inteligente
           </p>
         </div>
 
@@ -122,10 +114,10 @@ const ProfessionalSignupPage = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Datos personales */}
+        <form onSubmit={handleStartWizard} className="space-y-6">
+          {/* Datos básicos */}
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Datos Personales</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Datos Básicos</h3>
 
             <div className="space-y-4">
               <div>
@@ -137,8 +129,8 @@ const ProfessionalSignupPage = () => {
                   name="name"
                   type="text"
                   required
-                  value={formData.name}
-                  onChange={handleInputChange}
+                  value={basicInfo.name}
+                  onChange={handleBasicInfoChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -152,8 +144,8 @@ const ProfessionalSignupPage = () => {
                   name="email"
                   type="email"
                   required
-                  value={formData.email}
-                  onChange={handleInputChange}
+                  value={basicInfo.email}
+                  onChange={handleBasicInfoChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -167,106 +159,21 @@ const ProfessionalSignupPage = () => {
                   name="password"
                   type="password"
                   required
-                  value={formData.password}
-                  onChange={handleInputChange}
+                  value={basicInfo.password}
+                  onChange={handleBasicInfoChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
             </div>
           </div>
 
-          {/* Datos profesionales */}
-          <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Información Profesional</h3>
-
-            <div className="space-y-4">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center">
+              <div className="text-2xl mr-3">🤖</div>
               <div>
-                <label htmlFor="specialty" className="block text-sm font-medium text-gray-700">
-                  Especialidad *
-                </label>
-                <select
-                  id="specialty"
-                  name="specialty"
-                  required
-                  value={formData.specialty}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Selecciona una especialidad</option>
-                  <option value="Plomero">Plomero</option>
-                  <option value="Electricista">Electricista</option>
-                  <option value="Pintor">Pintor</option>
-                  <option value="Carpintero">Carpintero</option>
-                  <option value="Jardinero">Jardinero</option>
-                  <option value="Mecánico">Mecánico</option>
-                  <option value="Técnico">Técnico</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="yearsExperience" className="block text-sm font-medium text-gray-700">
-                  Años de experiencia
-                </label>
-                <input
-                  id="yearsExperience"
-                  name="yearsExperience"
-                  type="number"
-                  min="0"
-                  max="50"
-                  value={formData.yearsExperience}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="coverageArea" className="block text-sm font-medium text-gray-700">
-                  Zona de cobertura *
-                </label>
-                <input
-                  id="coverageArea"
-                  name="coverageArea"
-                  type="text"
-                  required
-                  placeholder="Ej: Buenos Aires, Palermo"
-                  value={formData.coverageArea}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="hourlyRate" className="block text-sm font-medium text-gray-700">
-                  Tarifa por hora (ARS) *
-                </label>
-                <input
-                  id="hourlyRate"
-                  name="hourlyRate"
-                  type="number"
-                  required
-                  min="100"
-                  step="50"
-                  value={formData.hourlyRate}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="profilePicture" className="block text-sm font-medium text-gray-700">
-                  Foto de perfil
-                </label>
-                <input
-                  id="profilePicture"
-                  name="profilePicture"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  JPG, PNG o GIF. Máximo 5MB.
+                <h4 className="font-semibold text-blue-800">Asistente Virtual</h4>
+                <p className="text-sm text-blue-700">
+                  Te guiaremos paso a paso para configurar tu perfil profesional de manera óptima
                 </p>
               </div>
             </div>
@@ -276,9 +183,9 @@ const ProfessionalSignupPage = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#E30613] hover:bg-[#C9050F] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#E30613] hover:bg-[#C9050F] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creando cuenta...' : 'Crear cuenta profesional'}
+              {loading ? 'Procesando...' : 'Comenzar Configuración Asistida'}
             </button>
           </div>
         </form>

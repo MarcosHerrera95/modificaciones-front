@@ -2,6 +2,9 @@
 const express = require('express');
 const multer = require('multer');
 const { createReview, getReviewsByProfessional, checkReviewEligibility } = require('../controllers/reviewController');
+const { authenticateToken } = require('../middleware/authenticate');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
 const router = express.Router();
 
@@ -31,5 +34,40 @@ const upload = multer({
 router.post('/', upload.single('url_foto'), createReview);
 router.get('/professional/:professionalId', getReviewsByProfessional);
 router.get('/check/:servicioId', checkReviewEligibility);
+
+// Obtener reseñas escritas por el cliente autenticado
+router.get('/client', authenticateToken, async (req, res) => {
+  try {
+    const { id: clientId } = req.user;
+
+    const reviews = await prisma.resenas.findMany({
+      where: { cliente_id: clientId },
+      include: {
+        servicio: {
+          include: {
+            profesional: {
+              select: {
+                id: true,
+                nombre: true,
+                email: true,
+                perfil_profesional: {
+                  select: {
+                    especialidad: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { creado_en: 'desc' }
+    });
+
+    res.json({ reviews });
+  } catch (error) {
+    console.error('Error al obtener reseñas del cliente:', error);
+    res.status(500).json({ error: 'Error al obtener reseñas del cliente' });
+  }
+});
 
 module.exports = router;

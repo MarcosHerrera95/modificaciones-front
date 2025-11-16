@@ -25,12 +25,81 @@ const RETRY_CONFIG = {
 };
 
 /**
+ * Configuración de caché para optimización de rendimiento
+ */
+const CACHE_CONFIG = {
+  defaultTTL: 5 * 60 * 1000, // 5 minutos
+  maxSize: 50, // Máximo 50 entradas en caché
+};
+
+/**
+ * Cache simple en memoria para optimizar llamadas API
+ */
+const apiCache = new Map();
+
+/**
  * Calcula el delay para el siguiente reintento usando backoff exponencial
  */
 function calculateRetryDelay(attempt) {
   const delay = RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffFactor, attempt);
   return Math.min(delay, RETRY_CONFIG.maxDelay);
 }
+
+/**
+ * Genera una clave única para el caché basada en URL y opciones
+ */
+function generateCacheKey(url, options = {}) {
+  const method = (options.method || 'GET').toUpperCase();
+  const body = options.body ? JSON.stringify(options.body) : '';
+  return `${method}:${url}:${body}`;
+}
+
+/**
+ * Obtiene datos del caché si están disponibles y válidos
+ */
+function getCachedResponse(cacheKey) {
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_CONFIG.defaultTTL) {
+    return cached.data;
+  }
+  // Limpiar entrada expirada
+  if (cached) {
+    apiCache.delete(cacheKey);
+  }
+  return null;
+}
+
+/**
+ * Almacena respuesta en caché
+ */
+function setCachedResponse(cacheKey, data) {
+  // Limpiar caché si excede el tamaño máximo
+  if (apiCache.size >= CACHE_CONFIG.maxSize) {
+    const firstKey = apiCache.keys().next().value;
+    apiCache.delete(firstKey);
+  }
+
+  apiCache.set(cacheKey, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * Limpia el caché (útil para operaciones de escritura)
+ */
+export const clearCache = () => {
+  apiCache.clear();
+};
+
+/**
+ * Obtiene estadísticas del caché
+ */
+export const getCacheStats = () => ({
+  size: apiCache.size,
+  maxSize: CACHE_CONFIG.maxSize
+});
+
 
 /**
  * Determina si un error es reintentable
@@ -43,14 +112,30 @@ function isRetryableError(error) {
 }
 
 /**
- * Función principal para hacer llamadas API con retry logic
+ * Función principal para hacer llamadas API con retry logic y caché
  */
 async function apiRequest(url, options = {}, retryCount = 0) {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+  const method = (options.method || 'GET').toUpperCase();
+  const useCache = options.useCache !== false && method === 'GET'; // Cache solo para GET por defecto
+
+  // Verificar caché para operaciones GET
+  if (useCache && retryCount === 0) {
+    const cacheKey = generateCacheKey(fullUrl, options);
+    const cachedData = getCachedResponse(cacheKey);
+    if (cachedData) {
+      console.log('🚀 API Cache Hit:', url);
+      return cachedData;
+    }
+  }
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos timeout
+
+    // Incluir automáticamente el token JWT si existe
+    const token = sessionStorage.getItem('changanet_token');
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     const response = await fetch(fullUrl, {
       ...options,
@@ -58,19 +143,38 @@ async function apiRequest(url, options = {}, retryCount = 0) {
       headers: {
         'Content-Type': 'application/json',
         ...getSecurityHeaders(),
+        ...authHeaders,
         ...options.headers,
       },
     });
 
     clearTimeout(timeoutId);
 
-    // Si la respuesta es exitosa, retornarla
+    // Si la respuesta es exitosa, retornarla y cachearla si corresponde
     if (response.ok) {
       const contentType = response.headers.get('content-type');
+      let data;
+
       if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+        data = await response.json();
+      } else {
+        data = response;
       }
-      return response;
+
+      // Almacenar en caché para operaciones GET exitosas
+      if (useCache && method === 'GET') {
+        const cacheKey = generateCacheKey(fullUrl, options);
+        setCachedResponse(cacheKey, data);
+        console.log('💾 API Response Cached:', url);
+      }
+
+      // Limpiar caché para operaciones de escritura exitosas
+      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
+        clearCache();
+        console.log('🗑️ API Cache Cleared after write operation');
+      }
+
+      return data;
     }
 
     // Si es un error 401 (no autorizado), redirigir al login
@@ -191,11 +295,12 @@ export const professionalsAPI = {
 // Cotizaciones
 export const quotesAPI = {
   create: (quoteData) => api.post('/api/quotes', quoteData),
-  getMyQuotes: () => api.get('/api/quotes'),
+  getMyQuotes: () => api.get('/api/quotes/client'), // Para clientes
+  getProfessionalQuotes: () => api.get('/api/quotes/professional'), // Para profesionales
   getById: (id) => api.get(`/api/quotes/${id}`),
-  update: (id, data) => api.put(`/api/quotes/${id}`, data),
-  accept: (id) => api.post(`/api/quotes/${id}/accept`),
-  reject: (id, reason) => api.post(`/api/quotes/${id}/reject`, { reason })
+  respond: (quoteId, action, data = {}) => api.post('/api/quotes/respond', { quoteId, action, ...data }),
+  getClientServices: () => api.get('/api/quotes/client/services'),
+  getProfessionalServices: () => api.get('/api/quotes/professional/services')
 };
 
 // Mensajes

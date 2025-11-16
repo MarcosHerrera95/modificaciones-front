@@ -315,6 +315,53 @@ exports.sendNotificationEmail = async (email, type, message, userName) => {
  * @param {string} email - Email del usuario
  * @param {string} verificationToken - Token de verificación
  */
+/**
+ * Envía email de recuperación de contraseña
+ * @param {string} email - Email del usuario
+ * @param {string} resetToken - Token de recuperación
+ */
+exports.sendPasswordResetEmail = async (email, resetToken) => {
+  const subject = 'Recupera tu contraseña - Changánet';
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="background-color: #E30613; padding: 20px; text-align: center; border-radius: 10px 10px 0 0;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Recupera tu contraseña</h1>
+      </div>
+      <div style="background-color: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <h2 style="color: #333; margin-bottom: 20px;">¿Olvidaste tu contraseña?</h2>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          No te preocupes, te ayudamos a recuperarla. Haz clic en el botón de abajo para crear una nueva contraseña.
+        </p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetUrl}"
+             style="background-color: #E30613; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            Restablecer contraseña
+          </a>
+        </div>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Si el botón no funciona, copia y pega esta URL en tu navegador:
+        </p>
+        <p style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; word-break: break-all; color: #666; font-size: 12px;">
+          ${resetUrl}
+        </p>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 30px;">
+          Este enlace expirará en 1 hora por seguridad.
+        </p>
+        <p style="color: #666; line-height: 1.6; margin-bottom: 20px;">
+          Si no solicitaste este cambio, puedes ignorar este email. Tu contraseña seguirá siendo la misma.
+        </p>
+        <p style="color: #999; font-size: 12px; text-align: center;">
+          Por seguridad, no compartas este enlace con nadie.
+        </p>
+      </div>
+    </div>
+  `;
+
+  await exports.sendEmail(email, subject, html);
+};
+
 exports.sendVerificationEmail = async (email, verificationToken) => {
   const subject = 'Verifica tu cuenta - Changánet';
   const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${verificationToken}`;

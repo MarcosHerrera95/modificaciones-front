@@ -260,10 +260,10 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Servicios</h3>
             <button
-              onClick={() => navigate('/mis-servicios')}
+              onClick={() => navigate('/profesional/servicios')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
-              Ver Servicios
+              Gestionar Servicios
             </button>
           </div>
         );
@@ -273,7 +273,7 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Cotizaciones Recibidas</h3>
             <button
-              onClick={() => navigate('/cotizaciones-profesional')}
+              onClick={() => navigate('/profesional/cotizaciones')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Cotizaciones
@@ -286,10 +286,10 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mi Agenda</h3>
             <button
-              onClick={() => navigate('/agenda-profesional')}
+              onClick={() => navigate('/availability')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
-              Ver Agenda
+              Gestionar Disponibilidad
             </button>
           </div>
         );
@@ -299,7 +299,7 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Verificación de Identidad</h3>
             <button
-              onClick={() => navigate('/verificacion-profesional')}
+              onClick={() => navigate('/verify-identity')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Verificación
@@ -312,7 +312,7 @@ const ProfessionalDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Historial de Pagos</h3>
             <button
-              onClick={() => navigate('/pagos-profesional')}
+              onClick={() => navigate('/profesional/pagos')}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Ver Pagos

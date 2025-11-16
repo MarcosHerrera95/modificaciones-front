@@ -1,31 +1,47 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { ModalProvider } from './context/ModalContext.jsx';
 import { NotificationProvider } from './context/NotificationContext';
 import { ChatProvider } from './context/ChatContext';
-import Home from './pages/Home';
-import Professionals from './pages/Professionals';
-import ProfessionalDetail from './pages/ProfessionalDetail';
-import Dashboard from './pages/Dashboard';
-import Quotes from './pages/Quotes';
-import Availability from './pages/Availability';
-import ClientProfile from './pages/ClientProfile';
-import ProfessionalProfile from './pages/ProfessionalProfile';
-import ProfilePage from './pages/ProfilePage';
-import AuthCallback from './pages/AuthCallback';
-import Terms from './pages/Terms';
-import Privacy from './pages/Privacy';
-import Cookies from './pages/Cookies';
-import Custody from './pages/Custody';
-import Ranking from './pages/Ranking';
-import ContactPage from './pages/ContactPage';
-import ProfessionalSignupPage from './pages/ProfessionalSignupPage';
-import ClientSignupPage from './pages/ClientSignupPage';
-import VerifyIdentity from './pages/VerifyIdentity';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import OnboardingTutorial from './components/OnboardingTutorial';
 import ContextualHelp from './components/ContextualHelp';
+import LoadingSpinner from './components/LoadingSpinner';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy load pages for better performance (Code Splitting)
+const Home = lazy(() => import('./pages/Home'));
+const Professionals = lazy(() => import('./pages/Professionals'));
+const ProfessionalDetail = lazy(() => import('./pages/ProfessionalDetail'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Quotes = lazy(() => import('./pages/Quotes'));
+const Availability = lazy(() => import('./pages/Availability'));
+const ClientProfile = lazy(() => import('./pages/ClientProfile'));
+const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
+const ClientServices = lazy(() => import('./pages/ClientServices'));
+const ClientQuotes = lazy(() => import('./pages/ClientQuotes'));
+const ClientReviews = lazy(() => import('./pages/ClientReviews'));
+const ProfessionalProfile = lazy(() => import('./pages/ProfessionalProfile'));
+const ProfessionalDashboard = lazy(() => import('./pages/ProfessionalDashboard'));
+const ProfessionalServices = lazy(() => import('./pages/ProfessionalServices'));
+const ProfessionalQuotes = lazy(() => import('./pages/ProfessionalQuotes'));
+const ProfessionalPayments = lazy(() => import('./pages/ProfessionalPayments'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const AuthCallback = lazy(() => import('./pages/AuthCallback'));
+const Terms = lazy(() => import('./pages/Terms'));
+const Privacy = lazy(() => import('./pages/Privacy'));
+const Cookies = lazy(() => import('./pages/Cookies'));
+const Custody = lazy(() => import('./pages/Custody'));
+const Ranking = lazy(() => import('./pages/Ranking'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ProfessionalSignupPage = lazy(() => import('./pages/ProfessionalSignupPage'));
+const ClientSignupPage = lazy(() => import('./pages/ClientSignupPage'));
+const VerifyIdentity = lazy(() => import('./pages/VerifyIdentity'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -55,34 +71,46 @@ function App() {
           <ModalProvider>
             <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <div className="flex flex-col min-h-screen">
-                {/* Skip link for accessibility */}
-                <a href="#main-content" className="skip-link">
-                  Saltar al contenido principal
-                </a>
                 <Header />
                 <main id="main-content" className="flex-grow" role="main">
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/login" element={<Navigate to="/" replace />} />
-                    <Route path="/profesionales" element={<Professionals />} />
-                    <Route path="/profesional/:id" element={<ProfessionalDetail />} />
-                    <Route path="/mi-cuenta" element={<Dashboard />} />
-                    <Route path="/mis-cotizaciones" element={<Quotes />} />
-                    <Route path="/disponibilidad" element={<Availability />} />
-                    <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
-                    <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
-                    <Route path="/perfil" element={<ProfilePage />} />
-                    <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
-                    <Route path="/registro-cliente" element={<ClientSignupPage />} />
-                    <Route path="/auth/callback" element={<AuthCallback />} />
-                    <Route path="/terminos" element={<Terms />} />
-                    <Route path="/privacidad" element={<Privacy />} />
-                    <Route path="/cookies" element={<Cookies />} />
-                    <Route path="/custodia" element={<Custody />} />
-                    <Route path="/ranking" element={<Ranking />} />
-                    <Route path="/contacto" element={<ContactPage />} />
-                    <Route path="/verificar-identidad" element={<VerifyIdentity />} />
-                  </Routes>
+                  <ErrorBoundary>
+                    <Suspense fallback={<LoadingSpinner />}>
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/login" element={<Navigate to="/" replace />} />
+                        <Route path="/profesionales" element={<Professionals />} />
+                        <Route path="/profesional/:id" element={<ProfessionalDetail />} />
+                        <Route path="/mi-cuenta" element={<Dashboard />} />
+                        <Route path="/mis-cotizaciones" element={<Quotes />} />
+                        <Route path="/disponibilidad" element={<Availability />} />
+                        <Route path="/cliente/dashboard" element={<ClientDashboard />} />
+                        <Route path="/cliente/perfil" element={<ClientProfile />} />
+                        <Route path="/cliente/servicios" element={<ClientServices />} />
+                        <Route path="/cliente/cotizaciones" element={<ClientQuotes />} />
+                        <Route path="/cliente/resenas" element={<ClientReviews />} />
+                        <Route path="/profesional/dashboard" element={<ProfessionalDashboard />} />
+                        <Route path="/profesional/servicios" element={<ProfessionalServices />} />
+                        <Route path="/profesional/cotizaciones" element={<ProfessionalQuotes />} />
+                        <Route path="/profesional/pagos" element={<ProfessionalPayments />} />
+                        <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
+                        <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
+                        <Route path="/perfil" element={<ProfilePage />} />
+                        <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
+                        <Route path="/registro-cliente" element={<ClientSignupPage />} />
+                        <Route path="/verificar-email" element={<VerifyEmail />} />
+                        <Route path="/olvide-contrasena" element={<ForgotPasswordPage />} />
+                        <Route path="/reset-password" element={<ResetPasswordPage />} />
+                        <Route path="/auth/callback" element={<AuthCallback />} />
+                        <Route path="/terminos" element={<Terms />} />
+                        <Route path="/privacidad" element={<Privacy />} />
+                        <Route path="/cookies" element={<Cookies />} />
+                        <Route path="/custodia" element={<Custody />} />
+                        <Route path="/ranking" element={<Ranking />} />
+                        <Route path="/contacto" element={<ContactPage />} />
+                        <Route path="/verificar-identidad" element={<VerifyIdentity />} />
+                      </Routes>
+                    </Suspense>
+                  </ErrorBoundary>
                 </main>
                 <Footer />
               </div>

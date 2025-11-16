@@ -46,6 +46,7 @@ model usuarios {
   telefono              String?
   rol                   String    @default("cliente")
   esta_verificado       Boolean   @default(false)
+  bloqueado             Boolean   @default(false) // RB-05: Usuarios bloqueados no pueden acceder
   token_verificacion    String?   @unique
   token_expiracion      DateTime?
   creado_en             DateTime  @default(now())
@@ -64,6 +65,12 @@ model usuarios {
   cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
   cotizaciones_como_profesional cotizaciones[] @relation("CotizacionProfesional")
   verification_request verification_requests?
+  pagos_como_cliente pagos[] @relation("PagoCliente")
+  pagos_como_profesional pagos[] @relation("PagoProfesional")
+
+  // Relaciones para servicios recurrentes
+  servicios_recurrrentes_cliente servicios_recurrrentes[] @relation("ServicioRecurrenteCliente")
+  servicios_recurrrentes_profesional servicios_recurrrentes[] @relation("ServicioRecurrenteProfesional")
 
   @@index([rol])
   @@index([esta_verificado])
@@ -81,6 +88,8 @@ model perfiles_profesionales {
   especialidad     String
   anos_experiencia Int?
   zona_cobertura   String
+  latitud          Float?   // Coordenadas GPS para cálculo de distancia real
+  longitud         Float?   // Coordenadas GPS para cálculo de distancia real
   tarifa_hora      Float
   descripcion      String?
   url_foto_perfil  String?
@@ -92,6 +101,7 @@ model perfiles_profesionales {
   @@index([especialidad])
   @@index([zona_cobertura])
   @@index([calificacion_promedio])
+  @@index([latitud, longitud])
   @@index([especialidad, zona_cobertura, calificacion_promedio])
 }
 
@@ -112,6 +122,11 @@ model servicios {
   creado_en      DateTime @default(now())
   completado_en  DateTime?
   resena         resenas?
+  pago           pagos?
+
+  // Relación con servicios recurrentes
+  servicio_recurrente_id String?
+  servicio_recurrente servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
 
   @@index([cliente_id])
   @@index([profesional_id])
@@ -223,10 +238,81 @@ model verification_requests {
   revisado_por  String?  // ID del administrador que revisó
 }
 
+// MODELO: pagos
+// FUNCIÓN: Registra todas las transacciones de pago para trazabilidad y generación de comprobantes
+// RELACIÓN PRD: REQ-41 (Integración pasarelas), REQ-42 (Custodia), REQ-44 (Retiro), REQ-45 (Comprobantes)
+// TARJETA BACKEND: Tarjeta 7: [Backend] Implementar Sistema de Pagos y Comisiones
+// SPRINT: Sprint 3 – Servicios y Transacciones
+model pagos {
+  id                String   @id @default(uuid())
+  servicio_id       String   @unique
+  servicio          servicios @relation(fields: [servicio_id], references: [id])
+  cliente_id        String
+  cliente           usuarios @relation("PagoCliente", fields: [cliente_id], references: [id])
+  profesional_id    String
+  profesional       usuarios @relation("PagoProfesional", fields: [profesional_id], references: [id])
+  monto_total       Float
+  comision_plataforma Float
+  monto_profesional Float
+  mercado_pago_id   String?  @unique // ID del pago en Mercado Pago
+  estado            String   @default("pendiente") // "pendiente", "aprobado", "liberado", "reembolsado"
+  metodo_pago       String?  // "tarjeta", "transferencia", etc.
+  fecha_pago        DateTime?
+  fecha_liberacion  DateTime?
+  url_comprobante   String?  // URL del comprobante generado
+  creado_en         DateTime @default(now())
+
+  @@index([cliente_id])
+  @@index([profesional_id])
+  @@index([estado])
+  @@index([mercado_pago_id])
+}
+
+// MODELO: servicios_recurrrentes
+// FUNCIÓN: Gestiona servicios programados de forma recurrente (semanal, mensual, etc.)
+// RELACIÓN PRD: Optimización - Programación automática de servicios recurrentes
+// SPRINT: Optimización - Servicios recurrentes
+// IMPACTO: Mejora retención de clientes y ingresos estables para profesionales
+model servicios_recurrrentes {
+  id             String   @id @default(uuid())
+  cliente_id     String
+  cliente        usuarios @relation("ServicioRecurrenteCliente", fields: [cliente_id], references: [id])
+  profesional_id String
+  profesional    usuarios @relation("ServicioRecurrenteProfesional", fields: [profesional_id], references: [id])
+
+  descripcion    String
+  frecuencia     String   // "semanal", "quincenal", "mensual", "bimestral", "trimestral"
+  dia_semana     Int?     // 0-6 (domingo a sábado) para frecuencia semanal
+  dia_mes       Int?     // 1-31 para frecuencia mensual
+  hora_inicio   String   // HH:MM format
+  duracion_horas Float    // duración estimada en horas
+
+  tarifa_base   Float    // tarifa por servicio individual
+  descuento_recurrencia Float @default(0) // descuento porcentual por ser recurrente
+
+  fecha_inicio  DateTime
+  fecha_fin     DateTime? // opcional, si es indefinido
+  activo        Boolean  @default(true)
+
+  creado_en     DateTime @default(now())
+  actualizado_en DateTime?
+
+  // Servicios individuales generados automáticamente
+  servicios_generados servicios[]
+
+  @@index([cliente_id])
+  @@index([profesional_id])
+  @@index([activo])
+  @@index([fecha_inicio])
+  @@index([frecuencia])
+}
+
 // Note: Enums converted to String types for SQLite compatibility
 // Valid values:
-// - rol: "cliente", "profesional"
+// - rol: "cliente", "profesional", "admin"
 // - estado_verificacion: "pendiente", "verificado", "rechazado"
-// - estado (servicios): "pendiente", "agendado", "completado", "cancelado"
-// - tipo (notificaciones): "nuevo_mensaje", "nueva_cotizacion", "servicio_agendado", "resena_recibida", "pago_liberado"
+// - estado (servicios): "pendiente", "agendado", "completado", "pagado", "cancelado"
+// - tipo (notificaciones): "nuevo_mensaje", "nueva_cotizacion", "servicio_agendado", "resena_recibida", "pago_liberado", "fondos_liberados"
 // - estado (cotizaciones): "pendiente", "aceptado", "rechazado"
+// - frecuencia (servicios_recurrrentes): "semanal", "quincenal", "mensual", "bimestral", "trimestral"
+// - estado (pagos): "pendiente", "aprobado", "liberado", "reembolsado"

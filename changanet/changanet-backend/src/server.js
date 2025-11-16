@@ -85,9 +85,15 @@ const galleryRoutes = require('./routes/galleryRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const professionalsRoutes = require('./routes/professionalsRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const marketAnalysisRoutes = require('./routes/marketAnalysisRoutes');
+const advancedAnalyticsRoutes = require('./routes/advancedAnalyticsRoutes');
+const recurringServiceRoutes = require('./routes/recurringServiceRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
+const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
+const { scheduleRecurringServiceGeneration } = require('./services/recurringServiceScheduler');
 
 // Importar documentación Swagger
 const swaggerUi = require('swagger-ui-express');
@@ -408,6 +414,18 @@ app.use('/api/contact', contactRoutes);
 // Rutas de newsletter (públicas)
 app.use('/api/newsletter', newsletterRoutes);
 
+// Rutas de administración con autenticación requerida
+app.use('/api/admin', adminRoutes);
+
+// Rutas de análisis de mercado con autenticación requerida
+app.use('/api/market-analysis', marketAnalysisRoutes);
+
+// Rutas de analytics avanzados con autenticación requerida
+app.use('/api/advanced-analytics', advancedAnalyticsRoutes);
+
+// Rutas de servicios recurrentes con autenticación requerida
+app.use('/api/recurring-services', recurringServiceRoutes);
+
 /**
  * Configuración de eventos de Socket.IO para chat en tiempo real.
  * Maneja conexiones de usuarios, envío de mensajes y marcación como leídos.
@@ -602,7 +620,11 @@ const findAvailablePort = (startPort) => {
   });
 };
 
+// Programar recordatorios automáticos de disponibilidad
 if (process.env.NODE_ENV !== 'test') {
+  scheduleAutomaticReminders();
+  console.log('⏰ Recordatorios automáticos de disponibilidad programados');
+
   findAvailablePort(PORT).then(availablePort => {
     server.listen(availablePort, () => {
       console.log(`🚀 Backend y Socket.IO corriendo en http://localhost:${availablePort}`);
