@@ -25,11 +25,9 @@ export default defineConfig({
     host: 'localhost',
     port: 5175,
     headers: {
-      // Headers de desarrollo para facilitar OAuth y evitar problemas de CSP
-      // NOTA: En producción, estos headers deben ser más restrictivos
-      // 'Cross-Origin-Opener-Policy': 'unsafe-none',
-      // 'Cross-Origin-Embedder-Policy': 'unsafe-none',
-      'Content-Security-Policy': "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://maps.googleapis.com https://maps.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' http://localhost:3002 http://localhost:3003 ws://localhost:3002 ws://localhost:3003 wss://localhost:3002 wss://localhost:3003 https://maps.googleapis.com https://places.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://apis.google.com https://o4510260990574592.ingest.us.sentry.io;",
+      // Headers de desarrollo - COOP/COEP removidos para compatibilidad con Firebase Auth
+      // NOTA: En producción, considera re-habilitar estos headers por seguridad
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://maps.googleapis.com https://maps.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' http://localhost:3002 http://localhost:3003 ws://localhost:3002 ws://localhost:3003 wss://localhost:3002 wss://localhost:3003 https://maps.googleapis.com https://places.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://identitytoolkit.googleapis.com https://apis.google.com https://firebaseinstallations.googleapis.com https://fcmregistrations.googleapis.com https://o4510260990574592.ingest.us.sentry.io; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; frame-src 'self' https://changanet-notifications.firebaseapp.com https://accounts.google.com;",
       // Headers de seguridad adicionales
       'X-Frame-Options': 'DENY',
       'X-Content-Type-Options': 'nosniff',

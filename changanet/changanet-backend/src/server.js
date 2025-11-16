@@ -231,7 +231,22 @@ const { createHttpMetricsMiddleware } = require('./services/metricsService');
 app.use(createHttpMetricsMiddleware());
 
 // Middleware de seguridad y optimización de rendimiento
-app.use(helmet()); // Configura cabeceras HTTP seguras
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https:", "http:"],
+      scriptSrc: ["'self'", "'unsafe-eval'", "'unsafe-inline'", "https://www.gstatic.com", "https://www.googleapis.com"],
+      connectSrc: ["'self'", "https://www.googleapis.com", "https://firestore.googleapis.com", "https://identitytoolkit.googleapis.com", "wss:"],
+      frameSrc: ["'self'", "https://accounts.google.com", "https://www.google.com"],
+      frameAncestors: ["'self'"]
+    }
+  },
+  crossOriginEmbedderPolicy: false, // Disable COEP for Firebase Auth compatibility
+  crossOriginOpenerPolicy: false // Disable COOP for popup compatibility
+}));
 app.use(compression()); // Comprime respuestas HTTP para reducir ancho de banda
 app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
@@ -305,8 +320,10 @@ app.use(cors({
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'X-Client-Info'],
+  exposedHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges'],
+  maxAge: 86400 // 24 horas
 }));
 
 // Middleware para parsear JSON con límite de tamaño

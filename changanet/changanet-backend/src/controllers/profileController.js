@@ -111,7 +111,7 @@ exports.updateProfile = async (req, res) => {
           data: {
             usuario_id: userId,
             especialidad,
-            anos_experiencia,
+            anos_experiencia: parseInt(anos_experiencia, 10),
             zona_cobertura,
             latitud: latitud ? parseFloat(latitud) : undefined,
             longitud: longitud ? parseFloat(longitud) : undefined,

@@ -37,7 +37,12 @@ export const initializeFCM = async () => {
     const permission = await Notification.requestPermission();
     if (permission !== 'granted') {
       console.warn('Permiso de notificaciones denegado');
-      return { success: false, error: 'Permiso de notificaciones denegado' };
+      return {
+        success: false,
+        error: 'Permiso de notificaciones denegado',
+        permission: permission,
+        canRetry: false // Una vez denegado, no se puede volver a solicitar
+      };
     }
 
     // Registrar service worker si no está registrado
@@ -165,6 +170,36 @@ export const sendFCMNotification = async (token, title, body, data = {}) => {
   }
 
   return { success: true };
+};
+
+/**
+ * @función checkNotificationPermission - Verificar estado actual de permisos
+ * @descripción Devuelve el estado actual de los permisos de notificación
+ * @returns {string} Estado de permisos: 'granted', 'denied', 'default'
+ */
+export const checkNotificationPermission = () => {
+  if (!('Notification' in window)) {
+    return 'not-supported';
+  }
+  return Notification.permission;
+};
+
+/**
+ * @función requestNotificationPermission - Solicitar permisos de notificación
+ * @descripción Solicita permisos de notificación al usuario (solo funciona si no está denegado)
+ * @returns {Promise<string>} Nuevo estado de permisos
+ */
+export const requestNotificationPermission = async () => {
+  if (!('Notification' in window)) {
+    throw new Error('Las notificaciones no están soportadas en este navegador');
+  }
+
+  if (Notification.permission === 'denied') {
+    throw new Error('Los permisos de notificación están denegados. Debes habilitarlos manualmente en la configuración del navegador.');
+  }
+
+  const permission = await Notification.requestPermission();
+  return permission;
 };
 
 /**

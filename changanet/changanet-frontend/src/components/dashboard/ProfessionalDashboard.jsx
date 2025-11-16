@@ -3,6 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import useSmartNavigation from '../../hooks/useSmartNavigation';
 
+// Backend URL configuration
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+
 
 const ProfessionalDashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -26,16 +29,16 @@ const ProfessionalDashboard = ({ user }) => {
     try {
       // Fetch services, quotes, notifications, profile
       const [servicesRes, quotesRes, notificationsRes, profileRes] = await Promise.all([
-        fetch('/api/quotes/professional/services', {
+        fetch(`${API_BASE_URL}/api/quotes/professional/services`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         }),
-        fetch('/api/quotes/professional', {
+        fetch(`${API_BASE_URL}/api/quotes/professional`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         }),
-        fetch('/api/notifications', {
+        fetch(`${API_BASE_URL}/api/notifications`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         }),
-        fetch('/api/profile', {
+        fetch(`${API_BASE_URL}/api/profile`, {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         })
       ]);
@@ -84,7 +87,7 @@ const ProfessionalDashboard = ({ user }) => {
 
   const handleVerifyClick = async () => {
     try {
-      const response = await fetch('/api/verification/status', {
+      const response = await fetch(`${API_BASE_URL}/api/verification/status`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
       });
 

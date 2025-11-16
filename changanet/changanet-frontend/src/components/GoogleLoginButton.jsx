@@ -35,24 +35,37 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
+      // Determinar URL del backend
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5179';
+
+      console.log('Frontend: Attempting Google OAuth with backend:', apiBaseUrl);
+
       // Enviar datos del usuario a backend para crear/actualizar usuario
-      const response = await fetch('/api/auth/google-login', {
+      const response = await fetch(`${apiBaseUrl}/api/auth/google-login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
         body: JSON.stringify({
           uid: user.uid,
           email: user.email,
-          nombre: user.displayName,
-          foto: user.photoURL
+          nombre: user.displayName || 'Usuario Google',
+          foto: user.photoURL,
+          rol: 'cliente' // Default role for new Google users
         })
       });
 
+      console.log('Frontend: Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Error en login con Google');
+        console.error('Frontend: Backend error:', errorData);
+        throw new Error(errorData.error || errorData.details || 'Error en login con Google');
       }
 
       const data = await response.json();
+      console.log('Frontend: Success response:', data);
 
       // Usar AuthContext para login
       login(data.user, data.token);

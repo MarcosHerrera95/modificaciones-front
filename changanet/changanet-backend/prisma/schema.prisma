@@ -210,7 +210,7 @@ model cotizaciones {
   profesional    usuarios @relation("CotizacionProfesional", fields: [profesional_id], references: [id])
   descripcion    String
   estado         EstadoCotizacion @default(PENDIENTE)
-  precio         Float
+  precio         Float?
   comentario     String?
   creado_en      DateTime @default(now())
   aceptado_en    DateTime?

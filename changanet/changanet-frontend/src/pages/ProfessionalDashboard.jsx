@@ -55,8 +55,12 @@ const ProfessionalDashboard = () => {
         return;
       }
 
+      // Use correct backend URL
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      console.log('Using backend URL:', apiBaseUrl);
+
       // Load real stats from API
-      const statsResponse = await fetch('/api/professionals/stats', {
+      const statsResponse = await fetch(`${apiBaseUrl}/api/professionals/stats`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -83,7 +87,7 @@ const ProfessionalDashboard = () => {
       }
 
       // Load recent activity
-      const activityResponse = await fetch('/api/professionals/activity', {
+      const activityResponse = await fetch(`${apiBaseUrl}/api/professionals/activity`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -565,6 +565,23 @@ exports.googleLogin = async (req, res) => {
   try {
     const { uid, email, nombre, foto, rol } = req.body;
 
+    console.log('Google OAuth attempt:', { email, uid, nombre, rol });
+
+    // Validar campos requeridos
+    if (!uid || !email || !nombre) {
+      console.error('Google OAuth validation failed: missing required fields', { uid, email, nombre });
+      return res.status(400).json({
+        error: 'Campos requeridos faltantes: uid, email, nombre son obligatorios'
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.error('Google OAuth validation failed: invalid email format', { email });
+      return res.status(400).json({ error: 'Formato de email inválido' });
+    }
+
     // Buscar usuario existente por email
     let user = await prisma.usuarios.findUnique({
       where: { email }
@@ -577,7 +594,8 @@ exports.googleLogin = async (req, res) => {
           where: { id: user.id },
           data: {
             google_id: uid,
-            url_foto_perfil: foto,
+            nombre: nombre, // Actualizar nombre si cambió
+            url_foto_perfil: foto || user.url_foto_perfil,
             esta_verificado: true, // Los usuarios de Google están verificados
           }
         });
@@ -587,6 +605,7 @@ exports.googleLogin = async (req, res) => {
           email: user.email,
           ip: req.ip
         });
+        console.log('Google OAuth: existing user updated:', user.email);
       } else {
         logger.info('Google OAuth: existing user login', {
           service: 'auth',
@@ -594,6 +613,7 @@ exports.googleLogin = async (req, res) => {
           email: user.email,
           ip: req.ip
         });
+        console.log('Google OAuth: existing user login:', user.email);
       }
     } else {
       // Crear nuevo usuario con rol por defecto "cliente" (REQ-02)
@@ -602,8 +622,8 @@ exports.googleLogin = async (req, res) => {
           nombre,
           email,
           google_id: uid,
-          url_foto_perfil: foto,
-          rol: rol || 'cliente', // Rol por defecto según REQ-02
+          url_foto_perfil: foto || null,
+          rol: rol && ['cliente', 'profesional'].includes(rol) ? rol : 'cliente', // Validar rol
           esta_verificado: true, // Los usuarios de Google están verificados
         }
       });
@@ -614,6 +634,7 @@ exports.googleLogin = async (req, res) => {
         rol: user.rol,
         ip: req.ip
       });
+      console.log('Google OAuth: new user created:', user.email);
     }
 
     // Generar token JWT con expiresIn: '7d' según requisitos
@@ -622,6 +643,8 @@ exports.googleLogin = async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d', algorithm: 'HS256' }
     );
+
+    console.log('Google OAuth: successful login for:', user.email);
 
     res.status(200).json({
       message: 'Login exitoso con Google',
@@ -635,12 +658,17 @@ exports.googleLogin = async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('Google OAuth login error:', error);
     logger.error('Google OAuth login error', {
       service: 'auth',
       error: error.message,
+      stack: error.stack,
       ip: req.ip
     });
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({
+      error: 'Error interno del servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error procesando autenticación con Google'
+    });
   }
 };
 
