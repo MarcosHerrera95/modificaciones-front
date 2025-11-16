@@ -86,6 +86,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const professionalsRoutes = require('./routes/professionalsRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const stripeRoutes = require('./routes/stripeRoutes');
 const marketAnalysisRoutes = require('./routes/marketAnalysisRoutes');
 const advancedAnalyticsRoutes = require('./routes/advancedAnalyticsRoutes');
 const recurringServiceRoutes = require('./routes/recurringServiceRoutes');
@@ -416,6 +417,9 @@ app.use('/api/newsletter', newsletterRoutes);
 
 // Rutas de administración con autenticación requerida
 app.use('/api/admin', adminRoutes);
+
+// Rutas de Stripe con autenticación requerida
+app.use('/api/stripe', stripeRoutes);
 
 // Rutas de análisis de mercado con autenticación requerida
 app.use('/api/market-analysis', marketAnalysisRoutes);

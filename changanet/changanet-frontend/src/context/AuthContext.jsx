@@ -47,7 +47,8 @@ export const AuthProvider = ({ children }) => {
       const token = localStorage.getItem('changanet_token');
       if (!token) return;
 
-      const response = await fetch('/api/auth/me', {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -94,24 +95,34 @@ export const AuthProvider = ({ children }) => {
 
   const loginWithEmail = async (email, password) => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      console.log('AuthContext - loginWithEmail: Starting fetch to:', `${apiBaseUrl}/api/auth/login`);
+      console.log('AuthContext - loginWithEmail: Request body:', { email, password });
+
+      const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
+        cache: 'no-cache'
       });
+
+      console.log('AuthContext - loginWithEmail: Response status:', response.status);
+      console.log('AuthContext - loginWithEmail: Response ok:', response.ok);
 
       if (!response.ok) {
         let errorMessage = 'Error al iniciar sesión';
         try {
           const errorData = await response.json();
+          console.log('AuthContext - loginWithEmail: Error response data:', errorData);
           errorMessage = errorData.error || errorMessage;
         } catch (parseError) {
-          console.warn('No se pudo parsear respuesta de error:', parseError);
+          console.warn('AuthContext - loginWithEmail: No se pudo parsear respuesta de error:', parseError);
         }
         return { success: false, error: errorMessage };
       }
 
       const data = await response.json();
+      console.log('AuthContext - loginWithEmail: Success response data:', data);
 
       if (data.token && data.user) {
         login(data.user, data.token);
@@ -119,15 +130,25 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: data.user, token: data.token, message: data.message };
     } catch (error) {
-      console.error('Error en loginWithEmail:', error);
-      return { success: false, error: 'Error de conexión. Inténtalo de nuevo.' };
+      console.error('AuthContext - loginWithEmail: Fetch error:', error);
+      console.error('AuthContext - loginWithEmail: Error type:', error.constructor.name);
+      console.error('AuthContext - loginWithEmail: Error message:', error.message);
+
+      // Distinguish between network errors and other errors
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        console.error('AuthContext - loginWithEmail: Network error - check if backend server is running');
+        return { success: false, error: 'Error de conexión. Verifica que el servidor esté funcionando.' };
+      } else {
+        console.error('AuthContext - loginWithEmail: Unexpected error');
+        return { success: false, error: 'Error inesperado. Inténtalo de nuevo.' };
+      }
     }
   };
 
   const signup = async (name, email, password, role) => {
     try {
-      // Usar el proxy configurado en Vite (/api -> backend)
-      const response = await fetch('/api/auth/register', {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password, rol: role })

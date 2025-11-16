@@ -42,6 +42,7 @@ const VerifyIdentity = lazy(() => import('./pages/VerifyIdentity'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -108,6 +109,7 @@ function App() {
                         <Route path="/ranking" element={<Ranking />} />
                         <Route path="/contacto" element={<ContactPage />} />
                         <Route path="/verificar-identidad" element={<VerifyIdentity />} />
+                        <Route path="/admin/dashboard" element={<AdminDashboard />} />
                       </Routes>
                     </Suspense>
                   </ErrorBoundary>

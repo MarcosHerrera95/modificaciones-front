@@ -15,7 +15,7 @@ const AdminVerification = () => {
 
   // Verificar permisos de administrador
   useEffect(() => {
-    if (user && user.role !== 'admin') {
+    if (user && user.rol !== 'admin') {
       setError('Acceso denegado. Se requieren permisos de administrador.');
       setLoading(false);
       return;

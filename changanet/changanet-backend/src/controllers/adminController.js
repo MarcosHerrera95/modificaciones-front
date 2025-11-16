@@ -117,7 +117,7 @@ exports.getPlatformStats = async (req, res) => {
       prisma.usuarios.count({ where: { rol: 'profesional' } }),
       prisma.usuarios.count({ where: { rol: 'cliente' } }),
       prisma.servicios.count(),
-      prisma.servicios.count({ where: { estado: 'completado' } }),
+      prisma.servicios.count({ where: { estado: 'COMPLETADO' } }),
       prisma.pagos.count(),
       prisma.verification_requests.count({ where: { estado: 'pendiente' } })
     ]);
@@ -158,10 +158,10 @@ exports.getDisputes = async (req, res) => {
     const disputes = await prisma.servicios.findMany({
       where: {
         OR: [
-          { estado: 'cancelado' },
+          { estado: 'CANCELADO' },
           {
             AND: [
-              { estado: 'completado' },
+              { estado: 'COMPLETADO' },
               {
                 resena: {
                   calificacion: { lte: 2 } // Reseñas muy negativas

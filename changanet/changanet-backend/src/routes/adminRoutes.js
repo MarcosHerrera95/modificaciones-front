@@ -5,6 +5,63 @@ const adminController = require('../controllers/adminController');
 
 const router = express.Router();
 
+// POST /api/admin/create-admin-user
+// Crear usuario administrador (solo para desarrollo/setup inicial - sin auth requerida)
+router.post('/create-admin-user', async (req, res) => {
+  try {
+    const { nombre, email, password } = req.body;
+
+    if (!nombre || !email || !password) {
+      return res.status(400).json({
+        error: 'Se requieren nombre, email y password'
+      });
+    }
+
+    // Verificar si ya existe un admin con ese email
+    const existingAdmin = await require('../controllers/adminController').prisma.usuarios.findUnique({
+      where: { email }
+    });
+
+    if (existingAdmin) {
+      return res.status(400).json({
+        error: 'Ya existe un usuario con ese email'
+      });
+    }
+
+    // Crear hash de contraseña
+    const bcrypt = require('bcrypt');
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // Crear usuario admin
+    const newAdmin = await require('../controllers/adminController').prisma.usuarios.create({
+      data: {
+        nombre,
+        email,
+        hash_contrasena: passwordHash,
+        rol: 'admin',
+        esta_verificado: true,
+        bloqueado: false
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Usuario administrador creado exitosamente',
+      data: {
+        id: newAdmin.id,
+        nombre: newAdmin.nombre,
+        email: newAdmin.email,
+        rol: newAdmin.rol
+      }
+    });
+  } catch (error) {
+    console.error('Error creando usuario admin:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
 // Middleware para verificar rol de admin
 const requireAdmin = (req, res, next) => {
   if (req.user.rol !== 'admin') {
@@ -15,7 +72,7 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-// Aplicar middleware de admin a todas las rutas
+// Aplicar middleware de admin a todas las rutas siguientes
 router.use(authenticateToken);
 router.use(requireAdmin);
 
