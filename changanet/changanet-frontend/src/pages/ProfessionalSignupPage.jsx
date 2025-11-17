@@ -7,7 +7,7 @@
  * @impacto Social: Simplifica el acceso de profesionales al sistema
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import VirtualAssistantWizard from '../components/VirtualAssistantWizard';
@@ -21,8 +21,22 @@ const ProfessionalSignupPage = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signup } = useAuth();
+  const { signup, user } = useAuth();
   const navigate = useNavigate();
+
+  // Verificar si el usuario ya está autenticado
+  useEffect(() => {
+    if (user) {
+      // Usuario ya autenticado, redirigir al dashboard correspondiente
+      if (user.rol === 'cliente' || user.role === 'cliente') {
+        navigate('/cliente/dashboard');
+      } else if (user.rol === 'profesional' || user.role === 'profesional') {
+        navigate('/profesional/dashboard');
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, navigate]);
 
   const handleBasicInfoChange = (e) => {
     const { name, value } = e.target;

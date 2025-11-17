@@ -53,6 +53,8 @@ model usuarios {
   actualizado_en        DateTime?
   google_id             String?   @unique
   url_foto_perfil       String?
+  fcm_token             String?   // Token para notificaciones push FCM
+  sms_enabled           Boolean   @default(false) // Permite envío de notificaciones SMS
 
   perfil_profesional perfiles_profesionales?
   servicios_como_cliente servicios[] @relation("ServicioCliente")
@@ -74,6 +76,8 @@ model usuarios {
 
   @@index([rol])
   @@index([esta_verificado])
+  @@index([telefono])
+  @@index([sms_enabled])
 }
 
 // MODELO: perfiles_profesionales
@@ -135,6 +139,9 @@ model servicios {
   @@index([cliente_id, estado])
   @@index([profesional_id, estado])
   @@index([estado, creado_en])
+  @@index([fecha_agendada])
+  @@index([cliente_id, fecha_agendada])
+  @@index([profesional_id, fecha_agendada])
 }
 
 model resenas {

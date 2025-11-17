@@ -21,7 +21,9 @@ router.post('/create-admin-user', async (req, res) => {
     }
 
     // Verificar si ya existe un admin con ese email
-    const existingAdmin = await require('../controllers/adminController').prisma.usuarios.findUnique({
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    const existingAdmin = await prisma.usuarios.findUnique({
       where: { email }
     });
 
@@ -32,11 +34,11 @@ router.post('/create-admin-user', async (req, res) => {
     }
 
     // Crear hash de contraseña
-    const bcrypt = require('bcrypt');
+    const bcrypt = require('bcryptjs');
     const passwordHash = await bcrypt.hash(password, 10);
 
     // Crear usuario admin
-    const newAdmin = await require('../controllers/adminController').prisma.usuarios.create({
+    const newAdmin = await prisma.usuarios.create({
       data: {
         nombre,
         email,

@@ -6,7 +6,7 @@
  * @impacto Social: Facilita el acceso de clientes al sistema
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import GoogleLoginButton from '../components/GoogleLoginButton';
@@ -21,8 +21,22 @@ const ClientSignupPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+
+  // Verificar si el usuario ya está autenticado
+  useEffect(() => {
+    if (user) {
+      // Usuario ya autenticado, redirigir al dashboard correspondiente
+      if (user.rol === 'cliente' || user.role === 'cliente') {
+        navigate('/cliente/dashboard');
+      } else if (user.rol === 'profesional' || user.role === 'profesional') {
+        navigate('/profesional/dashboard');
+      } else {
+        navigate('/');
+      }
+    }
+  }, [user, navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;

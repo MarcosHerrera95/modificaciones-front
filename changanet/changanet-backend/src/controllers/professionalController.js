@@ -177,7 +177,7 @@ exports.getProfessionalById = async (req, res) => {
             calificacion_promedio: true,
             estado_verificacion: true,
             descripcion: true,
-            created_at: true
+            creado_en: true
           }
         }
       }

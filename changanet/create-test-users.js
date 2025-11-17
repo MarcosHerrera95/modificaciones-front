@@ -7,34 +7,6 @@ async function createTestUsers() {
   try {
     console.log('🚀 Creando usuarios de prueba para Changánet...\n');
 
-    // Limpiar datos existentes de prueba (orden inverso por dependencias)
-    console.log('🧹 Eliminando datos de prueba existentes...');
-
-    // Eliminar reseñas primero
-    await prisma.resenas.deleteMany();
-
-    // Eliminar pagos
-    await prisma.pagos.deleteMany();
-
-    // Eliminar servicios
-    await prisma.servicios.deleteMany();
-
-    // Eliminar perfiles profesionales
-    await prisma.perfiles_profesionales.deleteMany();
-
-    // Eliminar usuarios de prueba
-    const testEmails = [
-      'maria.gonzalez@email.com', 'carlos.rodriguez@email.com', 'ana.lopez@email.com', 'juan.martinez@email.com',
-      'electricista@email.com', 'plomero@email.com', 'pintor@email.com', 'jardinero@email.com', 'aireacondicionado@email.com'
-    ];
-
-    for (const email of testEmails) {
-      await prisma.usuarios.deleteMany({
-        where: { email }
-      });
-    }
-    console.log('✅ Datos de prueba existentes eliminados\n');
-
     // Datos de prueba para clientes
     const clientsData = [
       {
@@ -164,13 +136,11 @@ async function createTestUsers() {
           usuario_id: professional.id,
           especialidad: profData.especialidad,
           descripcion: profData.descripcion,
-          zona_cobertura: profData.ubicacion,
-          tarifa_hora: profData.precio_base,
+          precio_base: profData.precio_base,
+          ubicacion: profData.ubicacion,
           calificacion_promedio: Math.floor(Math.random() * 2) + 4, // 4-5 estrellas
-          estado_verificacion: 'verificado',
-          anos_experiencia: Math.floor(Math.random() * 10) + 5, // 5-15 años de experiencia
-          latitud: -34.6037 + (Math.random() - 0.5) * 0.1, // Coordenadas de Buenos Aires con variación
-          longitud: -58.3816 + (Math.random() - 0.5) * 0.1
+          esta_disponible: true,
+          verificado: true
         }
       });
 
@@ -184,25 +154,33 @@ async function createTestUsers() {
       {
         cliente_id: clients[0].id,
         profesional_id: professionals[0].id,
-        descripcion: 'Reparación de tomacorriente en la cocina que dejó de funcionar',
+        titulo: 'Reparación de tomacorriente',
+        descripcion: 'Tomacorriente en la cocina dejó de funcionar',
+        precio: 1500,
         estado: 'COMPLETADO'
       },
       {
         cliente_id: clients[1].id,
         profesional_id: professionals[1].id,
-        descripcion: 'Cañería del lavamanos en el baño está goteando constantemente',
-        estado: 'AGENDADO'
+        titulo: 'Cañería rota en baño',
+        descripcion: 'Cañería del lavamanos está goteando constantemente',
+        precio: 2800,
+        estado: 'EN_PROGRESO'
       },
       {
         cliente_id: clients[2].id,
         profesional_id: professionals[2].id,
-        descripcion: 'Pintura completa de sala de estar con colores modernos',
+        titulo: 'Pintura de sala de estar',
+        descripcion: 'Pintar sala completa con colores modernos',
+        precio: 4500,
         estado: 'PENDIENTE'
       },
       {
         cliente_id: clients[3].id,
         profesional_id: professionals[3].id,
-        descripcion: 'Mantenimiento mensual de jardín: poda de árboles y limpieza',
+        titulo: 'Mantenimiento de jardín',
+        descripcion: 'Poda de árboles y mantenimiento mensual',
+        precio: 3200,
         estado: 'COMPLETADO'
       }
     ];
@@ -221,13 +199,11 @@ async function createTestUsers() {
     const reviewsData = [
       {
         servicio_id: services[0].id,
-        cliente_id: clients[0].id,
         calificacion: 5,
         comentario: 'Excelente trabajo, muy profesional y puntual. Recomiendo ampliamente.'
       },
       {
         servicio_id: services[3].id,
-        cliente_id: clients[3].id,
         calificacion: 4,
         comentario: 'Buen trabajo, el jardín quedó perfecto. Un poco caro pero vale la pena.'
       }

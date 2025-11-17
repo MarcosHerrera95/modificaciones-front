@@ -89,6 +89,9 @@ const adminRoutes = require('./routes/adminRoutes');
 const marketAnalysisRoutes = require('./routes/marketAnalysisRoutes');
 const advancedAnalyticsRoutes = require('./routes/advancedAnalyticsRoutes');
 const recurringServiceRoutes = require('./routes/recurringServiceRoutes');
+const mapsRoutes = require('./routes/mapsRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const smsRoutes = require('./routes/smsRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
@@ -379,6 +382,24 @@ app.use('/api', metricsRoutes);
 app.use('/api', backupRoutes);
 app.use('/api', statsRoutes);
 
+// Ruta directa de métricas para Prometheus (sin prefijo /api)
+app.get('/metrics', async (req, res) => {
+  try {
+    const { getMetrics } = require('./services/metricsService');
+    const metrics = await getMetrics();
+
+    // Configurar headers para formato Prometheus
+    res.set('Content-Type', 'text/plain; charset=utf-8');
+    res.set('Content-Length', Buffer.byteLength(metrics, 'utf8'));
+
+    // Enviar métricas
+    res.status(200).send(metrics);
+  } catch (error) {
+    console.error('Error al obtener métricas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 /**
  * Configuración de rutas de la API REST.
  * Cada ruta está protegida según sea necesario con middleware de autenticación.
@@ -442,6 +463,15 @@ app.use('/api/advanced-analytics', advancedAnalyticsRoutes);
 
 // Rutas de servicios recurrentes con autenticación requerida
 app.use('/api/recurring-services', recurringServiceRoutes);
+
+// Rutas de mapas (públicas)
+app.use('/api/maps', mapsRoutes);
+
+// Rutas de subida de archivos con autenticación requerida
+app.use('/api/upload', uploadRoutes);
+
+// Rutas de SMS (solo en desarrollo)
+app.use('/api/sms', smsRoutes);
 
 /**
  * Configuración de eventos de Socket.IO para chat en tiempo real.
