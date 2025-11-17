@@ -56,6 +56,10 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
     setError('');
     setLoading(true);
 
+    console.log('Submitting quote request');
+    console.log('Token exists:', !!sessionStorage.getItem('changanet_token'));
+    console.log('Token:', sessionStorage.getItem('changanet_token'));
+
     try {
       const response = await fetch('/api/quotes', {
         method: 'POST',
@@ -69,7 +73,12 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           zona_cobertura: formData.zona_cobertura
         })
       });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
       const data = await response.json();
+      console.log('Response data:', data);
 
       if (response.ok) {
         // Cerrar modal y mostrar mensaje de éxito
@@ -82,6 +91,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
         setError(data.error || 'Error al enviar solicitud');
       }
     } catch (err) {
+      console.log('Fetch error:', err);
       setError('Error de red. Intenta nuevamente.');
     } finally {
       setLoading(false);
