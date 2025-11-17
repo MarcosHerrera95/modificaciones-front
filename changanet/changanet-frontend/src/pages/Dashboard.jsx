@@ -16,6 +16,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (!loading && !user) {
       navigate('/');
+    } else if (!loading && user && user.rol === 'admin') {
+      navigate('/admin/dashboard');
     }
   }, [user, loading, navigate]);
 

@@ -1,5 +1,6 @@
 // src/components/modals/LoginModal.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import GoogleLoginButton from '../GoogleLoginButton';
 import { resetPassword } from '../../services/authService';
@@ -10,6 +11,7 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { loginWithEmail } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -23,6 +25,9 @@ const LoginModal = ({ isOpen, onClose, onSwitchToSignup }) => {
       if (result.success) {
         // El login ya se maneja en el AuthContext
         onClose();
+        // Redirigir al dashboard correspondiente según el rol
+        const dashboardPath = result.user.rol === 'admin' ? '/admin/dashboard' : '/mi-cuenta';
+        navigate(dashboardPath);
       } else {
         setError(result.error || 'Email o contraseña incorrectos. Verifica tus credenciales.');
 

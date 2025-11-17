@@ -70,8 +70,9 @@ const GoogleLoginButton = ({ text = "Iniciar sesión con Google", className = ""
       // Usar AuthContext para login
       login(data.user, data.token);
 
-      // Redirigir al dashboard
-      navigate('/mi-cuenta');
+      // Redirigir al dashboard correspondiente según el rol
+      const dashboardPath = data.user.rol === 'admin' ? '/admin/dashboard' : '/mi-cuenta';
+      navigate(dashboardPath);
     } catch (error) {
       console.error('Error en login con Google:', error);
       alert('Error al iniciar sesión con Google: ' + error.message);
