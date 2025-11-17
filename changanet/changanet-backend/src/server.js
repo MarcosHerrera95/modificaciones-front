@@ -288,7 +288,7 @@ const rateLimiterMiddleware = (req, res, next) => {
 
 // Configuración de CORS para permitir solicitudes desde el frontend
 app.use(cors({
-  origin: 'http://localhost:5175', // URL de tu frontend en desarrollo
+  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'http://127.0.0.1:5175', 'http://127.0.0.1:5176'], // URLs del frontend en desarrollo
   credentials: true, // Si necesitas enviar cookies/credenciales
 }));
 
@@ -594,7 +594,8 @@ app.get('/test-cors', (req, res) => {
   res.json({
     message: 'CORS funcionando correctamente',
     origin: req.headers.origin,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    schema_updated: true
   });
 });
 

@@ -57,15 +57,15 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
     setLoading(true);
 
     console.log('Submitting quote request');
-    console.log('Token exists:', !!sessionStorage.getItem('changanet_token'));
-    console.log('Token:', sessionStorage.getItem('changanet_token'));
+    console.log('Token exists:', !!localStorage.getItem('changanet_token'));
+    console.log('Token:', localStorage.getItem('changanet_token'));
 
     try {
-      const response = await fetch('/api/quotes', {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/quotes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${sessionStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({
           profesional_id: professionalId,

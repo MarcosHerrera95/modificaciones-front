@@ -23,7 +23,8 @@ const QuoteRequestModal = ({ isOpen, onClose, professionalId, professionalName }
     setLoading(true);
 
     try {
-      const response = await fetch('/api/quotes/request', {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const response = await fetch(`${apiBaseUrl}/api/quotes/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

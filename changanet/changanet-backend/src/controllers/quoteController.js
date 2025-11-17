@@ -26,10 +26,21 @@ exports.createQuoteRequest = async (req, res) => {
   const { id: clientId } = req.user;
   const { profesional_id, descripcion, zona_cobertura } = req.body;
 
+  console.log('Request body:', req.body);
+  console.log('Client ID:', clientId);
+
+  // Validar campos requeridos
+  if (!profesional_id || !descripcion || !zona_cobertura) {
+    return res.status(400).json({
+      error: 'Datos inválidos',
+      message: 'Los campos profesional_id, descripcion y zona_cobertura son requeridos.'
+    });
+  }
+
   try {
     // Validar que el profesional existe y está verificado
     const professional = await prisma.usuarios.findUnique({
-      where: { id: parseInt(profesional_id) },
+      where: { id: profesional_id },
       select: { id: true, nombre: true, email: true, esta_verificado: true, rol: true }
     });
 
@@ -48,10 +59,10 @@ exports.createQuoteRequest = async (req, res) => {
     const quote = await prisma.cotizaciones.create({
       data: {
         cliente_id: clientId,
-        profesional_id: parseInt(profesional_id),
+        profesional_id: profesional_id,
         descripcion,
         zona_cobertura,
-        estado: 'pendiente'
+        estado: 'PENDIENTE'
       },
       include: {
         cliente: { select: { nombre: true, email: true } },
@@ -62,7 +73,7 @@ exports.createQuoteRequest = async (req, res) => {
     // Enviar notificación push al profesional (REQ-35)
     try {
       await sendPushNotification(
-        parseInt(profesional_id),
+        profesional_id,
         'Nueva solicitud de presupuesto',
         `Tienes una nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
         {
@@ -99,8 +110,30 @@ exports.createQuoteRequest = async (req, res) => {
 
     res.status(201).json(quote);
   } catch (error) {
-    console.error('Error al crear solicitud de cotización:', error);
-    res.status(500).json({ error: 'Error al crear la solicitud de cotización.' });
+    console.error('Error detallado al crear solicitud de cotización:', error);
+
+    // Manejar errores específicos
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Ya existe una solicitud de cotización con estos datos.' });
+    }
+
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Usuario o profesional no encontrado.' });
+    }
+
+    // Error de validación de Prisma
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        error: 'Datos inválidos',
+        message: 'Los datos proporcionados no cumplen con los requisitos.'
+      });
+    }
+
+    // Error genérico
+    res.status(500).json({
+      error: 'Error interno del servidor',
+      message: 'No se pudo crear la solicitud de cotización. Por favor, inténtalo de nuevo más tarde.'
+    });
   }
 };
 

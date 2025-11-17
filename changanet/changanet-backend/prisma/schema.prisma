@@ -216,6 +216,7 @@ model cotizaciones {
   profesional_id String
   profesional    usuarios @relation("CotizacionProfesional", fields: [profesional_id], references: [id])
   descripcion    String
+  zona_cobertura String?
   estado         EstadoCotizacion @default(PENDIENTE)
   precio         Float?
   comentario     String?
