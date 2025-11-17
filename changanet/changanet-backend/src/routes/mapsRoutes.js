@@ -1,6 +1,6 @@
 // src/routes/mapsRoutes.js - Rutas para Google Maps API
 const express = require('express');
-const { getGeocodeData } = require('../services/mapService');
+const { getGeocodeData, getDistanceMatrix } = require('../services/mapService');
 
 const router = express.Router();
 
@@ -32,6 +32,36 @@ router.get('/geocode', async (req, res) => {
       message: error.message
     });
   }
+});
+
+/**
+* POST /api/maps/distance
+* Calcula la distancia entre dos puntos usando Google Distance Matrix API
+*/
+router.post('/distance', async (req, res) => {
+ try {
+   const { origins, destinations } = req.body;
+
+   if (!origins || !destinations) {
+     return res.status(400).json({
+       error: 'Parámetros requeridos',
+       message: 'Debe proporcionar origins y destinations'
+     });
+   }
+
+   const distanceData = await getDistanceMatrix(origins, destinations);
+
+   res.status(200).json({
+     success: true,
+     data: distanceData
+   });
+ } catch (error) {
+   console.error('Error en cálculo de distancia:', error);
+   res.status(500).json({
+     error: 'Error interno del servidor',
+     message: error.message
+   });
+ }
 });
 
 module.exports = router;

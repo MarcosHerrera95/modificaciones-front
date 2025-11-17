@@ -35,7 +35,7 @@ export const ChatProvider = ({ children }) => {
       console.log('🔍 Current timestamp:', new Date().toISOString());
 
       // Test backend connectivity
-      const healthUrl = '/health';
+      const healthUrl = `${import.meta.env.VITE_BACKEND_URL}/health`;
       console.log('🔍 Attempting health check fetch to:', healthUrl);
       fetch(healthUrl, { method: 'GET' })
         .then(response => {

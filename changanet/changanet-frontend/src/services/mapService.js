@@ -7,9 +7,11 @@
  */
 
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
+import { GOOGLE_MAPS_CONFIG } from '../config/googleMapsConfig';
 
 // Estado del servicio
 let isInitialized = false;
+let googleMapsInstance = null;
 
 // Cache para resultados de distancia
 const distanceCache = new Map();
@@ -19,7 +21,7 @@ const distanceCache = new Map();
  */
 const initializeGoogleMaps = async () => {
   if (!isInitialized) {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const apiKey = GOOGLE_MAPS_CONFIG.apiKey;
     console.log('Google Maps API Key:', apiKey ? `Present (starts with: ${apiKey.substring(0, 10)}...)` : 'Missing');
     console.log('API Key length:', apiKey ? apiKey.length : 0);
     console.log('API Key format check:', apiKey && apiKey.startsWith('AIza') ? 'Valid format' : 'Invalid format');
@@ -27,17 +29,22 @@ const initializeGoogleMaps = async () => {
     if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
       console.warn('Google Maps API key not configured, using fallback mode');
       isInitialized = true; // Mark as initialized to prevent retries
-      return;
+      return null;
     }
 
-    setOptions({
-      apiKey: apiKey,
-      version: 'weekly',
-      libraries: ['places', 'geometry', 'routes']
-    });
+    setOptions(GOOGLE_MAPS_CONFIG);
     isInitialized = true;
     console.log('Google Maps API initialized successfully');
+    return { maps: window.google?.maps };
   }
+  return googleMapsInstance;
+};
+
+/**
+ * Función principal para inicializar Google Maps - exportada para componentes
+ */
+export const initGoogleMaps = async () => {
+  return await initializeGoogleMaps();
 };
 
 
@@ -52,56 +59,44 @@ export const getDistanceMatrix = async (origin, destination) => {
   }
 
   try {
-    console.log('🔍 Attempting to calculate distance matrix...');
+    console.log('🔍 Calculating distance via backend...');
     console.log('📍 Origin:', origin);
     console.log('📍 Destination:', destination);
 
-    // Validar que la API key esté configurada y no sea placeholder
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey || apiKey === 'your_google_maps_api_key_here') {
-      console.log('⚠️  Google Maps API key not configured, using fallback distance calculation');
-      throw new Error('API key not configured');
-    }
-
-    await initializeGoogleMaps();
-
-    // Usar la nueva API funcional correcta para Distance Matrix
-    const { DistanceMatrixService } = await importLibrary("routes");
-    const service = new DistanceMatrixService();
-
-    console.log('✅ DistanceMatrixService initialized, making request...');
-
-    const response = await service.getDistanceMatrix({
-      origins: [origin],
-      destinations: [destination],
-      travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.METRIC
+    // Llamar al endpoint del backend para calcular distancia
+    const response = await fetch('/api/maps/distance', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+      },
+      body: JSON.stringify({
+        origins: origin,
+        destinations: destination
+      })
     });
 
-    console.log('✅ Distance Matrix API response received successfully');
-    console.log('📊 Response status:', response.rows?.[0]?.elements?.[0]?.status);
-
-    if (!response.rows?.[0]?.elements?.[0]) {
-      throw new Error('No se recibió respuesta válida de la API de Distance Matrix');
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Error al calcular distancia');
     }
 
-    const result = response.rows[0].elements[0];
+    const data = await response.json();
+
+    if (!data.success || !data.data) {
+      throw new Error('Respuesta inválida del servidor');
+    }
+
+    console.log('✅ Distance calculation successful via backend');
+    const result = data.data;
     distanceCache.set(cacheKey, result); // Cache the result
     return result;
+
   } catch (error) {
-    console.error("❌ Error calculando distancia con Google Maps:", error.message);
+    console.error("❌ Error calculando distancia:", error.message);
 
-    // Para errores de API denegada, usar fallback automáticamente
-    if (error.message && error.message.includes('REQUEST_DENIED')) {
-      console.warn('🚫 Distance Matrix API denegada, usando cálculo alternativo');
-    }
-
-    if (error.message && error.message.includes('API key')) {
-      throw new Error('Clave de API de Google Maps inválida o expirada.');
-    }
-
-    // Para otros errores, usar fallback automático con distancia simulada
-    console.warn('⚠️  Error en Google Maps API, usando cálculo alternativo de distancia');
+    // Para errores del backend, usar fallback automático con distancia simulada
+    console.warn('⚠️  Error en backend, usando cálculo alternativo de distancia');
 
     // Calcular distancia aproximada usando coordenadas simuladas
     const originCoords = getSimulatedCoordinates(origin);
