@@ -46,6 +46,11 @@ coverage/
 src/config/serviceAccountKey.json
 **/serviceAccountKey.json
 
+# Google Cloud Storage service account credentials - NEVER commit these!
+keys/
+keys/*.json
+gcs-key.json
+
 # IDE files
 .vscode/
 .idea/
