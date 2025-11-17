@@ -1,89 +1,65 @@
-import { ref, push, onValue, off, set, update, remove } from "firebase/database";
-import { getDatabase } from "firebase/database";
-import { app } from "../config/firebaseConfig";
+/**
+ * Servicio de chat unificado usando Socket.IO
+ * Interfaz simplificada para usar con ChatContext
+ * Reemplaza la implementación anterior basada en Firebase RTDB
+ */
 
-const database = getDatabase(app);
+import socketService from './socketService';
 
-// Enviar mensaje
-export const sendMessage = async (chatId, message) => {
-  try {
-    const messagesRef = ref(database, `chats/${chatId}/messages`);
-    const newMessageRef = push(messagesRef);
-    await set(newMessageRef, {
-      ...message,
-      timestamp: Date.now()
-    });
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+class ChatService {
+  constructor() {
+    this.isInitialized = false;
   }
-};
 
-// Escuchar mensajes en tiempo real
-export const listenToMessages = (chatId, callback) => {
-  const messagesRef = ref(database, `chats/${chatId}/messages`);
-  onValue(messagesRef, (snapshot) => {
-    const messages = [];
-    snapshot.forEach((childSnapshot) => {
-      messages.push({
-        id: childSnapshot.key,
-        ...childSnapshot.val()
-      });
-    });
-    callback(messages);
-  });
-  return () => off(messagesRef);
-};
+  /**
+   * Inicializa el servicio de chat
+   * Nota: El ChatContext maneja la conexión Socket.IO directamente
+   */
+  initialize(userId) {
+    if (this.isInitialized) return;
 
-// Crear nuevo chat
-export const createChat = async (chatData) => {
-  try {
-    const chatsRef = ref(database, 'chats');
-    const newChatRef = push(chatsRef);
-    await set(newChatRef, {
-      ...chatData,
-      createdAt: Date.now()
-    });
-    return { success: true, chatId: newChatRef.key };
-  } catch (error) {
-    return { success: false, error: error.message };
+    console.log('ChatService inicializado - usando ChatContext para Socket.IO');
+    this.isInitialized = true;
   }
-};
 
-// Actualizar estado del chat
-export const updateChatStatus = async (chatId, status) => {
-  try {
-    const chatRef = ref(database, `chats/${chatId}`);
-    await update(chatRef, { status, lastUpdated: Date.now() });
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+  /**
+   * Desconecta el servicio de chat
+   * Nota: El ChatContext maneja la desconexión
+   */
+  disconnect() {
+    this.isInitialized = false;
   }
-};
 
-// Eliminar chat
-export const deleteChat = async (chatId) => {
-  try {
-    const chatRef = ref(database, `chats/${chatId}`);
-    await remove(chatRef);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error.message };
+  /**
+   * Método de compatibilidad - usar ChatContext directamente
+   * @deprecated Usar ChatContext.sendMessage en su lugar
+   */
+  async sendMessage(remitenteId, destinatarioId, contenido, urlImagen = null) {
+    console.warn('ChatService.sendMessage está deprecated. Usar ChatContext directamente.');
+    return { success: false, error: 'Usar ChatContext directamente' };
   }
-};
 
-// Obtener chats de un usuario
-export const getUserChats = (userId, callback) => {
-  const userChatsRef = ref(database, `userChats/${userId}`);
-  onValue(userChatsRef, (snapshot) => {
-    const chats = [];
-    snapshot.forEach((childSnapshot) => {
-      chats.push({
-        id: childSnapshot.key,
-        ...childSnapshot.val()
-      });
-    });
-    callback(chats);
-  });
-  return () => off(userChatsRef);
-};
+  /**
+   * Método de compatibilidad - usar ChatContext directamente
+   * @deprecated Usar ChatContext.markAsRead en su lugar
+   */
+  async markAsRead(senderId, recipientId) {
+    console.warn('ChatService.markAsRead está deprecated. Usar ChatContext directamente.');
+    return { success: false, error: 'Usar ChatContext directamente' };
+  }
+
+  /**
+   * Obtiene el estado de conexión del socket service
+   */
+  getConnectionStatus() {
+    return socketService.getConnectionStatus();
+  }
+}
+
+// Instancia singleton para compatibilidad
+const chatService = new ChatService();
+
+export default chatService;
+
+// Exportar socketService para uso directo si es necesario
+export { socketService };

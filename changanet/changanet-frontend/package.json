@@ -8,7 +8,6 @@
     "@heroicons/react": "^2.2.0",
     "@sentry/browser": "^10.22.0",
     "@sentry/react": "^10.22.0",
-    "@sentry/replay": "^7.116.0",
     "@sentry/tracing": "^7.120.4",
     "@tailwindcss/postcss": "^4.1.13",
     "@testing-library/react": "^16.3.0",
@@ -93,8 +92,14 @@
       "<rootDir>/src/**/*.test.{js,jsx}",
       "<rootDir>/tests/**/*.test.{js,jsx}"
     ],
-    "extensionsToTreatAsEsm": [".jsx"],
-    "moduleFileExtensions": ["js", "jsx", "json"],
+    "extensionsToTreatAsEsm": [
+      ".jsx"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "jsx",
+      "json"
+    ],
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/dist/"

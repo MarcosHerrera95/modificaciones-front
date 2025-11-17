@@ -8,7 +8,6 @@
 
 // src/config/sentryConfig.js - Configuración de Sentry para frontend
 import * as Sentry from '@sentry/react';
-import { Replay } from '@sentry/replay';
 
 /**
  * @función initializeSentry - Inicialización de Sentry para frontend
@@ -35,16 +34,7 @@ export function initializeSentry() {
     // Preparar integraciones
     const integrations = [];
 
-    // Solo activar Replay en producción
-    if (import.meta.env.PROD) {
-      integrations.push(
-        new Replay({
-          maskAllText: true, // Enmascarar texto sensible
-          blockAllMedia: true, // Bloquear medios para privacidad
-          maskAllInputs: true, // Enmascarar inputs
-        })
-      );
-    }
+    // Replay deshabilitado temporalmente por problemas de compatibilidad
 
     Sentry.init({
       dsn: dsn,

@@ -16,7 +16,7 @@
     "fix": "eslint . --fix",
     "prettier": "prettier --write .",
     "precommit": "npm run lint && npm run test",
-    "prepare": "husky install",
+    "prepare": "set HUSKY_GIT_DIR=D:/modificaciones-front/.git && husky install",
     "db:seed": "node prisma/seed.js"
   },
   "dependencies": {

@@ -108,7 +108,46 @@ function isRetryableError(error) {
   // Reintentar en errores de red, timeouts, y errores del servidor (5xx)
   if (!error.response) return true; // Error de red
   const status = error.response.status;
-  return status >= 500 || status === 408 || status === 429;
+  return status >= 500 || status === 408 || status === 429 || status === 503;
+}
+
+/**
+ * Clase de error personalizada para mejor manejo de errores
+ */
+export class APIError extends Error {
+  constructor(message, status, code, data = null) {
+    super(message);
+    this.name = 'APIError';
+    this.status = status;
+    this.code = code;
+    this.data = data;
+  }
+}
+
+/**
+ * Detecta si el usuario está offline
+ */
+function isOffline() {
+  return !navigator.onLine;
+}
+
+/**
+ * Espera a que la conexión se restablezca
+ */
+function waitForConnection() {
+  return new Promise((resolve) => {
+    if (navigator.onLine) {
+      resolve();
+      return;
+    }
+
+    const handleOnline = () => {
+      window.removeEventListener('online', handleOnline);
+      resolve();
+    };
+
+    window.addEventListener('online', handleOnline);
+  });
 }
 
 /**
