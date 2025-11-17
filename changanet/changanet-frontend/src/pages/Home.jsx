@@ -40,11 +40,8 @@ const Home = () => {
               </div>
               <h3 className="text-3xl font-bold mb-6 text-emerald-700">Social</h3>
               <p className="text-gray-700 text-lg leading-relaxed mb-6">
-                Dignificamos el trabajo manual y promovemos la inclusión laboral para todos, creando oportunidades equitativas y fortaleciendo comunidades.
+                Changánet dignifica el trabajo manual y promueve la inclusión laboral, conectando a profesionales con oportunidades justas y seguras.
               </p>
-              <div className="bg-emerald-50 px-4 py-3 rounded-2xl text-emerald-700 font-bold text-lg">
-                +15% más inclusión laboral
-              </div>
             </div>
 
             <div className="group card-glow p-10 rounded-3xl text-center hover-lift animate-fade-in" style={{ animationDelay: '0.2s' }}>
@@ -55,11 +52,8 @@ const Home = () => {
               </div>
               <h3 className="text-3xl font-bold mb-6 text-amber-700">Económico</h3>
               <p className="text-gray-700 text-lg leading-relaxed mb-6">
-                Pagos seguros con garantía total y transparencia absoluta en todos los precios y comisiones. Tu dinero siempre protegido.
+                Generamos ingresos dignos y fomentamos la formalización del trabajo independiente, con pagos seguros y transparentes para todos.
               </p>
-              <div className="bg-amber-50 px-4 py-3 rounded-2xl text-amber-700 font-bold text-lg">
-                100% pagos protegidos
-              </div>
             </div>
 
             <div className="group card-glow p-10 rounded-3xl text-center hover-lift animate-fade-in" style={{ animationDelay: '0.4s' }}>
@@ -70,11 +64,8 @@ const Home = () => {
               </div>
               <h3 className="text-3xl font-bold mb-6 text-cyan-700">Ambiental</h3>
               <p className="text-gray-700 text-lg leading-relaxed mb-6">
-                Optimizamos rutas de desplazamiento para reducir significativamente las emisiones de CO2 y minimizar nuestro impacto ambiental.
+                Reducimos el impacto ambiental optimizando rutas y promoviendo prácticas sostenibles en cada servicio contratado.
               </p>
-              <div className="bg-cyan-50 px-4 py-3 rounded-2xl text-cyan-700 font-bold text-lg">
-                -25% emisiones CO2
-              </div>
             </div>
           </div>
         </div>
