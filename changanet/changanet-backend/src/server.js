@@ -260,7 +260,7 @@ app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 // Configura el limitador de tasa usando RateLimiterMemory
 const limiter = new rateLimit.RateLimiterMemory({
-  points: process.env.NODE_ENV === 'production' ? 30 : 100, // Más restrictivo en producción
+  points: process.env.NODE_ENV === 'production' ? 30 : 500, // Más restrictivo en producción, más permisivo en desarrollo
   duration: 60, // Ventana de tiempo en segundos (1 minuto)
 });
 
@@ -280,54 +280,19 @@ const rateLimiterMiddleware = (req, res, next) => {
     });
 };
 
-app.use(rateLimiterMiddleware);
-
 /**
  * Configuración de middleware para manejo de CORS y parsing de datos.
  * Permite solicitudes desde el frontend y parsea JSON y datos de formularios.
+ * CORS debe aplicarse ANTES del rate limiter para que los headers estén en todas las respuestas.
  */
 
-// Configura CORS para permitir solicitudes desde el frontend
-const corsOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "http://localhost:5175",
-  "http://localhost:5176",
-  "http://localhost:5177",
-  "http://localhost:5178",
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174",
-  "http://127.0.0.1:5175",
-  "http://127.0.0.1:5176",
-  "http://127.0.0.1:5177",
-  "http://127.0.0.1:5178",
-  "http://localhost:3000"
-];
-
-console.log(`🌐 CORS configured with ${corsOrigins.length} allowed origins:`, corsOrigins);
-
+// Configuración de CORS para permitir solicitudes desde el frontend
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requests sin origin (como mobile apps o curl)
-    if (!origin) {
-      console.log('🌐 CORS: Allowing request without origin');
-      return callback(null, true);
-    }
-
-    if (corsOrigins.includes(origin)) {
-      console.log(`🌐 CORS: Allowing origin ${origin}`);
-      return callback(null, true);
-    } else {
-      console.error(`🚫 CORS: Blocking origin ${origin}`);
-      return callback(new Error(`CORS policy violation: ${origin} not allowed`));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Cache-Control', 'X-Client-Info'],
-  exposedHeaders: ['Content-Length', 'Content-Range', 'Accept-Ranges'],
-  maxAge: 86400 // 24 horas
+  origin: 'http://localhost:5175', // URL de tu frontend en desarrollo
+  credentials: true, // Si necesitas enviar cookies/credenciales
 }));
+
+app.use(rateLimiterMiddleware);
 
 // Middleware para parsear JSON con límite de tamaño
 app.use(express.json({ limit: '10mb' }));

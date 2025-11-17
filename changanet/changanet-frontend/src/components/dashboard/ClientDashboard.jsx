@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const ClientDashboard = ({ user }) => {
@@ -10,12 +10,14 @@ const ClientDashboard = ({ user }) => {
   });
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const dataFetchedRef = useRef(false);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    console.log('ClientDashboard component (components/dashboard) - data fetching useEffect triggered');
+    if (dataFetchedRef.current) return;
+    dataFetchedRef.current = true;
 
-  useEffect(() => {
+    // Fetch profile
     const fetchProfile = async () => {
       try {
         const token = localStorage.getItem('changanet_token');
@@ -40,6 +42,7 @@ const ClientDashboard = ({ user }) => {
     };
 
     fetchProfile();
+    fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {

@@ -1,5 +1,5 @@
 // src/components/ProfessionalCard.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import QuoteRequestModal from './modals/QuoteRequestModal';
@@ -11,6 +11,8 @@ const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [distance, setDistance] = useState('Calculando...');
+  const [loading, setLoading] = useState(false);
+  const distanceCalculatedRef = useRef(false);
 
   const handleQuoteRequest = () => {
     if (!user) {
@@ -21,79 +23,86 @@ const ProfessionalCard = ({ professional }) => {
   };
 
   // Calcular distancia usando Google Maps API o fallback
-  useEffect(() => {
-    const calculateDistance = async () => {
-      try {
-        // Intentar obtener ubicación del usuario
-        let clientLat, clientLon;
+  const calculateDistance = useCallback(async () => {
+    if (!professional?.zona_cobertura) return;
 
-        if (navigator.geolocation) {
-          try {
-            const position = await new Promise((resolve, reject) => {
-              navigator.geolocation.getCurrentPosition(resolve, reject, {
-                timeout: 10000,
-                enableHighAccuracy: false
-              });
+    setLoading(true);
+    try {
+      // Intentar obtener ubicación del usuario
+      let clientLat, clientLon;
+
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              timeout: 10000,
+              enableHighAccuracy: false
             });
-            clientLat = position.coords.latitude;
-            clientLon = position.coords.longitude;
-          } catch (geoError) {
-            console.warn('Geolocalización no disponible, usando Buenos Aires por defecto');
-            // Fallback: Buenos Aires
-            clientLat = -34.6037;
-            clientLon = -58.3816;
-          }
-        } else {
+          });
+          clientLat = position.coords.latitude;
+          clientLon = position.coords.longitude;
+        } catch (geoError) {
+          console.warn('Geolocalización no disponible, usando Buenos Aires por defecto');
           // Fallback: Buenos Aires
           clientLat = -34.6037;
           clientLon = -58.3816;
         }
+      } else {
+        // Fallback: Buenos Aires
+        clientLat = -34.6037;
+        clientLon = -58.3816;
+      }
 
-        // Obtener coordenadas del profesional
-        const profCoords = getSimulatedCoordinates(professional.zona_cobertura);
+      // Obtener coordenadas del profesional
+      const profCoords = getSimulatedCoordinates(professional.zona_cobertura);
 
-        // Verificar si tenemos API key de Google Maps
-        const hasGoogleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      // Verificar si tenemos API key de Google Maps
+      const hasGoogleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-        if (hasGoogleMapsKey) {
-          // Intentar usar Google Distance Matrix API
-          try {
-            const result = await getDistanceMatrix(
-              { lat: clientLat, lng: clientLon },
-              { lat: profCoords.lat, lng: profCoords.lng }
-            );
+      if (hasGoogleMapsKey) {
+        // Intentar usar Google Distance Matrix API
+        try {
+          const result = await getDistanceMatrix(
+            { lat: clientLat, lng: clientLon },
+            { lat: profCoords.lat, lng: profCoords.lng }
+          );
 
-            // Mostrar distancia y duración si están disponibles
-            let distanceText = '';
-            if (result.distance) {
-              distanceText = result.distance.text;
-            }
-            if (result.duration) {
-              distanceText += distanceText ? ` (${result.duration.text})` : result.duration.text;
-            }
-            if (distanceText) {
-              setDistance(distanceText);
-            } else {
-              throw new Error('No distance data available');
-            }
-          } catch (apiError) {
-            // Google Maps no disponible, usar cálculo alternativo
-            const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
-            setDistance(`${dist.toFixed(1)} km (aprox.)`);
+          // Mostrar distancia y duración si están disponibles
+          let distanceText = '';
+          if (result.distance) {
+            distanceText = result.distance.text;
           }
-        } else {
-          // No hay API key, usar cálculo alternativo directamente
+          if (result.duration) {
+            distanceText += distanceText ? ` (${result.duration.text})` : result.duration.text;
+          }
+          if (distanceText) {
+            setDistance(distanceText);
+          } else {
+            throw new Error('No distance data available');
+          }
+        } catch (apiError) {
+          // Google Maps no disponible, usar cálculo alternativo
           const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
           setDistance(`${dist.toFixed(1)} km (aprox.)`);
         }
-      } catch (error) {
-        console.error('Error calculando distancia:', error);
-        setDistance('Distancia no disponible');
+      } else {
+        // No hay API key, usar cálculo alternativo directamente
+        const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
+        setDistance(`${dist.toFixed(1)} km (aprox.)`);
       }
-    };
+    } catch (error) {
+      console.error('Error calculando distancia:', error);
+      setDistance('Distancia no disponible');
+    } finally {
+      setLoading(false);
+    }
+  }, [professional?.zona_cobertura]);
 
+  useEffect(() => {
+    if (distanceCalculatedRef.current) return;
+    distanceCalculatedRef.current = true;
     calculateDistance();
-  }, [professional.zona_cobertura]);
+  }, [calculateDistance]);
 
   return (
     <div className="professional-card card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll">
@@ -149,7 +158,7 @@ const ProfessionalCard = ({ professional }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                {professional.zona_cobertura} • {distance}
+                {professional.zona_cobertura} • {loading ? 'Calculando...' : distance}
               </p>
             </div>
 

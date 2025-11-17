@@ -64,7 +64,8 @@ export const getDistanceMatrix = async (origin, destination) => {
     console.log('📍 Destination:', destination);
 
     // Llamar al endpoint del backend para calcular distancia
-    const response = await fetch('/api/maps/distance', {
+    const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+    const response = await fetch(`${apiBaseUrl}/api/maps/distance`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -77,8 +78,22 @@ export const getDistanceMatrix = async (origin, destination) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'Error al calcular distancia');
+      let errorMessage = 'Error al calcular distancia';
+      try {
+        // Solo intentar parsear JSON si el content-type es application/json
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } else {
+          // Para respuestas no JSON (como texto plano en 429), leer como texto
+          const textError = await response.text();
+          errorMessage = textError || `Error ${response.status}: ${response.statusText}`;
+        }
+      } catch (parseError) {
+        errorMessage = `Error ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

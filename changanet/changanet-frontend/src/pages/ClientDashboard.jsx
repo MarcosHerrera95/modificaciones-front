@@ -31,8 +31,8 @@ const ClientDashboard = () => {
 
   // Verificar permisos y mostrar onboarding
   useEffect(() => {
-    console.log('ClientDashboard - User:', user);
-    console.log('ClientDashboard - User role:', user?.role || user?.rol);
+    console.log('ClientDashboard useEffect triggered - User:', user);
+    console.log('ClientDashboard useEffect - User role:', user?.role || user?.rol);
     if (!user || (user.role !== 'cliente' && user.rol !== 'cliente')) {
       console.log('ClientDashboard - Redirecting because user is not cliente');
       navigate('/');
@@ -48,6 +48,7 @@ const ClientDashboard = () => {
     // Don't load data immediately, wait for user to be fully set
     const timer = setTimeout(() => {
       if (user && (user.role === 'cliente' || user.rol === 'cliente')) {
+        console.log('ClientDashboard - Calling loadDashboardData from setTimeout');
         loadDashboardData();
       }
     }, 100); // Small delay to ensure user state is fully updated
@@ -55,7 +56,11 @@ const ClientDashboard = () => {
     return () => clearTimeout(timer);
   }, [user, navigate]);
 
+  let loadCount = 0;
+
   const loadDashboardData = async () => {
+    loadCount++;
+    console.log(`loadDashboardData called ${loadCount} times for user:`, user);
     try {
       console.log('Loading client dashboard data for user:', user);
       const token = sessionStorage.getItem('changanet_token');

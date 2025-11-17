@@ -10,6 +10,7 @@ import Availability from './Availability';
 import ClientSettings from './ClientSettings';
 
 const Dashboard = () => {
+  console.log('Dashboard component rendering, pathname:', window.location.pathname);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
