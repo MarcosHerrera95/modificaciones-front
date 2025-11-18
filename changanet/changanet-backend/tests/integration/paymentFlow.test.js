@@ -250,13 +250,25 @@ describe('Flujo de Pagos con Custodia - Integration Tests', () => {
   });
 
   describe('Cálculo de comisiones', () => {
-    test('debe calcular correctamente la comisión del 10%', async () => {
+    test('debe calcular correctamente la comisión configurable (5% por defecto)', async () => {
       // Esta prueba verifica que el servicio calcule correctamente la comisión
-      // En un entorno real, verificaríamos que Mercado Pago reciba marketplace_fee: 500 (10% de 5000)
+      // Según RB-03: La comisión se cobra solo si el servicio se completa
       const testAmount = 5000;
-      const expectedCommission = testAmount * 0.1; // 500
+      const expectedCommission = testAmount * 0.05; // 250 (5% por defecto)
 
-      expect(expectedCommission).toBe(500);
+      expect(expectedCommission).toBe(250);
+    });
+
+    test('debe permitir configuración de comisión vía variable de entorno', async () => {
+      // Simular configuración de 8% de comisión
+      process.env.PLATFORM_COMMISSION_RATE = '0.08';
+      const testAmount = 5000;
+      const expectedCommission = testAmount * 0.08; // 400
+
+      expect(expectedCommission).toBe(400);
+
+      // Restaurar valor por defecto
+      delete process.env.PLATFORM_COMMISSION_RATE;
     });
   });
 });

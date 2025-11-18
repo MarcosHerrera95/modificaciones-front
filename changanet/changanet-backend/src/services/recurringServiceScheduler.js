@@ -5,8 +5,9 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
-const { createNotification, NOTIFICATION_TYPES } = require('./notificationService');
+const { createNotification, NOTIFICATION_TYPES, processScheduledNotifications } = require('./notificationService');
 const { sendPushNotification } = require('./pushNotificationService');
+const { autoReleaseFunds } = require('./paymentsService');
 
 const prisma = new PrismaClient();
 
@@ -367,7 +368,28 @@ async function getUserRecurringServices(userId, role) {
 }
 
 /**
- * Programa la ejecución automática del generador de servicios recurrentes
+ * Libera automáticamente fondos de pagos completados después de 24h (RB-04)
+ * Se ejecuta cada hora para procesar liberaciones pendientes
+ */
+async function processAutomaticFundReleases() {
+  try {
+    console.log('💰 Procesando liberaciones automáticas de fondos...');
+
+    const result = await autoReleaseFunds();
+
+    if (result.processed > 0) {
+      console.log(`✅ Procesadas ${result.processed} liberaciones automáticas de fondos`);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error en liberación automática de fondos:', error);
+    throw error;
+  }
+}
+
+/**
+ * Programa la ejecución automática del generador de servicios recurrentes, liberaciones de fondos y notificaciones
  */
 async function scheduleRecurringServiceGeneration() {
   try {
@@ -396,10 +418,65 @@ async function scheduleRecurringServiceGeneration() {
   }
 }
 
+/**
+ * Programa el procesamiento de notificaciones programadas cada hora
+ */
+async function scheduleNotificationProcessing() {
+  try {
+    // Ejecutar cada hora
+    const now = new Date();
+    const nextRun = new Date(now);
+    nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0); // Próxima hora en punto
+
+    const timeUntilNextRun = nextRun.getTime() - now.getTime();
+
+    setTimeout(async () => {
+      await processScheduledNotifications();
+
+      // Programar siguiente ejecución (cada hora)
+      setInterval(processScheduledNotifications, 60 * 60 * 1000); // Cada hora
+    }, timeUntilNextRun);
+
+    console.log(`🔔 Procesamiento de notificaciones programadas para ${nextRun.toLocaleString()}`);
+
+  } catch (error) {
+    console.error('Error programando procesamiento de notificaciones:', error);
+  }
+}
+
+/**
+ * Programa la liberación automática de fondos cada hora
+ */
+async function scheduleAutomaticFundReleases() {
+  try {
+    // Ejecutar cada hora
+    const now = new Date();
+    const nextRun = new Date(now);
+    nextRun.setHours(nextRun.getHours() + 1, 0, 0, 0); // Próxima hora en punto
+
+    const timeUntilNextRun = nextRun.getTime() - now.getTime();
+
+    setTimeout(async () => {
+      await processAutomaticFundReleases();
+
+      // Programar siguiente ejecución (cada hora)
+      setInterval(processAutomaticFundReleases, 60 * 60 * 1000); // Cada hora
+    }, timeUntilNextRun);
+
+    console.log(`⏰ Liberación automática de fondos programada para ${nextRun.toLocaleString()}`);
+
+  } catch (error) {
+    console.error('Error programando liberación automática de fondos:', error);
+  }
+}
+
 module.exports = {
   generateRecurringServices,
   createRecurringService,
   cancelRecurringService,
   getUserRecurringServices,
-  scheduleRecurringServiceGeneration
+  scheduleRecurringServiceGeneration,
+  processAutomaticFundReleases,
+  scheduleAutomaticFundReleases,
+  scheduleNotificationProcessing
 };

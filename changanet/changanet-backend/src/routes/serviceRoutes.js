@@ -7,7 +7,7 @@
  */
 
 const express = require('express');
-const { scheduleService, getClientServices, getProfessionalServices, updateServiceStatus } = require('../controllers/serviceController');
+const { scheduleService, getClientServices, getProfessionalServices, updateServiceStatus, toggleUrgentService } = require('../controllers/serviceController');
 const { authenticateToken } = require('../middleware/authenticate');
 
 const router = express.Router();
@@ -50,5 +50,14 @@ router.get('/professional', getProfessionalServices);
  * @impacto Social: Comunicación clara del progreso del trabajo
  */
 router.put('/:serviceId/status', updateServiceStatus);
+
+/**
+ * @ruta PUT /:serviceId/urgent - Marcar/desmarcar servicio como urgente
+ * @descripción Permite a clientes marcar servicios como urgentes (Sección 10 del PRD)
+ * @sprint Sprint 4 – Servicios Urgentes
+ * @tarjeta Nueva funcionalidad: Servicios Urgentes
+ * @impacto Social: Atención prioritaria para situaciones de emergencia
+ */
+router.put('/:serviceId/urgent', toggleUrgentService);
 
 module.exports = router;

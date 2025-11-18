@@ -70,4 +70,10 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+// GET /api/notifications/preferences - Obtener preferencias de notificación
+router.get('/preferences', authenticateToken, notificationController.getNotificationPreferences);
+
+// PUT /api/notifications/preferences - Actualizar preferencias de notificación
+router.put('/preferences', authenticateToken, notificationController.updateNotificationPreferences);
+
 module.exports = router;

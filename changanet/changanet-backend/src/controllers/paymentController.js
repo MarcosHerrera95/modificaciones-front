@@ -75,7 +75,14 @@ async function createPaymentPreference(req, res) {
     }
 
     // Calcular monto total (debe venir del frontend o calcularse)
-    const amount = req.body.amount || service.profesional.perfil_profesional?.tarifa_hora || 1000;
+    let amount = req.body.amount || service.profesional.perfil_profesional?.tarifa_hora || 1000;
+
+    // Aplicar recargo por servicio urgente - Sección 10 del PRD
+    if (service.es_urgente) {
+      const urgentSurcharge = parseFloat(process.env.URGENT_SERVICE_SURCHARGE || '0.2'); // 20% por defecto
+      amount = amount * (1 + urgentSurcharge);
+      console.log(`🔥 Servicio urgente detectado - Aplicando recargo del ${urgentSurcharge * 100}%: $${amount}`);
+    }
 
     // Crear preferencia de pago con Mercado Pago
     const preference = await mercadoPagoService.createPaymentPreference({
@@ -95,9 +102,9 @@ async function createPaymentPreference(req, res) {
     });
 
     // Crear registro de pago en custodia
-    const commissionRate = 0.05; // 5% según PRD
-    const commission = amount * commissionRate;
-    const professionalAmount = amount - commission;
+    // Según RB-03: Comisión se calcula al liberar fondos, no aquí
+    const commission = 0; // Se calculará al completar el servicio
+    const professionalAmount = amount; // Monto completo inicialmente
 
     const payment = await prisma.pagos.create({
       data: {

@@ -58,10 +58,10 @@ exports.createPaymentPreference = async (paymentData) => {
       };
     }
 
-    // Calcular comisiones (5% como especificado en PRD)
-    const commissionRate = 0.05;
-    const commission = amount * commissionRate;
-    const professionalAmount = amount - commission;
+    // Según RB-03: La comisión se cobra solo si el servicio se completa
+    // No deducimos comisión en la creación del pago, se calculará al liberar fondos
+    const commission = 0; // Se calculará al completar el servicio
+    const professionalAmount = amount; // Monto completo inicialmente
 
     // Crear preferencia de pago
     const preference = {
@@ -144,7 +144,7 @@ exports.processPaymentWebhook = async (paymentData) => {
           }
         });
 
-        // Liberar fondos (24 horas después según RB-04)
+        // Programar liberación automática de fondos en 24 horas (RB-04)
         const releaseDate = new Date();
         releaseDate.setHours(releaseDate.getHours() + 24);
 
@@ -155,16 +155,16 @@ exports.processPaymentWebhook = async (paymentData) => {
           }
         });
 
-        // Notificar al profesional
+        // Notificar al profesional - fondos en custodia hasta liberación automática
         const { createNotification } = require('./notificationService');
         await createNotification(
           payment.profesional_id,
-          'pago_liberado',
-          `¡Pago aprobado! Los fondos estarán disponibles en 24 horas. Monto: $${payment.monto_profesional}`,
-          { payment_id: payment.id }
+          'pago_aprobado',
+          `¡Pago aprobado! Los fondos estarán disponibles automáticamente en 24 horas. Monto total: $${payment.monto_total}`,
+          { payment_id: payment.id, release_date: releaseDate }
         );
 
-        console.log(`✅ Pago aprobado y programado para liberación: ${payment.id}`);
+        console.log(`✅ Pago aprobado y programado para liberación automática en 24h: ${payment.id}`);
       }
     }
 
@@ -233,24 +233,55 @@ exports.refundPayment = async (paymentId) => {
 
 /**
  * Liberar fondos manualmente (para administradores)
+ * Implementa RB-03: Comisión se cobra solo al liberar fondos
  * @param {string} paymentId - ID del pago
  */
 exports.releaseFunds = async (paymentId) => {
   try {
     const payment = await prisma.pagos.findUnique({
-      where: { id: paymentId }
+      where: { id: paymentId },
+      include: {
+        servicio: {
+          include: {
+            cliente: true,
+            profesional: true
+          }
+        }
+      }
     });
 
     if (!payment) {
       throw new Error('Pago no encontrado');
     }
 
-    // Actualizar estado a liberado
+    // Verificar que el servicio esté completado
+    if (payment.servicio.estado !== 'completado') {
+      throw new Error('El servicio debe estar completado para liberar fondos');
+    }
+
+    // Calcular comisión al liberar fondos (RB-03)
+    const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+    const totalAmount = payment.monto_total;
+    const commission = Math.round(totalAmount * commissionRate);
+    const professionalAmount = totalAmount - commission;
+
+    // Actualizar estado a liberado con comisión calculada
     await prisma.pagos.update({
       where: { id: paymentId },
       data: {
         estado: 'liberado',
-        fecha_liberacion: new Date()
+        fecha_liberacion: new Date(),
+        comision_plataforma: commission,
+        monto_profesional: professionalAmount
+      }
+    });
+
+    // Actualizar servicio a pagado
+    await prisma.servicios.update({
+      where: { id: payment.servicio.id },
+      data: {
+        estado: 'pagado',
+        completado_en: new Date()
       }
     });
 
@@ -258,13 +289,13 @@ exports.releaseFunds = async (paymentId) => {
     const { createNotification } = require('./notificationService');
     await createNotification(
       payment.profesional_id,
-      'pago_liberado',
-      `¡Fondos liberados! Monto disponible: $${payment.monto_profesional}`,
-      { payment_id: paymentId }
+      'fondos_liberados_manual',
+      `¡Fondos liberados manualmente! Recibiste $${professionalAmount} (comisión $${commission} deducida).`,
+      { payment_id: paymentId, amount: professionalAmount, commission }
     );
 
-    console.log(`💰 Fondos liberados manualmente: ${paymentId}`);
-    return { success: true };
+    console.log(`💰 Fondos liberados manualmente: ${paymentId} - Monto profesional: $${professionalAmount}`);
+    return { success: true, professionalAmount, commission };
 
   } catch (error) {
     console.error('Error liberando fondos:', error);

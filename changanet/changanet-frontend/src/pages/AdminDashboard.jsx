@@ -8,7 +8,11 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [stats, setStats] = useState(null);
   const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [userFilters, setUserFilters] = useState({ page: 1, search: '', role: '', blocked: '' });
+  const [serviceFilters, setServiceFilters] = useState({ page: 1, search: '', status: '', urgent: '' });
 
   useEffect(() => {
     if (user && user.rol === 'admin') {
@@ -17,6 +21,14 @@ const AdminDashboard = () => {
       navigate('/');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      loadUsers();
+    } else if (activeTab === 'services') {
+      loadServices();
+    }
+  }, [activeTab, userFilters, serviceFilters]);
 
   const loadDashboardData = async () => {
     try {
@@ -43,6 +55,36 @@ const AdminDashboard = () => {
       console.error('Error loading admin dashboard:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const params = new URLSearchParams(userFilters);
+      const response = await fetch(`/api/admin/users?${params}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
+
+  const loadServices = async () => {
+    try {
+      const params = new URLSearchParams(serviceFilters);
+      const response = await fetch(`/api/admin/services?${params}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data.data);
+      }
+    } catch (error) {
+      console.error('Error loading services:', error);
     }
   };
 
@@ -91,11 +133,99 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleToggleUserBlock = async (userId, currentlyBlocked) => {
+    const action = currentlyBlocked ? 'desbloquear' : 'bloquear';
+    const reason = currentlyBlocked ? '' : prompt('Motivo del bloqueo:');
+    if (!currentlyBlocked && !reason) return;
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/block`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({ blocked: !currentlyBlocked, reason })
+      });
+
+      if (response.ok) {
+        alert(`Usuario ${action}do exitosamente`);
+        loadUsers();
+      } else {
+        alert(`Error al ${action} usuario`);
+      }
+    } catch (error) {
+      console.error(`Error ${action}ndo usuario:`, error);
+      alert(`Error al ${action} usuario`);
+    }
+  };
+
+  const handleChangeUserRole = async (userId) => {
+    const newRole = prompt('Nuevo rol (cliente/profesional/admin):');
+    if (!newRole || !['cliente', 'profesional', 'admin'].includes(newRole)) {
+      alert('Rol inválido. Debe ser: cliente, profesional o admin');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/role`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({ newRole })
+      });
+
+      if (response.ok) {
+        alert('Rol del usuario cambiado exitosamente');
+        loadUsers();
+      } else {
+        alert('Error al cambiar rol del usuario');
+      }
+    } catch (error) {
+      console.error('Error cambiando rol del usuario:', error);
+      alert('Error al cambiar rol del usuario');
+    }
+  };
+
+  const handleUpdateServiceStatus = async (serviceId) => {
+    const newStatus = prompt('Nuevo estado (PENDIENTE/AGENDADO/EN_PROCESO/COMPLETADO/CANCELADO):');
+    const validStatuses = ['PENDIENTE', 'AGENDADO', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO'];
+    if (!newStatus || !validStatuses.includes(newStatus)) {
+      alert(`Estado inválido. Debe ser uno de: ${validStatuses.join(', ')}`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/services/${serviceId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        alert('Estado del servicio actualizado exitosamente');
+        loadServices();
+      } else {
+        alert('Error al actualizar estado del servicio');
+      }
+    } catch (error) {
+      console.error('Error actualizando estado del servicio:', error);
+      alert('Error al actualizar estado del servicio');
+    }
+  };
+
   const tabs = [
     { id: 'overview', name: 'Resumen', icon: '📊' },
     { id: 'verifications', name: 'Verificaciones', icon: '✅' },
     { id: 'users', name: 'Usuarios', icon: '👥' },
-    { id: 'payments', name: 'Pagos', icon: '💳' }
+    { id: 'services', name: 'Servicios', icon: '🔧' },
+    { id: 'payments', name: 'Pagos', icon: '💳' },
+    { id: 'analytics', name: 'Analytics', icon: '📈' }
   ];
 
   if (!user || user.rol !== 'admin') {
@@ -245,7 +375,190 @@ const AdminDashboard = () => {
           {activeTab === 'users' && (
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-bold mb-4">Gestión de Usuarios</h2>
-              <p className="text-gray-600">Funcionalidad de gestión de usuarios próximamente</p>
+
+              {/* Filtros */}
+              <div className="mb-4 flex flex-wrap gap-4">
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre o email..."
+                  value={userFilters.search}
+                  onChange={(e) => setUserFilters({...userFilters, search: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                />
+                <select
+                  value={userFilters.role}
+                  onChange={(e) => setUserFilters({...userFilters, role: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Todos los roles</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="profesional">Profesional</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <select
+                  value={userFilters.blocked}
+                  onChange={(e) => setUserFilters({...userFilters, blocked: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="false">Activos</option>
+                  <option value="true">Bloqueados</option>
+                </select>
+                <button
+                  onClick={loadUsers}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              {/* Lista de usuarios */}
+              <div className="space-y-4">
+                {users.map((user) => (
+                  <div key={user.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <h3 className="font-semibold">{user.nombre}</h3>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            user.rol === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            user.rol === 'profesional' ? 'bg-blue-100 text-blue-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {user.rol}
+                          </span>
+                          {user.esta_verificado && (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                              Verificado
+                            </span>
+                          )}
+                          {user.bloqueado && (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              Bloqueado
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-gray-600 text-sm">{user.email}</p>
+                        <p className="text-gray-500 text-xs">
+                          Creado: {new Date(user.creado_en).toLocaleDateString()}
+                        </p>
+                        <p className="text-gray-500 text-xs">
+                          Servicios: {user._count.servicios_como_cliente} como cliente, {user._count.servicios_como_profesional} como profesional
+                        </p>
+                      </div>
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => handleToggleUserBlock(user.id, user.bloqueado)}
+                          className={`px-3 py-1 rounded text-sm font-medium ${
+                            user.bloqueado
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-red-600 text-white hover:bg-red-700'
+                          }`}
+                        >
+                          {user.bloqueado ? 'Desbloquear' : 'Bloquear'}
+                        </button>
+                        <button
+                          onClick={() => handleChangeUserRole(user.id)}
+                          className="px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          Cambiar Rol
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'services' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Gestión de Servicios</h2>
+
+              {/* Filtros */}
+              <div className="mb-4 flex flex-wrap gap-4">
+                <input
+                  type="text"
+                  placeholder="Buscar servicios..."
+                  value={serviceFilters.search}
+                  onChange={(e) => setServiceFilters({...serviceFilters, search: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                />
+                <select
+                  value={serviceFilters.status}
+                  onChange={(e) => setServiceFilters({...serviceFilters, status: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Todos los estados</option>
+                  <option value="PENDIENTE">Pendiente</option>
+                  <option value="AGENDADO">Agendado</option>
+                  <option value="EN_PROCESO">En Proceso</option>
+                  <option value="COMPLETADO">Completado</option>
+                  <option value="CANCELADO">Cancelado</option>
+                </select>
+                <select
+                  value={serviceFilters.urgent}
+                  onChange={(e) => setServiceFilters({...serviceFilters, urgent: e.target.value})}
+                  className="px-3 py-2 border border-gray-300 rounded-md"
+                >
+                  <option value="">Todos</option>
+                  <option value="true">Urgentes</option>
+                  <option value="false">Normales</option>
+                </select>
+                <button
+                  onClick={loadServices}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              {/* Lista de servicios */}
+              <div className="space-y-4">
+                {services.map((service) => (
+                  <div key={service.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h3 className="font-semibold">Servicio #{service.id}</h3>
+                          {service.es_urgente && (
+                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                              🚨 URGENTE
+                            </span>
+                          )}
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            service.estado === 'COMPLETADO' ? 'bg-green-100 text-green-800' :
+                            service.estado === 'CANCELADO' ? 'bg-red-100 text-red-800' :
+                            service.estado === 'EN_PROCESO' ? 'bg-blue-100 text-blue-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {service.estado}
+                          </span>
+                        </div>
+                        <p className="text-gray-700 mb-1">{service.descripcion}</p>
+                        <div className="text-sm text-gray-600 space-y-1">
+                          <p><strong>Cliente:</strong> {service.cliente.nombre} ({service.cliente.email})</p>
+                          <p><strong>Profesional:</strong> {service.profesional.nombre} ({service.profesional.email})</p>
+                          {service.pago && (
+                            <p><strong>Pago:</strong> ${service.pago.monto_total} - {service.pago.estado}</p>
+                          )}
+                        </div>
+                        <p className="text-gray-500 text-xs mt-2">
+                          Creado: {new Date(service.creado_en).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-col space-y-2">
+                        <button
+                          onClick={() => handleUpdateServiceStatus(service.id)}
+                          className="px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                        >
+                          Cambiar Estado
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -253,6 +566,13 @@ const AdminDashboard = () => {
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className="text-xl font-bold mb-4">Gestión de Pagos</h2>
               <p className="text-gray-600">Funcionalidad de gestión de pagos próximamente</p>
+            </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Analytics y Reportes</h2>
+              <p className="text-gray-600">Funcionalidad de analytics próximamente</p>
             </div>
           )}
         </div>

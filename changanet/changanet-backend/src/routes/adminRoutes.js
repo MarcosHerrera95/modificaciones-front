@@ -34,8 +34,15 @@ router.get('/stats', adminController.getSystemStats);
 
 // Gestión de usuarios
 router.get('/users', adminController.getUsersList);
+router.get('/users/:userId', adminController.getUserDetails);
+router.put('/users/:userId/block', adminController.toggleUserBlock);
+router.put('/users/:userId/role', adminController.changeUserRole);
 
 // Gestión manual de pagos
 router.post('/payments/:paymentId/release-funds', adminController.manualReleaseFunds);
+
+// Gestión de servicios
+router.get('/services', adminController.getServicesList);
+router.put('/services/:serviceId/status', adminController.updateServiceStatus);
 
 module.exports = router;

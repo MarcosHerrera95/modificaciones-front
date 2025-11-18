@@ -187,3 +187,114 @@ exports.sendTestNotification = async (req, res) => {
     });
   }
 };
+
+/**
+ * Obtener preferencias de notificación del usuario
+ */
+exports.getNotificationPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      select: {
+        notificaciones_push: true,
+        notificaciones_email: true,
+        notificaciones_sms: true,
+        notificaciones_servicios: true,
+        notificaciones_mensajes: true,
+        notificaciones_pagos: true,
+        notificaciones_marketing: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        error: 'Usuario no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      preferences: user
+    });
+  } catch (error) {
+    console.error('Error obteniendo preferencias de notificación:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Actualizar preferencias de notificación del usuario
+ */
+exports.updateNotificationPreferences = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      notificaciones_push,
+      notificaciones_email,
+      notificaciones_sms,
+      notificaciones_servicios,
+      notificaciones_mensajes,
+      notificaciones_pagos,
+      notificaciones_marketing
+    } = req.body;
+
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+
+    // Validar que los valores sean booleanos
+    const preferences = {
+      notificaciones_push,
+      notificaciones_email,
+      notificaciones_sms,
+      notificaciones_servicios,
+      notificaciones_mensajes,
+      notificaciones_pagos,
+      notificaciones_marketing
+    };
+
+    // Filtrar solo valores booleanos válidos
+    const validPreferences = {};
+    Object.keys(preferences).forEach(key => {
+      if (typeof preferences[key] === 'boolean') {
+        validPreferences[key] = preferences[key];
+      }
+    });
+
+    if (Object.keys(validPreferences).length === 0) {
+      return res.status(400).json({
+        error: 'Debe proporcionar al menos una preferencia válida'
+      });
+    }
+
+    const updatedUser = await prisma.usuarios.update({
+      where: { id: userId },
+      data: validPreferences,
+      select: {
+        notificaciones_push: true,
+        notificaciones_email: true,
+        notificaciones_sms: true,
+        notificaciones_servicios: true,
+        notificaciones_mensajes: true,
+        notificaciones_pagos: true,
+        notificaciones_marketing: true
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Preferencias de notificación actualizadas',
+      preferences: updatedUser
+    });
+  } catch (error) {
+    console.error('Error actualizando preferencias de notificación:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor'
+    });
+  }
+};

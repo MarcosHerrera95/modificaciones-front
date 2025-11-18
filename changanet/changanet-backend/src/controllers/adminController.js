@@ -314,11 +314,12 @@ exports.manualReleaseFunds = async (req, res) => {
  */
 exports.getUsersList = async (req, res) => {
   try {
-    const { page = 1, limit = 20, role, verified, search } = req.query;
+    const { page = 1, limit = 20, role, verified, search, blocked } = req.query;
 
     const where = {};
     if (role) where.rol = role;
     if (verified !== undefined) where.esta_verificado = verified === 'true';
+    if (blocked !== undefined) where.bloqueado = blocked === 'true';
     if (search) {
       where.OR = [
         { nombre: { contains: search, mode: 'insensitive' } },
@@ -336,6 +337,7 @@ exports.getUsersList = async (req, res) => {
         esta_verificado: true,
         bloqueado: true,
         creado_en: true,
+        ultima_conexion: true,
         _count: {
           select: {
             servicios_como_cliente: true,
@@ -366,6 +368,380 @@ exports.getUsersList = async (req, res) => {
       service: 'admin',
       error,
       userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Bloquear o desbloquear un usuario
+ */
+exports.toggleUserBlock = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { blocked, reason } = req.body;
+    const adminId = req.user.id;
+
+    // Verificar que no se está bloqueando a sí mismo
+    if (userId === adminId) {
+      return res.status(400).json({
+        success: false,
+        error: 'No puedes bloquear tu propia cuenta'
+      });
+    }
+
+    // Obtener usuario actual
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      select: { nombre: true, email: true, bloqueado: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuario no encontrado'
+      });
+    }
+
+    // Actualizar estado de bloqueo
+    await prisma.usuarios.update({
+      where: { id: userId },
+      data: {
+        bloqueado: blocked,
+        bloqueado_en: blocked ? new Date() : null,
+        bloqueado_por: blocked ? adminId : null,
+        motivo_bloqueo: blocked ? reason : null
+      }
+    });
+
+    // Notificar al usuario
+    const { createNotification } = require('../services/notificationService');
+    const action = blocked ? 'bloqueada' : 'desbloqueada';
+    await createNotification(
+      userId,
+      blocked ? 'cuenta_bloqueada' : 'cuenta_desbloqueada',
+      `Tu cuenta ha sido ${action}${blocked ? `. Motivo: ${reason}` : ''}`,
+      { adminId, reason, blocked }
+    );
+
+    logger.info('User block status changed', {
+      service: 'admin',
+      adminId,
+      userId,
+      blocked,
+      reason
+    });
+
+    res.json({
+      success: true,
+      message: `Usuario ${blocked ? 'bloqueado' : 'desbloqueado'} exitosamente`
+    });
+
+  } catch (error) {
+    logger.error('Error cambiando estado de bloqueo del usuario', {
+      service: 'admin',
+      error,
+      userId: req.params.userId,
+      adminId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Cambiar rol de un usuario
+ */
+exports.changeUserRole = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { newRole } = req.body;
+    const adminId = req.user.id;
+
+    // Validar rol
+    const validRoles = ['cliente', 'profesional', 'admin'];
+    if (!validRoles.includes(newRole)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Rol inválido'
+      });
+    }
+
+    // Obtener usuario actual
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      select: { nombre: true, email: true, rol: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuario no encontrado'
+      });
+    }
+
+    // Actualizar rol
+    await prisma.usuarios.update({
+      where: { id: userId },
+      data: {
+        rol: newRole,
+        rol_cambiado_en: new Date(),
+        rol_cambiado_por: adminId
+      }
+    });
+
+    // Notificar al usuario
+    const { createNotification } = require('../services/notificationService');
+    await createNotification(
+      userId,
+      'rol_cambiado',
+      `Tu rol ha sido cambiado a: ${newRole}`,
+      { adminId, oldRole: user.rol, newRole }
+    );
+
+    logger.info('User role changed', {
+      service: 'admin',
+      adminId,
+      userId,
+      oldRole: user.rol,
+      newRole
+    });
+
+    res.json({
+      success: true,
+      message: `Rol del usuario cambiado a ${newRole}`
+    });
+
+  } catch (error) {
+    logger.error('Error cambiando rol del usuario', {
+      service: 'admin',
+      error,
+      userId: req.params.userId,
+      adminId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Obtener detalles completos de un usuario
+ */
+exports.getUserDetails = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      include: {
+        perfil_profesional: true,
+        verification_requests: {
+          orderBy: { fecha_solicitud: 'desc' },
+          take: 5
+        },
+        servicios_como_cliente: {
+          take: 10,
+          orderBy: { creado_en: 'desc' },
+          include: {
+            profesional: { select: { nombre: true } }
+          }
+        },
+        servicios_como_profesional: {
+          take: 10,
+          orderBy: { creado_en: 'desc' },
+          include: {
+            cliente: { select: { nombre: true } }
+          }
+        },
+        _count: {
+          select: {
+            servicios_como_cliente: true,
+            servicios_como_profesional: true
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuario no encontrado'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+
+  } catch (error) {
+    logger.error('Error obteniendo detalles del usuario', {
+      service: 'admin',
+      error,
+      userId: req.params.userId,
+      adminId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Obtener lista de servicios con filtros para administración
+ */
+exports.getServicesList = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, status, urgent, search } = req.query;
+
+    const where = {};
+    if (status) where.estado = status;
+    if (urgent !== undefined) where.es_urgente = urgent === 'true';
+    if (search) {
+      where.OR = [
+        { descripcion: { contains: search, mode: 'insensitive' } },
+        { cliente: { nombre: { contains: search, mode: 'insensitive' } } },
+        { profesional: { nombre: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+
+    const services = await prisma.servicios.findMany({
+      where,
+      include: {
+        cliente: { select: { id: true, nombre: true, email: true } },
+        profesional: { select: { id: true, nombre: true, email: true } },
+        pago: { select: { id: true, monto_total: true, estado: true } }
+      },
+      orderBy: [
+        { es_urgente: 'desc' },
+        { creado_en: 'desc' }
+      ],
+      skip: (page - 1) * limit,
+      take: parseInt(limit)
+    });
+
+    const total = await prisma.servicios.count({ where });
+
+    res.json({
+      success: true,
+      data: services,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error obteniendo lista de servicios', {
+      service: 'admin',
+      error,
+      adminId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Actualizar estado de un servicio (para administradores)
+ */
+exports.updateServiceStatus = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+    const { status, notes } = req.body;
+    const adminId = req.user.id;
+
+    // Validar estado
+    const validStatuses = ['PENDIENTE', 'AGENDADO', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estado inválido'
+      });
+    }
+
+    // Obtener servicio
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
+      include: { cliente: true, profesional: true }
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        error: 'Servicio no encontrado'
+      });
+    }
+
+    const oldStatus = service.estado;
+
+    // Actualizar servicio
+    await prisma.servicios.update({
+      where: { id: serviceId },
+      data: {
+        estado: status,
+        completado_en: status === 'COMPLETADO' ? new Date() : undefined,
+        cancelado_en: status === 'CANCELADO' ? new Date() : undefined
+      }
+    });
+
+    // Notificar a ambas partes
+    const { createNotification } = require('../services/notificationService');
+
+    const statusMessages = {
+      'COMPLETADO': 'ha sido marcado como completado',
+      'CANCELADO': 'ha sido cancelado',
+      'EN_PROCESO': 'está en proceso'
+    };
+
+    if (statusMessages[status]) {
+      await createNotification(
+        service.cliente_id,
+        'servicio_actualizado_admin',
+        `El servicio "${service.descripcion}" ${statusMessages[status]} por un administrador.`,
+        { serviceId, oldStatus, newStatus: status, adminId, notes }
+      );
+
+      await createNotification(
+        service.profesional_id,
+        'servicio_actualizado_admin',
+        `El servicio "${service.descripcion}" ${statusMessages[status]} por un administrador.`,
+        { serviceId, oldStatus, newStatus: status, adminId, notes }
+      );
+    }
+
+    logger.info('Service status updated by admin', {
+      service: 'admin',
+      adminId,
+      serviceId,
+      oldStatus,
+      newStatus: status,
+      notes
+    });
+
+    res.json({
+      success: true,
+      message: `Estado del servicio actualizado a ${status}`
+    });
+
+  } catch (error) {
+    logger.error('Error actualizando estado del servicio', {
+      service: 'admin',
+      error,
+      serviceId: req.params.serviceId,
+      adminId: req.user?.id
     });
     res.status(500).json({
       success: false,

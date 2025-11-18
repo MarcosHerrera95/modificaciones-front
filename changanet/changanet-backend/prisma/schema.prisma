@@ -82,6 +82,15 @@ model usuarios {
   // Relaciones para logros y gamificación
   logros_obtenidos logros_usuario[]
 
+  // Preferencias de notificaciones - Sección 11 del PRD
+  notificaciones_push Boolean @default(true)
+  notificaciones_email Boolean @default(true)
+  notificaciones_sms Boolean @default(false)
+  notificaciones_servicios Boolean @default(true)
+  notificaciones_mensajes Boolean @default(true)
+  notificaciones_pagos Boolean @default(true)
+  notificaciones_marketing Boolean @default(false)
+
   @@index([rol])
   @@index([esta_verificado])
   @@index([telefono])
@@ -144,6 +153,7 @@ model servicios {
   fecha_agendada DateTime?
   creado_en      DateTime @default(now())
   completado_en  DateTime?
+  es_urgente     Boolean  @default(false) // Indica si el servicio es urgente - Sección 10 del PRD
   resena         resenas?
   pago           pagos?
 
@@ -158,9 +168,11 @@ model servicios {
   @@index([profesional_id])
   @@index([estado])
   @@index([creado_en])
+  @@index([es_urgente])
   @@index([cliente_id, estado])
   @@index([profesional_id, estado])
   @@index([estado, creado_en])
+  @@index([es_urgente, estado])
   @@index([fecha_agendada])
   @@index([cliente_id, fecha_agendada])
   @@index([profesional_id, fecha_agendada])

@@ -98,7 +98,7 @@ const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
 const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
-const { scheduleRecurringServiceGeneration } = require('./services/recurringServiceScheduler');
+const { scheduleRecurringServiceGeneration, scheduleAutomaticFundReleases } = require('./services/recurringServiceScheduler');
 const { initializeDefaultAchievements } = require('./controllers/achievementsController');
 
 // Importar documentación Swagger
@@ -120,12 +120,12 @@ backupService.initialize().then(success => {
   }
 });
 
-// Inicializar logros por defecto - DESACTIVADO: Modelo logros no existe en schema
-// initializeDefaultAchievements().then(() => {
-//   console.log('🏆 Logros por defecto inicializados');
-// }).catch(error => {
-//   console.error('❌ Error inicializando logros:', error);
-// });
+// Inicializar logros por defecto - REQ-38: Sistema de medallas
+initializeDefaultAchievements().then(() => {
+  console.log('🏆 Logros por defecto inicializados');
+}).catch(error => {
+  console.error('❌ Error inicializando logros:', error);
+});
 const app = express();
 const server = http.createServer(app);
 
@@ -695,6 +695,10 @@ const findAvailablePort = (startPort) => {
 if (process.env.NODE_ENV !== 'test') {
   scheduleAutomaticReminders();
   console.log('⏰ Recordatorios automáticos de disponibilidad programados');
+
+  // Programar liberación automática de fondos (RB-04)
+  scheduleAutomaticFundReleases();
+  console.log('💰 Liberación automática de fondos programada');
 
   findAvailablePort(PORT).then(availablePort => {
     server.listen(availablePort, () => {

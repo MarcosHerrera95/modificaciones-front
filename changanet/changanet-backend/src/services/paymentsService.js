@@ -60,24 +60,26 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
       throw new Error('Monto de pago inválido');
     }
 
-    // Calcular comisión del 10%
-    const marketplaceFee = Math.round(amount * 0.1);
+    // Según RB-03: La comisión se cobra solo si el servicio se completa
+    // En la creación del pago, no deducimos comisión aún
+    // La comisión se calculará al liberar fondos cuando el servicio se complete
 
-    // Crear registro de pago en base de datos
+    // Crear registro de pago en base de datos (sin comisión inicial)
     const paymentRecord = await prisma.pagos.create({
       data: {
         servicio_id: serviceId,
         cliente_id: clientId,
         profesional_id: service.profesional_id,
         monto_total: amount,
-        comision_plataforma: marketplaceFee,
-        monto_profesional: amount - marketplaceFee,
+        comision_plataforma: 0, // Se calculará al completar el servicio
+        monto_profesional: amount, // Monto completo inicialmente
         estado: 'pendiente',
         metodo_pago: 'mercado_pago',
       },
     });
 
     // Crear preferencia de pago
+    // Según RB-03: No cobramos comisión hasta que el servicio se complete
     const preference = {
       items: [
         {
@@ -92,8 +94,8 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
       payer: {
         email: professionalEmail,
       },
-      binary_mode: true, // Custodia de fondos
-      marketplace_fee: marketplaceFee,
+      binary_mode: true, // Custodia de fondos según REQ-42
+      // marketplace_fee se aplicará al liberar fondos cuando el servicio se complete
       back_urls: {
         success: `${process.env.FRONTEND_URL}/payments/success?serviceId=${serviceId}`,
         failure: `${process.env.FRONTEND_URL}/payments/failure`,
@@ -127,6 +129,7 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
 
 /**
  * Libera los fondos de un pago completado
+ * Implementa RB-03: La comisión se cobra solo si el servicio se completa
  * @param {string} paymentId - ID del pago en Mercado Pago
  * @param {string} serviceId - ID del servicio
  * @param {string} clientId - ID del cliente (para validación)
@@ -139,6 +142,7 @@ async function releaseFunds(paymentId, serviceId, clientId) {
       where: { id: serviceId },
       include: {
         cliente: true,
+        pago: true,
       },
     });
 
@@ -154,16 +158,38 @@ async function releaseFunds(paymentId, serviceId, clientId) {
       throw new Error('El servicio debe estar completado para liberar fondos');
     }
 
-    // Liberar fondos usando la API de Mercado Pago
+    if (!service.pago) {
+      throw new Error('No se encontró el registro de pago para este servicio');
+    }
+
+    // Calcular comisión al momento de liberar fondos (RB-03)
+    const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+    const totalAmount = service.pago.monto_total;
+    const commission = Math.round(totalAmount * commissionRate);
+    const professionalAmount = totalAmount - commission;
+
+    // Actualizar el registro de pago con la comisión calculada
+    await prisma.pagos.update({
+      where: { id: service.pago.id },
+      data: {
+        comision_plataforma: commission,
+        monto_profesional: professionalAmount,
+        estado: 'liberado',
+        fecha_liberacion: new Date(),
+      },
+    });
+
+    // Liberar fondos usando la API de Mercado Pago con marketplace_fee
     const paymentClient = new Payment(client);
     const response = await paymentClient.update({
       id: paymentId,
       updatePaymentRequest: {
-        status: 'approved', // Esto libera los fondos en el modelo marketplace
+        status: 'approved',
+        marketplace_fee: commission, // Aplicar comisión al liberar fondos
       },
     });
 
-    // Actualizar estado del servicio si es necesario
+    // Actualizar estado del servicio
     await prisma.servicios.update({
       where: { id: serviceId },
       data: {
@@ -172,10 +198,22 @@ async function releaseFunds(paymentId, serviceId, clientId) {
       },
     });
 
+    // Notificar al profesional sobre la liberación de fondos
+    const { createNotification } = require('./notificationService');
+    await createNotification(
+      service.profesional_id,
+      'fondos_liberados',
+      `¡Fondos liberados! Recibiste $${professionalAmount} (comisión $${commission} deducida).`,
+      { serviceId, paymentId, amount: professionalAmount, commission }
+    );
+
     return {
       success: true,
       paymentId,
       serviceId,
+      totalAmount,
+      commission,
+      professionalAmount,
       releasedAt: new Date(),
     };
   } catch (error) {
@@ -229,9 +267,37 @@ async function autoReleaseFunds() {
 
     for (const service of servicesToRelease) {
       try {
-        // Aquí necesitaríamos el paymentId. En una implementación real,
-        // deberíamos tener una tabla de pagos que relacione servicios con paymentIds
-        // Por ahora, simulamos la liberación automática
+        // Buscar el pago asociado al servicio
+        const payment = await prisma.pagos.findUnique({
+          where: { servicio_id: service.id }
+        });
+
+        if (!payment) {
+          console.warn(`No se encontró pago para servicio ${service.id}, saltando liberación automática`);
+          results.push({
+            serviceId: service.id,
+            status: 'skipped',
+            reason: 'no payment found'
+          });
+          continue;
+        }
+
+        // Calcular comisión al liberar fondos automáticamente (RB-03)
+        const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+        const totalAmount = payment.monto_total;
+        const commission = Math.round(totalAmount * commissionRate);
+        const professionalAmount = totalAmount - commission;
+
+        // Actualizar el pago con comisión y liberación
+        await prisma.pagos.update({
+          where: { id: payment.id },
+          data: {
+            comision_plataforma: commission,
+            monto_profesional: professionalAmount,
+            estado: 'liberado',
+            fecha_liberacion: new Date(),
+          },
+        });
 
         // Actualizar estado del servicio
         await prisma.servicios.update({
@@ -246,18 +312,21 @@ async function autoReleaseFunds() {
         const { createNotification } = require('./notificationService');
         await createNotification(
           service.profesional_id,
-          'fondos_liberados',
-          `Los fondos del servicio completado han sido liberados automáticamente a tu cuenta.`,
-          { serviceId: service.id }
+          'fondos_liberados_auto',
+          `Los fondos del servicio completado han sido liberados automáticamente. Recibiste $${professionalAmount} (comisión $${commission} deducida).`,
+          { serviceId: service.id, amount: professionalAmount, commission }
         );
 
         results.push({
           serviceId: service.id,
           status: 'released',
+          totalAmount,
+          commission,
+          professionalAmount,
           releasedAt: new Date(),
         });
 
-        console.log(`💰 Fondos liberados automáticamente para servicio ${service.id}`);
+        console.log(`💰 Fondos liberados automáticamente para servicio ${service.id} - Monto profesional: $${professionalAmount}`);
       } catch (error) {
         console.error(`Error liberando fondos para servicio ${service.id}:`, error);
         results.push({
@@ -382,12 +451,13 @@ async function generatePaymentReceipt(paymentId) {
 
 /**
  * Calcula fondos disponibles para retiro de un profesional
+ * REQ-44: El profesional debe poder retirar fondos a su cuenta bancaria
  * @param {string} professionalId - ID del profesional
  * @returns {number} Fondos disponibles
  */
 async function calculateAvailableFunds(professionalId) {
   try {
-    // Suma de pagos liberados menos retiros (simplificado)
+    // Suma de pagos liberados (con comisión ya deducida) menos retiros previos
     const payments = await prisma.pagos.findMany({
       where: {
         profesional_id: professionalId,
@@ -398,8 +468,8 @@ async function calculateAvailableFunds(professionalId) {
 
     const totalEarned = payments.reduce((sum, payment) => sum + payment.monto_profesional, 0);
 
-    // En una implementación real, restaríamos retiros previos
-    // Por ahora, devolvemos el total ganado
+    // En una implementación completa, restaríamos retiros previos desde una tabla de retiros
+    // Por ahora, devolvemos el total disponible para retiro
     return totalEarned;
   } catch (error) {
     console.error('Error calculando fondos disponibles:', error);

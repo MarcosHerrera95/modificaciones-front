@@ -22,14 +22,14 @@ const prisma = new PrismaClient();
  * @param {Object} res - Response con datos del servicio creado
  */
 exports.scheduleService = async (req, res) => {
-   const { id: clientId } = req.user;
-   const { profesional_id, descripcion, fecha_agendada } = req.body;
+    const { id: clientId } = req.user;
+    const { profesional_id, descripcion, fecha_agendada, es_urgente } = req.body;
 
-   try {
-     // Validar datos de entrada
-     if (!profesional_id || !descripcion || !fecha_agendada) {
-       return res.status(400).json({ error: 'Todos los campos son requeridos: profesional_id, descripcion, fecha_agendada.' });
-     }
+    try {
+      // Validar datos de entrada
+      if (!profesional_id || !descripcion || !fecha_agendada) {
+        return res.status(400).json({ error: 'Todos los campos son requeridos: profesional_id, descripcion, fecha_agendada.' });
+      }
 
      // Validar que la fecha sea futura
      const scheduledDate = new Date(fecha_agendada);
@@ -65,23 +65,27 @@ exports.scheduleService = async (req, res) => {
          profesional_id: parseInt(profesional_id),
          descripcion,
          estado: 'agendado',
-         fecha_agendada: new Date(fecha_agendada)
+         fecha_agendada: new Date(fecha_agendada),
+         es_urgente: es_urgente || false
        }
      });
 
      // Crear notificaciones para ambas partes (REQ-30)
+     // Notificaciones especiales para servicios urgentes - Sección 10 del PRD
      const { createNotification } = require('../services/notificationService');
+     const urgentMessage = es_urgente ? ' 🔥 SERVICIO URGENTE' : '';
+
      await createNotification(
        clientId,
        'servicio_agendado',
-       `Servicio agendado exitosamente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}`,
-       { serviceId: service.id }
+       `Servicio agendado exitosamente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}${urgentMessage}`,
+       { serviceId: service.id, es_urgente: es_urgente }
      );
      await createNotification(
        parseInt(profesional_id),
-       'servicio_agendado',
-       `Nuevo servicio agendado con cliente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}`,
-       { serviceId: service.id }
+       es_urgente ? 'servicio_urgente_agendado' : 'servicio_agendado',
+       `Nuevo servicio${es_urgente ? ' URGENTE' : ''} agendado con cliente para el ${new Date(fecha_agendada).toLocaleDateString('es-AR')}${es_urgente ? ' ⚡ ¡Atención inmediata requerida!' : ''}`,
+       { serviceId: service.id, es_urgente: es_urgente }
      );
 
      console.log({ event: 'service_scheduled', clientId, professionalId: profesional_id, serviceId: service.id, fecha_agendada });
@@ -127,13 +131,75 @@ exports.getProfessionalServices = async (req, res) => {
       include: {
         cliente: { select: { nombre: true, email: true } }
       },
-      orderBy: { creado_en: 'desc' }
+      // Priorizar servicios urgentes primero - Sección 10 del PRD
+      orderBy: [
+        { es_urgente: 'desc' }, // Servicios urgentes primero
+        { creado_en: 'desc' }   // Luego por fecha de creación
+      ]
     });
 
     res.status(200).json(services);
   } catch (error) {
     console.error('Error getting professional services:', error);
     res.status(500).json({ error: 'Error al obtener servicios.' });
+  }
+};
+
+/**
+ * Marcar o desmarcar un servicio como urgente
+ * Sección 10 del PRD: Servicios Urgentes
+ */
+exports.toggleUrgentService = async (req, res) => {
+  const { id: userId } = req.user;
+  const { serviceId } = req.params;
+  const { es_urgente } = req.body;
+
+  try {
+    // Validar que es_urgente sea boolean
+    if (typeof es_urgente !== 'boolean') {
+      return res.status(400).json({ error: 'es_urgente debe ser un valor booleano.' });
+    }
+
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
+      include: { cliente: true, profesional: true }
+    });
+
+    if (!service) {
+      return res.status(404).json({ error: 'Servicio no encontrado.' });
+    }
+
+    // Solo el cliente puede marcar como urgente
+    if (service.cliente_id !== userId) {
+      return res.status(403).json({ error: 'Solo el cliente puede modificar la urgencia del servicio.' });
+    }
+
+    // Solo servicios pendientes pueden ser marcados como urgentes
+    if (service.estado !== 'PENDIENTE' && service.estado !== 'AGENDADO') {
+      return res.status(400).json({ error: 'Solo servicios pendientes o agendados pueden ser marcados como urgentes.' });
+    }
+
+    const updatedService = await prisma.servicios.update({
+      where: { id: serviceId },
+      data: { es_urgente }
+    });
+
+    // Notificar al profesional sobre cambio de urgencia
+    const { createNotification } = require('../services/notificationService');
+    const urgentMessage = es_urgente ? 'ha sido marcado como URGENTE ⚡' : 'ya no es urgente';
+    await createNotification(
+      service.profesional_id,
+      es_urgente ? 'servicio_marcado_urgente' : 'servicio_desmarcado_urgente',
+      `El servicio "${service.descripcion}" ${urgentMessage}`,
+      { serviceId, es_urgente }
+    );
+
+    console.log(`🔥 Servicio ${serviceId} ${es_urgente ? 'marcado' : 'desmarcado'} como urgente por cliente ${userId}`);
+
+    res.status(200).json(updatedService);
+  } catch (error) {
+    console.error('Error toggling urgent service:', error);
+    res.status(500).json({ error: 'Error al modificar urgencia del servicio.' });
   }
 };
 
