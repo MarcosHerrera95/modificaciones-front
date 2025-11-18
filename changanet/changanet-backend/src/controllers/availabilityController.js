@@ -1,11 +1,28 @@
 /**
  * Controlador de gestión de disponibilidad y agenda
  * Implementa sección 7.6 del PRD: Gestión de Disponibilidad y Agenda
- * REQ-26: Calendario editable para profesionales
- * REQ-27: Marcar horarios disponibles/no disponibles
- * REQ-28: Clientes ven disponibilidad en tiempo real
- * REQ-29: Agendar servicios directamente
- * REQ-30: Confirmación automática al agendar
+ *
+ * REQUERIMIENTOS FUNCIONALES IMPLEMENTADOS:
+ * ✅ REQ-26: Calendario editable para profesionales - CRUD completo de slots
+ * ✅ REQ-27: Marcar horarios disponibles/no disponibles - Campo esta_disponible
+ * ✅ REQ-28: Clientes ven disponibilidad en tiempo real - Endpoint público filtrado
+ * ✅ REQ-29: Agendar servicios directamente - Nueva funcionalidad bookAvailability
+ * ✅ REQ-30: Confirmación automática al agendar - Notificaciones push y email
+ *
+ * FUNCIONALIDADES ADICIONALES:
+ * - Validación de solapamiento de horarios
+ * - Sistema de reservas con relación a servicios
+ * - Cancelación de reservas
+ * - Notificaciones automáticas para confirmaciones
+ * - Validación de permisos por rol (cliente/profesional)
+ *
+ * ENDPOINTS DISPONIBLES:
+ * POST /api/availability - Crear slot de disponibilidad (profesional)
+ * GET /api/availability/:professionalId?date=YYYY-MM-DD - Ver disponibilidad (cliente)
+ * PUT /api/availability/:slotId - Actualizar disponibilidad (profesional)
+ * POST /api/availability/:slotId/book - Reservar slot (cliente) - REQ-29
+ * DELETE /api/availability/:slotId/cancel - Cancelar reserva
+ * DELETE /api/availability/:slotId - Eliminar slot (profesional)
  */
 
 // src/controllers/availabilityController.js
@@ -128,6 +145,144 @@ exports.updateAvailability = async (req, res) => {
   }
 };
 
+/**
+ * Reserva un slot de disponibilidad para agendar un servicio
+ * REQ-29: Permitir agendar servicios directamente
+ * REQ-30: Enviar confirmación automática al agendar
+ */
+exports.bookAvailability = async (req, res) => {
+  const { id: userId } = req.user;
+  const { slotId } = req.params;
+  const { descripcion } = req.body;
+
+  try {
+    // Verificar que el usuario sea cliente
+    const user = await prisma.usuarios.findUnique({ where: { id: userId } });
+    if (user.rol !== 'cliente') {
+      return res.status(403).json({ error: 'Solo los clientes pueden agendar servicios.' });
+    }
+
+    // Verificar que el slot existe y está disponible
+    const slot = await prisma.disponibilidad.findUnique({
+      where: { id: slotId },
+      include: { profesional: true }
+    });
+
+    if (!slot) {
+      return res.status(404).json({ error: 'Slot de disponibilidad no encontrado.' });
+    }
+
+    if (!slot.esta_disponible) {
+      return res.status(400).json({ error: 'Este horario ya no está disponible.' });
+    }
+
+    if (slot.reservado_por) {
+      return res.status(400).json({ error: 'Este horario ya ha sido reservado.' });
+    }
+
+    // Crear el servicio agendado
+    const service = await prisma.servicios.create({
+      data: {
+        cliente_id: userId,
+        profesional_id: slot.profesional_id,
+        descripcion: descripcion || `Servicio agendado para ${slot.fecha.toISOString().split('T')[0]} ${slot.hora_inicio.toTimeString().slice(0, 5)}-${slot.hora_fin.toTimeString().slice(0, 5)}`,
+        estado: 'AGENDADO',
+        fecha_agendada: slot.fecha
+      }
+    });
+
+    // Reservar el slot
+    await prisma.disponibilidad.update({
+      where: { id: slotId },
+      data: {
+        reservado_por: userId,
+        reservado_en: new Date(),
+        servicio_id: service.id
+      }
+    });
+
+    // Enviar notificaciones - REQ-30: Confirmación automática
+    const { sendNotification } = require('../services/notificationService');
+
+    // Notificación al cliente
+    await sendNotification(
+      userId,
+      'servicio_agendado',
+      `Servicio agendado exitosamente con ${slot.profesional.nombre} para el ${slot.fecha.toISOString().split('T')[0]} a las ${slot.hora_inicio.toTimeString().slice(0, 5)}`,
+      { servicio_id: service.id, slot_id: slotId }
+    );
+
+    // Notificación al profesional
+    await sendNotification(
+      slot.profesional_id,
+      'nueva_reserva',
+      `Nueva reserva de ${user.nombre} para el ${slot.fecha.toISOString().split('T')[0]} a las ${slot.hora_inicio.toTimeString().slice(0, 5)}`,
+      { servicio_id: service.id, slot_id: slotId }
+    );
+
+    res.status(201).json({
+      message: 'Servicio agendado exitosamente.',
+      service,
+      slot: {
+        ...slot,
+        reservado_por: userId,
+        reservado_en: new Date(),
+        servicio_id: service.id
+      }
+    });
+  } catch (error) {
+    console.error('Error booking availability:', error);
+    res.status(500).json({ error: 'Error al agendar el servicio.' });
+  }
+};
+
+/**
+ * Cancela una reserva de disponibilidad
+ */
+exports.cancelBooking = async (req, res) => {
+  const { id: userId } = req.user;
+  const { slotId } = req.params;
+
+  try {
+    const slot = await prisma.disponibilidad.findUnique({
+      where: { id: slotId },
+      include: { servicio: true }
+    });
+
+    if (!slot) {
+      return res.status(404).json({ error: 'Reserva no encontrada.' });
+    }
+
+    // Solo el cliente que reservó o el profesional pueden cancelar
+    if (slot.reservado_por !== userId && slot.profesional_id !== userId) {
+      return res.status(403).json({ error: 'No tienes permiso para cancelar esta reserva.' });
+    }
+
+    // Cancelar el servicio si existe
+    if (slot.servicio) {
+      await prisma.servicios.update({
+        where: { id: slot.servicio.id },
+        data: { estado: 'CANCELADO' }
+      });
+    }
+
+    // Liberar el slot
+    await prisma.disponibilidad.update({
+      where: { id: slotId },
+      data: {
+        reservado_por: null,
+        reservado_en: null,
+        servicio_id: null
+      }
+    });
+
+    res.status(200).json({ message: 'Reserva cancelada exitosamente.' });
+  } catch (error) {
+    console.error('Error canceling booking:', error);
+    res.status(500).json({ error: 'Error al cancelar la reserva.' });
+  }
+};
+
 exports.deleteAvailability = async (req, res) => {
   const { id: userId } = req.user;
   const { slotId } = req.params;
@@ -136,6 +291,11 @@ exports.deleteAvailability = async (req, res) => {
     const slot = await prisma.disponibilidad.findUnique({ where: { id: slotId } });
     if (!slot || slot.profesional_id !== userId) {
       return res.status(403).json({ error: 'No tienes permiso para eliminar este horario.' });
+    }
+
+    // No permitir eliminar slots reservados
+    if (slot.reservado_por) {
+      return res.status(400).json({ error: 'No se puede eliminar un horario que tiene una reserva activa.' });
     }
 
     await prisma.disponibilidad.delete({

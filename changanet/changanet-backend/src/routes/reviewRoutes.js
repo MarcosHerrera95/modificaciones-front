@@ -1,10 +1,30 @@
 // src/routes/reviewRoutes.js
 // Rutas para sistema de reseñas y valoraciones
 // Implementa sección 7.5 del PRD: Sistema de Reseñas y Valoraciones
+//
+// FUNCIONALIDADES IMPLEMENTADAS:
+// - Creación de reseñas con validación completa
+// - Subida de imágenes del servicio finalizado
+// - Obtención de reseñas por profesional
+// - Estadísticas detalladas de reseñas
+// - Verificación de elegibilidad para reseñar
+// - Obtención de reseñas del cliente autenticado
+//
+// CONFIGURACIÓN MULTER:
+// - Límite de archivo: 5MB
+// - Solo archivos de imagen
+// - Almacenamiento temporal antes de subir a Cloudinary
+//
+// ENDPOINTS:
+// POST /api/reviews - Crear reseña (autenticado, multipart/form-data)
+// GET /api/reviews/professional/:id - Obtener reseñas de profesional
+// GET /api/reviews/professional/:id/stats - Estadísticas de reseñas
+// GET /api/reviews/check/:servicioId - Verificar elegibilidad (autenticado)
+// GET /api/reviews/client - Obtener reseñas del cliente (autenticado)
 
 const express = require('express');
 const multer = require('multer');
-const { createReview, getReviewsByProfessional, checkReviewEligibility } = require('../controllers/reviewController');
+const { createReview, getReviewsByProfessional, getReviewStats, checkReviewEligibility } = require('../controllers/reviewController');
 const { authenticateToken } = require('../middleware/authenticate');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
@@ -36,6 +56,7 @@ const upload = multer({
 
 router.post('/', upload.single('url_foto'), createReview);
 router.get('/professional/:professionalId', getReviewsByProfessional);
+router.get('/professional/:professionalId/stats', getReviewStats);
 router.get('/check/:servicioId', checkReviewEligibility);
 
 // Obtener reseñas escritas por el cliente autenticado

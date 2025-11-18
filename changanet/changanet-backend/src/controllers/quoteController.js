@@ -10,123 +10,175 @@ const { PrismaClient } = require('@prisma/client');
 const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
 const { sendQuoteRequestEmail } = require('../services/emailService');
+const { uploadImage } = require('../services/storageService');
+const multer = require('multer');
 
 const prisma = new PrismaClient();
 
+// Configuración de multer para fotos de cotizaciones
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
+
 /**
  * @función createQuoteRequest - Crear solicitud de cotización
- * @descripción Crea nueva solicitud de presupuesto y notifica al profesional (REQ-31, REQ-32)
+ * @descripción Crea nueva solicitud de presupuesto con fotos y envía a múltiples profesionales (REQ-31, REQ-32)
  * @sprint Sprint 2 – Solicitudes y Presupuestos
  * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
- * @impacto Económico: Conexión directa entre demanda y oferta de servicios profesionales
- * @param {Object} req - Request con datos de la solicitud
+ * @impacto Económico: Conexión eficiente entre demanda y oferta de servicios profesionales
+ * @param {Object} req - Request con datos de la solicitud y archivos de fotos
  * @param {Object} res - Response con datos de la cotización creada
  */
 exports.createQuoteRequest = async (req, res) => {
   const { id: clientId } = req.user;
-  const { profesional_id, descripcion, zona_cobertura } = req.body;
+  const { descripcion, zona_cobertura, profesionales_ids } = req.body;
 
   console.log('Request body:', req.body);
   console.log('Client ID:', clientId);
+  console.log('Files:', req.files);
 
   // Validar campos requeridos
-  if (!profesional_id || !descripcion || !zona_cobertura) {
+  if (!descripcion || !zona_cobertura || !profesionales_ids) {
     return res.status(400).json({
       error: 'Datos inválidos',
-      message: 'Los campos profesional_id, descripcion y zona_cobertura son requeridos.'
+      message: 'Los campos descripcion, zona_cobertura y profesionales_ids son requeridos.'
+    });
+  }
+
+  // Validar que profesionales_ids sea un array
+  let professionalIds;
+  try {
+    professionalIds = JSON.parse(profesionales_ids);
+    if (!Array.isArray(professionalIds) || professionalIds.length === 0) {
+      throw new Error('Debe ser un array no vacío');
+    }
+  } catch (error) {
+    return res.status(400).json({
+      error: 'Datos inválidos',
+      message: 'profesionales_ids debe ser un array JSON válido con al menos un profesional.'
     });
   }
 
   try {
-    // Validar que el profesional existe y está verificado
-    const professional = await prisma.usuarios.findUnique({
-      where: { id: profesional_id },
-      select: { id: true, nombre: true, email: true, esta_verificado: true, rol: true }
+    // Validar que todos los profesionales existen y están verificados
+    const professionals = await prisma.usuarios.findMany({
+      where: {
+        id: { in: professionalIds },
+        rol: 'profesional',
+        esta_verificado: true
+      },
+      select: { id: true, nombre: true, email: true }
     });
 
-    if (!professional) {
-      return res.status(404).json({ error: 'Profesional no encontrado.' });
+    if (professionals.length !== professionalIds.length) {
+      return res.status(400).json({
+        error: 'Profesionales inválidos',
+        message: 'Todos los profesionales deben existir, ser verificados y tener rol de profesional.'
+      });
     }
 
-    if (professional.rol !== 'profesional') {
-      return res.status(400).json({ error: 'El usuario especificado no es un profesional.' });
+    // Manejar subida de fotos (REQ-31)
+    let fotosUrls = [];
+    if (req.files && req.files.length > 0) {
+      for (const file of req.files) {
+        try {
+          const result = await uploadImage(file.buffer, { folder: 'changanet/quotes' });
+          fotosUrls.push(result.secure_url);
+        } catch (uploadError) {
+          console.error('Error uploading quote image:', uploadError);
+          return res.status(500).json({ error: 'Error al subir las imágenes.' });
+        }
+      }
     }
 
-    if (!professional.esta_verificado) {
-      return res.status(400).json({ error: 'Solo puedes solicitar cotizaciones a profesionales verificados.' });
-    }
-
+    // Crear la cotización
     const quote = await prisma.cotizaciones.create({
       data: {
         cliente_id: clientId,
-        profesional_id: profesional_id,
         descripcion,
         zona_cobertura,
-        estado: 'PENDIENTE'
+        fotos_urls: fotosUrls.length > 0 ? JSON.stringify(fotosUrls) : null,
+        profesionales_solicitados: JSON.stringify(professionalIds)
       },
       include: {
-        cliente: { select: { nombre: true, email: true } },
-        profesional: { select: { nombre: true, email: true } }
+        cliente: { select: { nombre: true, email: true } }
       }
     });
 
-    // Enviar notificación push al profesional (REQ-35)
-    try {
-      await sendPushNotification(
-        profesional_id,
-        'Nueva solicitud de presupuesto',
-        `Tienes una nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
-        {
-          type: 'cotizacion',
-          quoteId: quote.id,
-          cliente_id: clientId
-        }
-      );
-    } catch (pushError) {
-      console.warn('Error enviando push notification de cotización:', pushError.message);
+    // Crear respuestas pendientes para cada profesional
+    const quoteResponses = professionalIds.map(profId => ({
+      cotizacion_id: quote.id,
+      profesional_id: profId
+    }));
+
+    await prisma.cotizacion_respuestas.createMany({
+      data: quoteResponses
+    });
+
+    // Enviar notificaciones a todos los profesionales (REQ-32, REQ-35)
+    for (const professional of professionals) {
+      try {
+        // Notificación push
+        await sendPushNotification(
+          professional.id,
+          'Nueva solicitud de presupuesto',
+          `Tienes una nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
+          {
+            type: 'cotizacion',
+            quoteId: quote.id,
+            cliente_id: clientId
+          }
+        );
+
+        // Notificación en base de datos
+        await createNotification(
+          professional.id,
+          NOTIFICATION_TYPES.COTIZACION,
+          `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
+          { quoteId: quote.id }
+        );
+
+        // Email
+        const { sendEmail } = require('../services/emailService');
+        await sendEmail(
+          professional.email,
+          'Nueva solicitud de presupuesto en Changánet',
+          `Hola ${professional.nombre},\n\nHas recibido una nueva solicitud de presupuesto de ${quote.cliente.nombre}:\n\n"${descripcion}"\n\nZona: ${zona_cobertura}\nFotos adjuntas: ${fotosUrls.length}\n\nPuedes responder desde tu panel profesional.\n\nSaludos,\nEquipo Changánet`
+        );
+      } catch (notificationError) {
+        console.warn(`Error enviando notificación a profesional ${professional.id}:`, notificationError.message);
+      }
     }
 
-    // Enviar notificación en base de datos al profesional (REQ-35)
-    await createNotification(
-      parseInt(profesional_id),
-      NOTIFICATION_TYPES.COTIZACION,
-      `Nueva solicitud de presupuesto de ${quote.cliente.nombre}`,
-      { quoteId: quote.id }
-    );
+    console.log({
+      event: 'quote_request_created',
+      clientId,
+      professionalIds,
+      quoteId: quote.id,
+      photosCount: fotosUrls.length
+    });
 
-    console.log({ event: 'quote_request_created', clientId, professionalId: profesional_id, quoteId: quote.id });
-
-    // Enviar email al profesional
-    try {
-      const { sendEmail } = require('../services/emailService');
-      await sendEmail(
-        quote.profesional.email,
-        'Nueva solicitud de presupuesto en Changánet',
-        `Hola ${quote.profesional.nombre},\n\nHas recibido una nueva solicitud de presupuesto de ${quote.cliente.nombre}:\n\n"${quote.descripcion}"\n\nZona: ${quote.zona_cobertura || 'No especificada'}\n\nPuedes responder desde tu panel profesional.\n\nSaludos,\nEquipo Changánet`
-      );
-    } catch (emailError) {
-      console.warn('Error enviando email de cotización:', emailError);
-    }
-
-    res.status(201).json(quote);
+    res.status(201).json({
+      ...quote,
+      fotos_urls: fotosUrls, // Devolver como array en lugar de JSON string
+      profesionales_solicitados: professionalIds,
+      respuestas: quoteResponses.length
+    });
   } catch (error) {
     console.error('Error detallado al crear solicitud de cotización:', error);
 
     // Manejar errores específicos
     if (error.code === 'P2002') {
-      return res.status(400).json({ error: 'Ya existe una solicitud de cotización con estos datos.' });
-    }
-
-    if (error.code === 'P2025') {
-      return res.status(404).json({ error: 'Usuario o profesional no encontrado.' });
-    }
-
-    // Error de validación de Prisma
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        error: 'Datos inválidos',
-        message: 'Los datos proporcionados no cumplen con los requisitos.'
-      });
+      return res.status(400).json({ error: 'Ya existe una solicitud similar.' });
     }
 
     // Error genérico
@@ -150,13 +202,41 @@ exports.getQuotesForProfessional = async (req, res) => {
   const { id: professionalId } = req.user;
 
   try {
-    const quotes = await prisma.cotizaciones.findMany({
+    // Obtener respuestas de cotizaciones para este profesional
+    const quoteResponses = await prisma.cotizacion_respuestas.findMany({
       where: { profesional_id: professionalId },
       include: {
-        cliente: { select: { nombre: true, email: true } }
+        cotizacion: {
+          include: {
+            cliente: { select: { nombre: true, email: true } },
+            respuestas: {
+              include: {
+                profesional: { select: { nombre: true } }
+              }
+            }
+          }
+        }
       },
       orderBy: { creado_en: 'desc' }
     });
+
+    // Formatear respuesta
+    const quotes = quoteResponses.map(response => ({
+      id: response.cotizacion.id,
+      descripcion: response.cotizacion.descripcion,
+      zona_cobertura: response.cotizacion.zona_cobertura,
+      fotos_urls: response.cotizacion.fotos_urls ? JSON.parse(response.cotizacion.fotos_urls) : [],
+      cliente: response.cotizacion.cliente,
+      mi_respuesta: {
+        id: response.id,
+        precio: response.precio,
+        comentario: response.comentario,
+        estado: response.estado,
+        respondido_en: response.respondido_en
+      },
+      otras_respuestas: response.cotizacion.respuestas.filter(r => r.profesional_id !== professionalId),
+      creado_en: response.cotizacion.creado_en
+    }));
 
     res.status(200).json(quotes);
   } catch (error) {
@@ -172,60 +252,83 @@ exports.getQuotesForProfessional = async (req, res) => {
  * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
  * @impacto Económico: Negociación transparente y eficiente de servicios profesionales
  * @param {Object} req - Request con acción (accept/reject) y datos opcionales
- * @param {Object} res - Response con cotización actualizada
+ * @param {Object} res - Response con respuesta de cotización actualizada
  */
 exports.respondToQuote = async (req, res) => {
   const { id: professionalId } = req.user;
   const { quoteId, action, precio, comentario } = req.body;
 
   try {
-    const quote = await prisma.cotizaciones.findUnique({
-      where: { id: quoteId },
-      include: { cliente: true, profesional: true }
-    });
-
-    if (!quote || quote.profesional_id !== professionalId) {
-      return res.status(403).json({ error: 'No tienes permiso para responder a esta cotización.' });
-    }
-
-    if (quote.estado !== 'pendiente') {
-      return res.status(400).json({ error: 'Esta cotización ya ha sido respondida.' });
-    }
-
-    const updateData = {
-      estado: action === 'accept' ? 'aceptado' : 'rechazado'
-    };
-
-    if (action === 'accept') {
-      updateData.precio = parseFloat(precio);
-      updateData.comentario = comentario;
-      updateData.aceptado_en = new Date();
-    } else {
-      updateData.rechazado_en = new Date();
-    }
-
-    const updatedQuote = await prisma.cotizaciones.update({
-      where: { id: quoteId },
-      data: updateData,
+    // Buscar la respuesta de cotización para este profesional
+    const quoteResponse = await prisma.cotizacion_respuestas.findUnique({
+      where: {
+        cotizacion_id_profesional_id: {
+          cotizacion_id: quoteId,
+          profesional_id: professionalId
+        }
+      },
       include: {
-        cliente: { select: { nombre: true, email: true } },
+        cotizacion: {
+          include: {
+            cliente: { select: { nombre: true, email: true } }
+          }
+        },
         profesional: { select: { nombre: true, email: true } }
       }
     });
 
-    // Enviar notificación push al cliente
-    const pushTitle = action === 'accept' ? 'Cotización aceptada' : 'Cotización rechazada';
+    if (!quoteResponse) {
+      return res.status(404).json({ error: 'Respuesta de cotización no encontrada.' });
+    }
+
+    if (quoteResponse.estado !== 'PENDIENTE') {
+      return res.status(400).json({ error: 'Esta cotización ya ha sido respondida.' });
+    }
+
+    const updateData = {
+      estado: action === 'accept' ? 'ACEPTADO' : 'RECHAZADO',
+      respondido_en: new Date()
+    };
+
+    if (action === 'accept') {
+      if (!precio || isNaN(parseFloat(precio))) {
+        return res.status(400).json({ error: 'Debes proporcionar un precio válido para aceptar la cotización.' });
+      }
+      updateData.precio = parseFloat(precio);
+      updateData.comentario = comentario;
+    }
+
+    const updatedResponse = await prisma.cotizacion_respuestas.update({
+      where: {
+        cotizacion_id_profesional_id: {
+          cotizacion_id: quoteId,
+          profesional_id: professionalId
+        }
+      },
+      data: updateData,
+      include: {
+        cotizacion: {
+          include: {
+            cliente: { select: { nombre: true, email: true } }
+          }
+        },
+        profesional: { select: { nombre: true, email: true } }
+      }
+    });
+
+    // Enviar notificación push al cliente (REQ-35)
+    const pushTitle = action === 'accept' ? 'Nueva oferta recibida' : 'Cotización rechazada';
     const pushMessage = action === 'accept'
-      ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`
-      : `Tu cotización ha sido rechazada por ${quote.profesional.nombre}`;
+      ? `${quoteResponse.profesional.nombre} ha enviado una oferta: $${precio}`
+      : `${quoteResponse.profesional.nombre} ha rechazado tu solicitud de cotización`;
 
     try {
       await sendPushNotification(
-        quote.cliente_id,
+        quoteResponse.cotizacion.cliente_id,
         pushTitle,
         pushMessage,
         {
-          type: action === 'accept' ? 'cotizacion_aceptada' : 'cotizacion_rechazada',
+          type: action === 'accept' ? 'oferta_recibida' : 'cotizacion_rechazada',
           quoteId: quoteId,
           profesional_id: professionalId,
           precio: action === 'accept' ? precio : null
@@ -238,25 +341,25 @@ exports.respondToQuote = async (req, res) => {
     // Enviar notificación en base de datos al cliente
     const notificationType = action === 'accept' ? NOTIFICATION_TYPES.COTIZACION_ACEPTADA : NOTIFICATION_TYPES.COTIZACION_RECHAZADA;
     const message = action === 'accept'
-      ? `Tu cotización ha sido aceptada por ${quote.profesional.nombre}. Precio: $${precio}`
-      : `Tu cotización ha sido rechazada por ${quote.profesional.nombre}`;
+      ? `${quoteResponse.profesional.nombre} ha enviado una oferta: $${precio}`
+      : `${quoteResponse.profesional.nombre} ha rechazado tu solicitud de cotización`;
 
-    await createNotification(quote.cliente_id, notificationType, message);
+    await createNotification(quoteResponse.cotizacion.cliente_id, notificationType, message);
 
     // Enviar email al cliente
     try {
       const { sendEmail } = require('../services/emailService');
-      const emailSubject = action === 'accept' ? 'Cotización aceptada en Changánet' : 'Cotización rechazada en Changánet';
+      const emailSubject = action === 'accept' ? 'Nueva oferta en Changánet' : 'Cotización rechazada en Changánet';
       const emailBody = action === 'accept'
-        ? `Hola ${quote.cliente.nombre},\n\n¡Buenas noticias! Tu cotización ha sido aceptada por ${quote.profesional.nombre}.\n\nPrecio acordado: $${precio}\nComentario: ${comentario || 'Sin comentario adicional'}\n\nYa puedes agendar tu servicio desde la plataforma.\n\nSaludos,\nEquipo Changánet`
-        : `Hola ${quote.cliente.nombre},\n\nTu cotización ha sido rechazada por ${quote.profesional.nombre}.\n\nPuedes buscar otros profesionales o contactar directamente a este profesional para negociar.\n\nSaludos,\nEquipo Changánet`;
+        ? `Hola ${quoteResponse.cotizacion.cliente.nombre},\n\n¡Buenas noticias! ${quoteResponse.profesional.nombre} ha enviado una oferta para tu solicitud.\n\nPrecio ofrecido: $${precio}\nComentario: ${comentario || 'Sin comentario adicional'}\n\nPuedes comparar ofertas y contactar al profesional desde tu panel.\n\nSaludos,\nEquipo Changánet`
+        : `Hola ${quoteResponse.cotizacion.cliente.nombre},\n\n${quoteResponse.profesional.nombre} ha rechazado tu solicitud de cotización.\n\nPuedes esperar otras ofertas o contactar directamente al profesional.\n\nSaludos,\nEquipo Changánet`;
 
-      await sendEmail(quote.cliente.email, emailSubject, emailBody);
+      await sendEmail(quoteResponse.cotizacion.cliente.email, emailSubject, emailBody);
     } catch (emailError) {
       console.warn('Error enviando email de respuesta a cotización:', emailError);
     }
 
-    res.status(200).json(updatedQuote);
+    res.status(200).json(updatedResponse);
   } catch (error) {
     console.error('Error al responder cotización:', error);
     res.status(500).json({ error: 'Error al procesar la respuesta.' });
@@ -265,7 +368,7 @@ exports.respondToQuote = async (req, res) => {
 
 /**
  * @función getClientQuotes - Obtener cotizaciones del cliente
- * @descripción Lista todas las cotizaciones enviadas por el cliente (REQ-34)
+ * @descripción Lista todas las cotizaciones enviadas por el cliente con comparación de ofertas (REQ-34)
  * @sprint Sprint 2 – Solicitudes y Presupuestos
  * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
  * @impacto Social: Seguimiento transparente de solicitudes para consumidores informados
@@ -279,14 +382,136 @@ exports.getClientQuotes = async (req, res) => {
     const quotes = await prisma.cotizaciones.findMany({
       where: { cliente_id: clientId },
       include: {
-        profesional: { select: { nombre: true, email: true } }
+        respuestas: {
+          include: {
+            profesional: { select: { nombre: true, email: true } }
+          },
+          orderBy: { precio: 'asc' } // Ordenar por precio ascendente para comparación
+        }
       },
       orderBy: { creado_en: 'desc' }
     });
 
-    res.status(200).json(quotes);
+    // Formatear respuesta con comparación de ofertas
+    const formattedQuotes = quotes.map(quote => ({
+      id: quote.id,
+      descripcion: quote.descripcion,
+      zona_cobertura: quote.zona_cobertura,
+      fotos_urls: quote.fotos_urls ? JSON.parse(quote.fotos_urls) : [],
+      profesionales_solicitados: quote.profesionales_solicitados ? JSON.parse(quote.profesionales_solicitados) : [],
+      ofertas: quote.respuestas.map(respuesta => ({
+        id: respuesta.id,
+        profesional: respuesta.profesional,
+        precio: respuesta.precio,
+        comentario: respuesta.comentario,
+        estado: respuesta.estado,
+        respondido_en: respuesta.respondido_en
+      })),
+      estadisticas_ofertas: {
+        total_ofertas: quote.respuestas.filter(r => r.estado === 'ACEPTADO').length,
+        precio_minimo: Math.min(...quote.respuestas.filter(r => r.precio).map(r => r.precio)),
+        precio_maximo: Math.max(...quote.respuestas.filter(r => r.precio).map(r => r.precio)),
+        precio_promedio: quote.respuestas.filter(r => r.precio).length > 0
+          ? quote.respuestas.filter(r => r.precio).reduce((sum, r) => sum + r.precio, 0) / quote.respuestas.filter(r => r.precio).length
+          : null
+      },
+      creado_en: quote.creado_en
+    }));
+
+    res.status(200).json(formattedQuotes);
   } catch (error) {
     console.error('Error al obtener cotizaciones del cliente:', error);
     res.status(500).json({ error: 'Error al obtener las cotizaciones.' });
+  }
+};
+
+/**
+ * @función compareQuotes - Comparar ofertas de una cotización específica
+ * @descripción Proporciona vista detallada para comparar ofertas de diferentes profesionales (REQ-34)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @param {Object} req - Request con ID de cotización
+ * @param {Object} res - Response con comparación detallada de ofertas
+ */
+exports.compareQuotes = async (req, res) => {
+  const { id: clientId } = req.user;
+  const { quoteId } = req.params;
+
+  try {
+    const quote = await prisma.cotizaciones.findFirst({
+      where: {
+        id: quoteId,
+        cliente_id: clientId
+      },
+      include: {
+        respuestas: {
+          include: {
+            profesional: {
+              select: {
+                nombre: true,
+                email: true,
+                perfil_profesional: {
+                  select: {
+                    anos_experiencia: true,
+                    calificacion_promedio: true,
+                    especialidad: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: { precio: 'asc' }
+        }
+      }
+    });
+
+    if (!quote) {
+      return res.status(404).json({ error: 'Cotización no encontrada.' });
+    }
+
+    // Calcular estadísticas de comparación
+    const acceptedOffers = quote.respuestas.filter(r => r.estado === 'ACEPTADO' && r.precio);
+    const stats = {
+      total_offers: acceptedOffers.length,
+      price_range: acceptedOffers.length > 0 ? {
+        min: Math.min(...acceptedOffers.map(o => o.precio)),
+        max: Math.max(...acceptedOffers.map(o => o.precio)),
+        average: acceptedOffers.reduce((sum, o) => sum + o.precio, 0) / acceptedOffers.length
+      } : null,
+      best_value: acceptedOffers.length > 0 ? acceptedOffers[0] : null, // Ya ordenado por precio asc
+      fastest_response: acceptedOffers.length > 0
+        ? acceptedOffers.reduce((fastest, current) =>
+            current.respondido_en < fastest.respondido_en ? current : fastest
+          )
+        : null
+    };
+
+    res.status(200).json({
+      quote: {
+        id: quote.id,
+        descripcion: quote.descripcion,
+        zona_cobertura: quote.zona_cobertura,
+        fotos_urls: quote.fotos_urls ? JSON.parse(quote.fotos_urls) : []
+      },
+      offers: quote.respuestas.map(respuesta => ({
+        id: respuesta.id,
+        profesional: {
+          nombre: respuesta.profesional.nombre,
+          experiencia: respuesta.profesional.perfil_profesional?.anos_experiencia,
+          calificacion: respuesta.profesional.perfil_profesional?.calificacion_promedio,
+          especialidad: respuesta.profesional.perfil_profesional?.especialidad
+        },
+        precio: respuesta.precio,
+        comentario: respuesta.comentario,
+        estado: respuesta.estado,
+        respondido_en: respuesta.respondido_en,
+        tiempo_respuesta: respuesta.respondido_en
+          ? Math.round((new Date(respuesta.respondido_en) - new Date(quote.creado_en)) / (1000 * 60 * 60)) // horas
+          : null
+      })),
+      comparison_stats: stats
+    });
+  } catch (error) {
+    console.error('Error al comparar cotizaciones:', error);
+    res.status(500).json({ error: 'Error al obtener comparación de ofertas.' });
   }
 };

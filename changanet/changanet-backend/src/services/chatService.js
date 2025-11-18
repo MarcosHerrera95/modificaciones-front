@@ -1,7 +1,19 @@
 // src/services/chatService.js
 // Servicio para manejar la lógica del chat en tiempo real con Socket.IO
 // Implementa sección 7.4 del PRD: Mensajería Interna
-// REQ-16: Chat interno, REQ-17: Mensajes de texto, REQ-18: Imágenes, REQ-19: Notificaciones, REQ-20: Historial
+//
+// FUNCIONES IMPLEMENTADAS:
+// - saveMessage: Guardar mensaje en BD con validaciones
+// - getMessageHistory: Obtener historial paginado entre dos usuarios
+// - markMessagesAsRead: Marcar mensajes como leídos
+// - notifyNewMessage: Enviar notificaciones de nuevos mensajes
+//
+// REQUERIMIENTOS CUBIERTOS:
+// REQ-16: Chat interno - ✅ (Socket.IO en server.js)
+// REQ-17: Mensajes de texto - ✅ (con límite de 1000 caracteres)
+// REQ-18: Imágenes - ✅ (campo url_imagen)
+// REQ-19: Notificaciones - ✅ (push y email)
+// REQ-20: Historial - ✅ (con paginación)
 
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('./notificationService');

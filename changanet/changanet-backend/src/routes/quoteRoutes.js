@@ -5,11 +5,46 @@
  * @sprint Sprint 2 – Solicitudes y Presupuestos
  * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
  * @impacto Económico: Transparencia en precios y comparación de ofertas
+ *
+ * FUNCIONALIDADES IMPLEMENTADAS:
+ * - Creación de cotizaciones con fotos adjuntas (REQ-31)
+ * - Envío a múltiples profesionales preseleccionados (REQ-32)
+ * - Sistema de respuestas con precios y comentarios (REQ-33)
+ * - Vista de comparación de ofertas (REQ-34)
+ * - Notificaciones automáticas por email y push (REQ-35)
+ *
+ * CONFIGURACIÓN MULTER:
+ * - Límite de archivo: 5MB por imagen
+ * - Hasta 5 fotos por cotización
+ * - Solo archivos de imagen permitidos
+ * - Almacenamiento en Cloudinary
+ *
+ * ENDPOINTS:
+ * POST /api/quotes - Crear cotización con fotos (cliente, multipart/form-data)
+ * GET /api/quotes/professional - Ver cotizaciones pendientes (profesional)
+ * GET /api/quotes/client - Ver cotizaciones enviadas (cliente)
+ * POST /api/quotes/respond - Responder a cotización (profesional)
+ * GET /api/quotes/client/:quoteId/compare - Comparar ofertas (cliente)
  */
 
 const express = require('express');
-const { createQuoteRequest, getQuotesForProfessional, respondToQuote, getClientQuotes } = require('../controllers/quoteController');
+const multer = require('multer');
+const { createQuoteRequest, getQuotesForProfessional, respondToQuote, getClientQuotes, compareQuotes } = require('../controllers/quoteController');
 const { authenticateToken } = require('../middleware/authenticate');
+
+// Configuración de multer para fotos de cotizaciones
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen'), false);
+    }
+  }
+});
 
 const router = express.Router();
 
@@ -23,8 +58,8 @@ router.use(authenticateToken);
  * @tarjeta Tarjeta 5: [Backend] Implementar API de Solicitudes de Presupuesto
  * @impacto Económico: Conexión eficiente entre demanda y oferta de servicios
  */
-router.post('/', createQuoteRequest);
-router.post('/request', createQuoteRequest); // Alias para compatibilidad con frontend
+router.post('/', upload.array('fotos', 5), createQuoteRequest); // Hasta 5 fotos
+router.post('/request', upload.array('fotos', 5), createQuoteRequest); // Alias para compatibilidad
 
 /**
  * @ruta GET /professional - Obtener cotizaciones para profesional
@@ -73,6 +108,14 @@ router.get('/client/services', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener servicios.' });
   }
 });
+
+/**
+ * @ruta GET /client/:quoteId/compare - Comparar ofertas de una cotización
+ * @descripción Proporciona vista detallada para comparar ofertas (REQ-34)
+ * @sprint Sprint 2 – Solicitudes y Presupuestos
+ * @impacto Social: Toma de decisiones informada para consumidores
+ */
+router.get('/client/:quoteId/compare', compareQuotes);
 
 // Obtener servicios para profesional
 router.get('/professional/services', async (req, res) => {

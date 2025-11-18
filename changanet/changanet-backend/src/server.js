@@ -456,7 +456,20 @@ app.use('/api/achievements', achievementsRoutes);
 
 /**
  * Configuración de eventos de Socket.IO para chat en tiempo real.
+ * Implementa REQ-16: Chat interno en página del perfil
  * Maneja conexiones de usuarios, envío de mensajes y marcación como leídos.
+ *
+ * EVENTOS IMPLEMENTADOS:
+ * - 'join': Unir usuario a su sala personal
+ * - 'sendMessage': Enviar mensaje con validaciones completas
+ * - 'markAsRead': Marcar mensajes como leídos
+ * - 'disconnect': Manejo de desconexiones
+ *
+ * CARACTERÍSTICAS DE SEGURIDAD:
+ * - Autenticación JWT obligatoria
+ * - Validación de participantes en chats de servicios
+ * - Límites de caracteres y validación de contenido
+ * - Notificaciones push y email automáticas
  */
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
@@ -475,7 +488,7 @@ io.on('connection', (socket) => {
    * Guarda el mensaje en la base de datos y lo emite en tiempo real.
    */
   socket.on('sendMessage', async (data) => {
-    const { remitente_id, destinatario_id, contenido, url_imagen } = data;
+    const { remitente_id, destinatario_id, contenido, url_imagen, servicio_id } = data;
     const isDevelopment = process.env.NODE_ENV !== 'production';
 
     // 🚨 SECURITY CHECK: Verificar si el socket está autenticado
@@ -495,10 +508,37 @@ io.on('connection', (socket) => {
 
     try {
       // Validar que todos los campos requeridos estén presentes
-      if (!remitente_id || !destinatario_id || !contenido) {
+      if (!remitente_id || !destinatario_id || (!contenido && !url_imagen)) {
         console.warn(`⚠️ Incomplete message data: ${JSON.stringify(data)}`);
-        socket.emit('error', { message: 'Datos incompletos para enviar mensaje.' });
+        socket.emit('error', { message: 'Se requiere contenido o imagen para enviar mensaje.' });
         return;
+      }
+
+      // Validar límite de caracteres para contenido de texto
+      if (contenido && contenido.length > 1000) {
+        socket.emit('error', { message: 'El mensaje no puede exceder 1000 caracteres.' });
+        return;
+      }
+
+      // Validar que ambos usuarios pertenezcan al servicio si se especifica servicio_id
+      if (servicio_id) {
+        const service = await prisma.servicios.findUnique({
+          where: { id: servicio_id },
+          include: { cliente: true, profesional: true }
+        });
+
+        if (!service) {
+          socket.emit('error', { message: 'Servicio no encontrado.' });
+          return;
+        }
+
+        const isParticipant = (service.cliente_id === remitente_id && service.profesional_id === destinatario_id) ||
+                              (service.profesional_id === remitente_id && service.cliente_id === destinatario_id);
+
+        if (!isParticipant) {
+          socket.emit('error', { message: 'No tienes permiso para enviar mensajes en este chat.' });
+          return;
+        }
       }
 
       // En modo desarrollo con usuario de prueba, usar ID de desarrollo
@@ -514,6 +554,7 @@ io.on('connection', (socket) => {
           destinatario_id,
           contenido,
           url_imagen: url_imagen || null,
+          servicio_id: servicio_id || null,
           esta_leido: false,
         },
       });
@@ -535,7 +576,8 @@ io.on('connection', (socket) => {
       }
 
       // Enviar notificación en base de datos (para historial)
-      await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${remitente_id}`);
+      const sender = await prisma.usuarios.findUnique({ where: { id: actualRemitenteId }, select: { nombre: true } });
+      await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${sender?.nombre || 'un usuario'}`);
 
       // Emitir el mensaje en tiempo real usando salas de Socket.IO
       io.to(destinatario_id).emit('receiveMessage', message);

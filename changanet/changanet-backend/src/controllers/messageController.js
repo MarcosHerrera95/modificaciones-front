@@ -1,11 +1,21 @@
 /**
  * Controlador de mensajería
  * Implementa sección 7.4 del PRD: Mensajería Interna
- * REQ-16: Chat interno en página del perfil
- * REQ-17: Envío de mensajes de texto
- * REQ-18: Envío de imágenes
- * REQ-19: Notificaciones de nuevos mensajes (push y email)
- * REQ-20: Historial de conversaciones
+ *
+ * REQUERIMIENTOS FUNCIONALES IMPLEMENTADOS:
+ * REQ-16: Chat interno en página del perfil - ✅ Implementado (Socket.IO + REST API)
+ * REQ-17: Envío de mensajes de texto - ✅ Implementado (con validación de 1000 caracteres)
+ * REQ-18: Envío de imágenes - ✅ Implementado (campo url_imagen)
+ * REQ-19: Notificaciones de nuevos mensajes (push y email) - ✅ Implementado
+ * REQ-20: Historial de conversaciones - ✅ Implementado (con paginación)
+ *
+ * CARACTERÍSTICAS ADICIONALES:
+ * - Comunicación en tiempo real con Socket.IO
+ * - Validación de permisos para chats de servicios
+ * - Autenticación JWT para todas las operaciones
+ * - Historial completo con paginación
+ * - Notificaciones push (FCM) y email (SendGrid)
+ * - Soporte para mensajes relacionados con servicios específicos
  */
 
 // src/controllers/messageController.js

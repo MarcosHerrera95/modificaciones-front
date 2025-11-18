@@ -62,10 +62,11 @@ model usuarios {
   resenas_escritas resenas[]
   mensajes_enviados mensajes[] @relation("MensajeRemitente")
   mensajes_recibidos mensajes[] @relation("MensajeDestinatario")
-  disponibilidad disponibilidad[]
+  disponibilidad disponibilidad[] @relation("DisponibilidadProfesional")
+  reservas_realizadas disponibilidad[] @relation("DisponibilidadReservadaCliente")
   notificaciones notificaciones[]
   cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
-  cotizaciones_como_profesional cotizaciones[] @relation("CotizacionProfesional")
+  cotizacion_respuestas cotizacion_respuestas[] @relation("CotizacionRespuestaProfesional")
   verification_request verification_requests?
   pagos_como_cliente pagos[] @relation("PagoCliente")
   pagos_como_profesional pagos[] @relation("PagoProfesional")
@@ -96,14 +97,23 @@ model perfiles_profesionales {
   usuario_id       String   @id @default(uuid()) // PK y FK que enlaza con usuarios.id
   usuario          usuarios @relation(fields: [usuario_id], references: [id])
 
-  especialidad     String
+  especialidad     String   // Especialidad principal (para compatibilidad)
+  especialidades   String?  // JSON array de especialidades múltiples - REQ-07 mejorado
   anos_experiencia Int?
   zona_cobertura   String
   latitud          Float?   // Coordenadas GPS para cálculo de distancia real
   longitud         Float?   // Coordenadas GPS para cálculo de distancia real
-  tarifa_hora      Float
+
+  // Sistema de tarifas flexible - REQ-10 mejorado
+  tipo_tarifa      String   @default("hora") // "hora", "servicio", "convenio"
+  tarifa_hora      Float?
+  tarifa_servicio  Float?
+  tarifa_convenio  String?  // Descripción para "a convenir"
+
   descripcion      String?
   url_foto_perfil  String?
+  url_foto_portada String?   // Foto de portada adicional - REQ-06 mejorado
+  esta_disponible  Boolean  @default(true) // Disponibilidad general del profesional
   calificacion_promedio Float?
   estado_verificacion String @default("pendiente")
   verificado_en    DateTime?
@@ -114,6 +124,8 @@ model perfiles_profesionales {
   @@index([calificacion_promedio])
   @@index([latitud, longitud])
   @@index([especialidad, zona_cobertura, calificacion_promedio])
+  @@index([tipo_tarifa])
+  @@index([esta_disponible])
 }
 
 // MODELO: servicios
@@ -134,6 +146,9 @@ model servicios {
   completado_en  DateTime?
   resena         resenas?
   pago           pagos?
+
+  // Relación con disponibilidad para agendamiento
+  slot_reservado disponibilidad?
 
   // Relación con servicios recurrentes
   servicio_recurrente_id String?
@@ -189,17 +204,29 @@ model mensajes {
 
 // MODELO: disponibilidad
 // FUNCIÓN: Gestiona los horarios en los que un profesional está disponible para trabajar.
-// RELACIÓN PRD: REQ-26 (Calendario), REQ-27 (Horarios), REQ-28 (Visibilidad).
+// RELACIÓN PRD: REQ-26 (Calendario), REQ-27 (Horarios), REQ-28 (Visibilidad), REQ-29 (Agendamiento).
 // TARJETA BACKEND: Tarjeta 6: [Backend] Implementar API de Gestión de Disponibilidad.
 // SPRINT: Sprint 2 (Segunda Entrega) - "Consolidar y mejorar el producto".
 model disponibilidad {
   id            String   @id @default(uuid()) // Identificador único del bloque de disponibilidad
   profesional_id String  // FK que enlaza con el profesional
-  profesional   usuarios @relation(fields: [profesional_id], references: [id])
+  profesional   usuarios @relation("DisponibilidadProfesional", fields: [profesional_id], references: [id])
   fecha         DateTime // REQ-27: Fecha del bloque de disponibilidad
   hora_inicio   DateTime // REQ-27: Hora de inicio del bloque
   hora_fin      DateTime // REQ-27: Hora de fin del bloque
   esta_disponible Boolean @default(true)
+
+  // Campos para agendamiento - REQ-29: Permitir agendar servicios directamente
+  reservado_por String?  // ID del cliente que reservó el slot
+  reservado_cliente usuarios? @relation("DisponibilidadReservadaCliente", fields: [reservado_por], references: [id])
+  reservado_en  DateTime? // Fecha y hora de la reserva
+  servicio_id   String?   @unique // ID del servicio agendado
+  servicio      servicios? @relation(fields: [servicio_id], references: [id])
+
+  @@index([profesional_id, fecha])
+  @@index([reservado_por])
+  @@index([servicio_id])
+  @@index([esta_disponible, fecha])
 }
 
 // MODELO: notificaciones
@@ -220,20 +247,36 @@ model cotizaciones {
   id             String   @id @default(uuid())
   cliente_id     String
   cliente        usuarios @relation("CotizacionCliente", fields: [cliente_id], references: [id])
-  profesional_id String
-  profesional    usuarios @relation("CotizacionProfesional", fields: [profesional_id], references: [id])
   descripcion    String
   zona_cobertura String?
-  estado         EstadoCotizacion @default(PENDIENTE)
+  fotos_urls     String?  // JSON array de URLs de fotos subidas - REQ-31 mejorado
+  profesionales_solicitados String? // JSON array de IDs de profesionales preseleccionados - REQ-32
+  creado_en      DateTime @default(now())
+
+  // Relaciones con respuestas de profesionales
+  respuestas     cotizacion_respuestas[]
+
+  @@index([cliente_id])
+  @@index([creado_en])
+}
+
+// Modelo separado para respuestas de profesionales a cotizaciones
+model cotizacion_respuestas {
+  id             String   @id @default(uuid())
+  cotizacion_id  String
+  cotizacion     cotizaciones @relation(fields: [cotizacion_id], references: [id])
+  profesional_id String
+  profesional    usuarios @relation("CotizacionRespuestaProfesional", fields: [profesional_id], references: [id])
   precio         Float?
   comentario     String?
+  estado         EstadoCotizacion @default(PENDIENTE) // pendiente, aceptado, rechazado
   creado_en      DateTime @default(now())
-  aceptado_en    DateTime?
-  rechazado_en   DateTime?
+  respondido_en  DateTime?
 
-  @@index([cliente_id, estado])
-  @@index([profesional_id, estado])
-  @@index([estado, creado_en])
+  @@unique([cotizacion_id, profesional_id]) // Un profesional solo puede responder una vez por cotización
+  @@index([cotizacion_id])
+  @@index([profesional_id])
+  @@index([estado])
 }
 
 // MODELO: verification_requests

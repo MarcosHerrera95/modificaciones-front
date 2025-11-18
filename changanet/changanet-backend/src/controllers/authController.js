@@ -616,17 +616,35 @@ exports.googleLogin = async (req, res) => {
         console.log('Google OAuth: existing user login:', user.email);
       }
     } else {
-      // Usuario no existe - NO crear automáticamente, solo permitir login de usuarios registrados
-      logger.warn('Google OAuth: login attempt for non-registered user', {
+      // Usuario no existe - crear automáticamente (REQ-02: registro social)
+      console.log('Google OAuth: creating new user:', email);
+
+      // Determinar rol basado en el parámetro o default a 'cliente'
+      const userRole = rol || 'cliente';
+      if (!['cliente', 'profesional'].includes(userRole)) {
+        return res.status(400).json({ error: 'Rol inválido para registro social.' });
+      }
+
+      user = await prisma.usuarios.create({
+        data: {
+          nombre,
+          email,
+          google_id: uid,
+          url_foto_perfil: foto,
+          rol: userRole,
+          esta_verificado: true, // Los usuarios de Google están verificados automáticamente
+          hash_contrasena: null, // No tienen contraseña local
+        }
+      });
+
+      logger.info('Google OAuth: new user registered', {
         service: 'auth',
-        email,
-        uid,
+        userId: user.id,
+        email: user.email,
+        rol: user.rol,
         ip: req.ip
       });
-      console.log('Google OAuth: user not registered:', email);
-      return res.status(403).json({
-        error: 'Usuario no registrado. Regístrate primero con email y contraseña antes de usar Google Login.'
-      });
+      console.log('Google OAuth: new user created:', user.email);
     }
 
     // Generar token JWT con expiresIn: '7d' según requisitos

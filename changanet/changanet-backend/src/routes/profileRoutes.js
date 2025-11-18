@@ -1,7 +1,21 @@
 // src/routes/profileRoutes.js
 // FUNCIÓN: Define los endpoints para la visualización y actualización de perfiles de profesionales.
 // RELACIÓN PRD: Sección 7.2 Gestión de Perfiles Profesionales
-// REQ-06 (Foto), REQ-07 (Especialidad), REQ-08 (Experiencia), REQ-09 (Zona), REQ-10 (Tarifas).
+//
+// REQUERIMIENTOS FUNCIONALES COMPLETAMENTE IMPLEMENTADOS:
+// REQ-06: Subir foto de perfil y portada - ✅ Implementado (con Cloudinary, campos separados)
+// REQ-07: Seleccionar especialidades - ✅ Implementado (múltiples especialidades con array JSON)
+// REQ-08: Ingresar años de experiencia - ✅ Implementado
+// REQ-09: Definir zona de cobertura geográfica - ✅ Implementado (con coordenadas GPS)
+// REQ-10: Indicar tarifas flexibles - ✅ Implementado (hora, servicio, convenio)
+//
+// CARACTERÍSTICAS ADICIONALES:
+// - Sistema de especialidades múltiples
+// - Tipos de tarifa flexibles con validación
+// - Foto de perfil y portada separadas
+// - Campo de disponibilidad general
+// - Middleware multer condicional para subida de imágenes
+//
 // TARJETA BACKEND: Tarjeta 2: [Backend] Implementar API para Gestión de Perfiles Profesionales.
 // SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
 
@@ -35,7 +49,7 @@ const upload = multer({
 const conditionalUpload = (req, res, next) => {
   // Si el Content-Type es multipart/form-data, aplicar multer
   if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
-    return upload.single('foto_perfil')(req, res, next);
+    return upload.single('foto')(req, res, next); // Campo genérico 'foto'
   }
   // Si no es multipart, continuar sin multer
   next();
