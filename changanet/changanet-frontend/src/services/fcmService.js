@@ -66,7 +66,7 @@ export const initializeFCM = async () => {
     const authToken = localStorage.getItem('changanet_token');
     if (authToken) {
       try {
-        const response = await fetch('/api/notifications/register-token', {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/notifications/register-token`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${authToken}`,
@@ -222,7 +222,7 @@ export const sendNotificationToBackend = async (userId, type, message, metadata 
   }
 
   try {
-    const response = await fetch('/api/notifications/send', {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002'}/api/notifications/send`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

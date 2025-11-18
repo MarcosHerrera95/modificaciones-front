@@ -8,7 +8,6 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { initGoogleMaps, getSimulatedCoordinates } from '../services/mapService';
 
 const MapWidget = ({
   center = null,
@@ -32,8 +31,8 @@ const MapWidget = ({
         setIsLoading(true);
         setError(null);
 
-        // Inicializar Google Maps
-        const googleMaps = await initGoogleMaps();
+        // Google Maps ya está inicializado desde App.jsx
+        const googleMaps = { maps: window.google?.maps };
 
         // Verificar si Google Maps está disponible
         if (!googleMaps) {

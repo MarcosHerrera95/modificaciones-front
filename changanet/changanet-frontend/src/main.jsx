@@ -1,19 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { AuthProvider } from './context/AuthProvider';
+import { NotificationProvider } from './context/NotificationContext';
 import './index.css';
 
 // IMPORTANTE: Inicializar Sentry lo más temprano posible
 import { initializeSentry } from './config/sentryConfig';
 initializeSentry();
-
-// IMPORTANTE: Inicializar Google Maps API lo más temprano posible
-import { initGoogleMaps } from './services/mapService';
-initGoogleMaps().then(() => {
-  console.log('✅ Google Maps API cargado exitosamente');
-}).catch(error => {
-  console.warn('⚠️ Error cargando Google Maps API:', error.message);
-});
 
 // PWA Service Worker Registration
 if ('serviceWorker' in navigator) {
@@ -64,6 +58,10 @@ if ('serviceWorker' in navigator) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <AuthProvider>
+      <NotificationProvider>
+        <App />
+      </NotificationProvider>
+    </AuthProvider>
   </React.StrictMode>,
 );

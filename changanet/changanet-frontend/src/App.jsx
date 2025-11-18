@@ -1,9 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { Suspense, lazy, useEffect } from 'react';
 import { ModalProvider } from './context/ModalContext.jsx';
-import { NotificationProvider } from './context/NotificationContext';
 import { ChatProvider } from './context/ChatContext';
+import { initGoogleMaps } from './services/mapService';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import OnboardingTutorial from './components/OnboardingTutorial';
@@ -65,68 +64,74 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 
 function App() {
   console.log('🎯 App component rendering');
+
+  // Inicializar Google Maps API una sola vez al montar la aplicación
+  useEffect(() => {
+    initGoogleMaps().then(() => {
+      console.log('✅ Google Maps API cargado exitosamente');
+    }).catch(error => {
+      console.warn('⚠️ Error cargando Google Maps API:', error.message);
+    });
+  }, []);
+
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <ChatProvider>
-          <ModalProvider>
-            <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <div className="flex flex-col min-h-screen">
-                <Header />
-                <main id="main-content" className="flex-grow" role="main">
-                  <ErrorBoundary>
-                    <Suspense fallback={<LoadingSpinner />}>
-                      <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/login" element={<Navigate to="/" replace />} />
-                        <Route path="/profesionales" element={<Professionals />} />
-                        <Route path="/profesional/:id" element={<ProfessionalDetail />} />
-                        <Route path="/mi-cuenta" element={<Dashboard />} />
-                        <Route path="/mis-cotizaciones" element={<Quotes />} />
-                        <Route path="/disponibilidad" element={<Availability />} />
-                        <Route path="/cliente/dashboard" element={<ClientDashboard />} />
-                        <Route path="/cliente/perfil" element={<ClientProfile />} />
-                        <Route path="/cliente/servicios" element={<ClientServices />} />
-                        <Route path="/cliente/cotizaciones" element={<ClientQuotes />} />
-                        <Route path="/cliente/resenas" element={<ClientReviews />} />
-                        <Route path="/profesional/dashboard" element={<ProfessionalDashboard />} />
-                        <Route path="/profesional/servicios" element={<ProfessionalServices />} />
-                        <Route path="/profesional/cotizaciones" element={<ProfessionalQuotes />} />
-                        <Route path="/profesional/pagos" element={<ProfessionalPayments />} />
-                        <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
-                        <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
-                        <Route path="/perfil" element={<ProfilePage />} />
-                        <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
-                        <Route path="/registro-cliente" element={<ClientSignupPage />} />
-                        <Route path="/verificar-email" element={<VerifyEmail />} />
-                        <Route path="/olvide-contrasena" element={<ForgotPasswordPage />} />
-                        <Route path="/reset-password" element={<ResetPasswordPage />} />
-                        <Route path="/auth/callback" element={<AuthCallback />} />
-                        <Route path="/terminos" element={<Terms />} />
-                        <Route path="/privacidad" element={<Privacy />} />
-                        <Route path="/cookies" element={<Cookies />} />
-                        <Route path="/custodia" element={<Custody />} />
-                        <Route path="/ranking" element={<Ranking />} />
-                        <Route path="/contacto" element={<ContactPage />} />
-                        <Route path="/verificar-identidad" element={<VerifyIdentity />} />
-                        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-                      </Routes>
-                    </Suspense>
-                  </ErrorBoundary>
-                </main>
-                <Footer />
-              </div>
+    <ChatProvider>
+      <ModalProvider>
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+          <div className="flex flex-col min-h-screen">
+            <Header />
+            <main id="main-content" className="flex-grow" role="main">
+              <ErrorBoundary>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Navigate to="/" replace />} />
+                    <Route path="/profesionales" element={<Professionals />} />
+                    <Route path="/profesional/:id" element={<ProfessionalDetail />} />
+                    <Route path="/mi-cuenta" element={<Dashboard />} />
+                    <Route path="/mis-cotizaciones" element={<Quotes />} />
+                    <Route path="/disponibilidad" element={<Availability />} />
+                    <Route path="/cliente/dashboard" element={<ClientDashboard />} />
+                    <Route path="/cliente/perfil" element={<ClientProfile />} />
+                    <Route path="/cliente/servicios" element={<ClientServices />} />
+                    <Route path="/cliente/cotizaciones" element={<ClientQuotes />} />
+                    <Route path="/cliente/resenas" element={<ClientReviews />} />
+                    <Route path="/profesional/dashboard" element={<ProfessionalDashboard />} />
+                    <Route path="/profesional/servicios" element={<ProfessionalServices />} />
+                    <Route path="/profesional/cotizaciones" element={<ProfessionalQuotes />} />
+                    <Route path="/profesional/pagos" element={<ProfessionalPayments />} />
+                    <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
+                    <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
+                    <Route path="/perfil" element={<ProfilePage />} />
+                    <Route path="/registro-profesional" element={<ProfessionalSignupPage />} />
+                    <Route path="/registro-cliente" element={<ClientSignupPage />} />
+                    <Route path="/verificar-email" element={<VerifyEmail />} />
+                    <Route path="/olvide-contrasena" element={<ForgotPasswordPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/terminos" element={<Terms />} />
+                    <Route path="/privacidad" element={<Privacy />} />
+                    <Route path="/cookies" element={<Cookies />} />
+                    <Route path="/custodia" element={<Custody />} />
+                    <Route path="/ranking" element={<Ranking />} />
+                    <Route path="/contacto" element={<ContactPage />} />
+                    <Route path="/verificar-identidad" element={<VerifyIdentity />} />
+                    <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
+            </main>
+            <Footer />
+          </div>
 
-              {/* Tutorial para primeros usuarios */}
-              <OnboardingTutorial />
+          {/* Tutorial para primeros usuarios */}
+          <OnboardingTutorial />
 
-              {/* Ayuda contextual disponible en toda la app */}
-              <ContextualHelp />
-            </Router>
-          </ModalProvider>
-        </ChatProvider>
-      </NotificationProvider>
-    </AuthProvider>
+          {/* Ayuda contextual disponible en toda la app */}
+          <ContextualHelp />
+        </Router>
+      </ModalProvider>
+    </ChatProvider>
   );
 }
 

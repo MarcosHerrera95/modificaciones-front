@@ -3,6 +3,11 @@ import { useAuth } from './AuthContext';
 import { initializeFCM, onFCMMessage, checkNotificationPermission, requestNotificationPermission } from '../services/fcmService';
 import { useNotifications } from '../hooks/useNotifications';
 
+// Disable hot reload for this file to prevent React hooks issues during hot reload
+if (import.meta.hot) {
+  import.meta.hot.decline();
+}
+
 const NotificationContext = createContext();
 
 export const useNotificationContext = () => {

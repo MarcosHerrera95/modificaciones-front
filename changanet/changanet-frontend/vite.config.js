@@ -8,6 +8,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  optimizeDeps: {
+    include: ['react', 'react-dom'],
+    inline: ['react', 'react-dom']
+  },
   test: {
     globals: true,
     environment: 'jsdom',
@@ -17,13 +21,16 @@ export default defineConfig({
     pool: 'threads',
     server: {
       deps: {
-        inline: ['@sentry/browser', '@sentry/react']
+        inline: ['@sentry/browser', '@sentry/react', 'react', 'react-dom']
       }
     }
   },
   server: {
     host: 'localhost',
     port: 5175,
+    deps: {
+      inline: ['react', 'react-dom']
+    },
     headers: {
       // Headers de desarrollo - COOP/COEP removidos para compatibilidad con Firebase Auth
       // NOTA: En producción, considera re-habilitar estos headers por seguridad

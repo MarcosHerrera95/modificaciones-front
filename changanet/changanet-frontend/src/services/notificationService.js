@@ -7,7 +7,7 @@
  */
 // Removed unused Firebase messaging import
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
 // Función para obtener notificaciones del usuario
 export const getNotifications = async () => {
@@ -17,7 +17,7 @@ export const getNotifications = async () => {
     throw new Error('Usuario no autenticado');
   }
 
-  const response = await fetch(`${API_BASE}/notifications`, {
+  const response = await fetch(`${API_BASE}/api/notifications`, {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -40,7 +40,7 @@ export const markAsRead = async (notificationId) => {
     throw new Error('Usuario no autenticado');
   }
 
-  const response = await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+  const response = await fetch(`${API_BASE}/api/notifications/${notificationId}/read`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -63,7 +63,7 @@ export const markAllAsRead = async () => {
     throw new Error('Usuario no autenticado');
   }
 
-  const response = await fetch(`${API_BASE}/notifications/read-all`, {
+  const response = await fetch(`${API_BASE}/api/notifications/read-all`, {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -86,7 +86,7 @@ export const deleteNotification = async (notificationId) => {
     throw new Error('Usuario no autenticado');
   }
 
-  const response = await fetch(`${API_BASE}/notifications/${notificationId}`, {
+  const response = await fetch(`${API_BASE}/api/notifications/${notificationId}`, {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,

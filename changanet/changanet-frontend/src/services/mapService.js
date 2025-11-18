@@ -11,6 +11,7 @@ import { GOOGLE_MAPS_CONFIG } from '../config/googleMapsConfig';
 
 // Estado del servicio
 let isInitialized = false;
+let initializationPromise = null;
 let googleMapsInstance = null;
 
 // Cache para resultados de distancia
@@ -20,7 +21,18 @@ const distanceCache = new Map();
  * Inicializa Google Maps API usando la nueva API funcional
  */
 const initializeGoogleMaps = async () => {
-  if (!isInitialized) {
+  // Si ya está inicializado, devolver la instancia
+  if (isInitialized) {
+    return googleMapsInstance;
+  }
+
+  // Si ya hay una inicialización en curso, esperar a que termine
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+
+  // Crear la promesa de inicialización
+  initializationPromise = (async () => {
     const apiKey = GOOGLE_MAPS_CONFIG.apiKey;
     console.log('Google Maps API Key:', apiKey ? `Present (starts with: ${apiKey.substring(0, 10)}...)` : 'Missing');
     console.log('API Key length:', apiKey ? apiKey.length : 0);
@@ -34,10 +46,12 @@ const initializeGoogleMaps = async () => {
 
     setOptions(GOOGLE_MAPS_CONFIG);
     isInitialized = true;
+    googleMapsInstance = { maps: window.google?.maps };
     console.log('Google Maps API initialized successfully');
-    return { maps: window.google?.maps };
-  }
-  return googleMapsInstance;
+    return googleMapsInstance;
+  })();
+
+  return initializationPromise;
 };
 
 /**
@@ -140,29 +154,37 @@ export const getDistanceMatrix = async (origin, destination) => {
 };
 
 /**
- * Inicializa autocompletado de lugares en un input usando Autocomplete class
+ * Inicializa autocompletado de lugares en un input usando PlaceAutocompleteElement
  * @param {HTMLInputElement} inputElement - Elemento input para autocompletado
  * @param {Function} callback - Función a llamar cuando se selecciona un lugar
- * @returns {Object} Instancia de Autocomplete
+ * @returns {Object} Instancia de PlaceAutocompleteElement
  */
 export const initAutocomplete = async (inputElement, callback) => {
   try {
-    await initializeGoogleMaps();
-    const { Autocomplete } = await importLibrary('places');
-    const autocomplete = new Autocomplete(inputElement, {
+    // Asumir que Google Maps ya está inicializado desde App.jsx
+    const { PlaceAutocompleteElement } = await importLibrary('places');
+
+    // Crear el elemento de autocompletado
+    const autocompleteElement = new PlaceAutocompleteElement({
       types: ['geocode'],
       componentRestrictions: { country: 'AR' }
     });
 
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (place.geometry) {
+    // Insertar el elemento antes del input
+    inputElement.parentNode.insertBefore(autocompleteElement, inputElement);
+
+    // Escuchar el evento de cambio de lugar
+    autocompleteElement.addEventListener('gmp-placeselect', (event) => {
+      const place = event.place;
+      if (place && place.location) {
         callback({
-          address: place.formatted_address,
-          location: place.geometry.location
+          address: place.formattedAddress || place.displayName,
+          location: place.location
         });
       }
     });
+
+    return autocompleteElement;
   } catch (error) {
     console.error('Error al inicializar Places API:', error);
     throw new Error('No se pudo cargar Google Maps Places API');
