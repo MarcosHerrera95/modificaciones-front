@@ -3,6 +3,9 @@
  * Verifica contratos de API y comportamiento end-to-end
  */
 
+// Load test environment variables
+require('dotenv').config({ path: '.env.test' });
+
 const request = require('supertest');
 const express = require('express');
 const authRoutes = require('../../../src/routes/authRoutes');

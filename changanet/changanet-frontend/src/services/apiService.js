@@ -3,7 +3,7 @@
  * Maneja todas las llamadas HTTP al backend con retry logic y manejo de errores
  */
 
-const API_BASE_URL = '';
+import { API_BASE_URL } from '../config/api.js';
 
 /**
  * Headers de seguridad para todas las peticiones

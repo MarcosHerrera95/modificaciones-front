@@ -41,7 +41,7 @@ const ProfessionalCard = ({ professional }) => {
           });
           clientLat = position.coords.latitude;
           clientLon = position.coords.longitude;
-        } catch (geoError) {
+        } catch {
           console.warn('Geolocalización no disponible, usando Buenos Aires por defecto');
           // Fallback: Buenos Aires
           clientLat = -34.6037;
@@ -80,7 +80,7 @@ const ProfessionalCard = ({ professional }) => {
           } else {
             throw new Error('No distance data available');
           }
-        } catch (apiError) {
+        } catch {
           // Google Maps no disponible, usar cálculo alternativo
           const dist = calculateHaversineDistance(clientLat, clientLon, profCoords.lat, profCoords.lng);
           setDistance(`${dist.toFixed(1)} km (aprox.)`);
@@ -113,7 +113,7 @@ const ProfessionalCard = ({ professional }) => {
         <div className="flex-shrink-0 mb-6 md:mb-0 md:mr-8">
           <div className="relative">
             <img
-              src={professional.url_foto_perfil || 'https://placehold.co/120x120?text=👷'}
+              src={professional.usuario?.url_foto_perfil || 'https://placehold.co/120x120?text=👷'}
               alt={`Foto de perfil de ${professional.usuario.nombre}`}
               className="w-28 h-28 md:w-32 md:h-32 rounded-3xl object-cover shadow-xl group-hover:shadow-2xl transition-all duration-300 border-4 border-white/50"
             />
