@@ -8,24 +8,31 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 // Configurar Mercado Pago con access token
+let isConfigured = null;
 const configureMercadoPago = () => {
+  if (isConfigured !== null) return isConfigured;
+
   const accessToken = process.env.MERCADO_PAGO_ACCESS_TOKEN;
 
   if (!accessToken) {
     console.warn('⚠️ MERCADO_PAGO_ACCESS_TOKEN no configurado - pagos simulados');
+    isConfigured = false;
     return false;
   }
 
-  mercadopago.configure({
-    access_token: accessToken
-  });
-
-  console.log('✅ Mercado Pago configurado correctamente');
-  return true;
+  try {
+    mercadopago.configure({
+      access_token: accessToken
+    });
+    console.log('✅ Mercado Pago configurado correctamente');
+    isConfigured = true;
+    return true;
+  } catch (error) {
+    console.error('❌ Error configurando Mercado Pago:', error.message);
+    isConfigured = false;
+    return false;
+  }
 };
-
-// Inicializar configuración
-const isConfigured = configureMercadoPago();
 
 /**
  * Crear preferencia de pago para un servicio
@@ -40,7 +47,7 @@ exports.createPaymentPreference = async (paymentData) => {
   try {
     const { serviceId, amount, description, client, professional } = paymentData;
 
-    if (!isConfigured) {
+    if (!configureMercadoPago()) {
       // Modo simulado para desarrollo
       console.log('🧪 MODO SIMULADO: Creando preferencia de pago simulada');
       return {
@@ -175,7 +182,7 @@ exports.processPaymentWebhook = async (paymentData) => {
  */
 exports.getPaymentStatus = async (paymentId) => {
   try {
-    if (!isConfigured) {
+    if (!configureMercadoPago()) {
       return { status: 'simulated', simulated: true };
     }
 
@@ -202,7 +209,7 @@ exports.getPaymentStatus = async (paymentId) => {
  */
 exports.refundPayment = async (paymentId) => {
   try {
-    if (!isConfigured) {
+    if (!configureMercadoPago()) {
       console.log('🧪 MODO SIMULADO: Reembolso simulado');
       return { success: true, simulated: true };
     }

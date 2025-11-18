@@ -20,10 +20,8 @@ const calculateProfessionalRanking = async (professionalId) => {
             servicios_como_profesional: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true, // Reseñas que recibió
-            logros_obtenidos: {
-              include: { logro: true }
-            }
+            resenas_escritas: true // Reseñas que recibió
+            // logros_obtenidos: { include: { logro: true } } // DESACTIVADO: Modelo no existe
           }
         }
       }
@@ -51,9 +49,10 @@ const calculateProfessionalRanking = async (professionalId) => {
     const experience = professional.anos_experiencia || 0;
     score += Math.min(experience * 2, 10); // Máximo 10 puntos
 
-    // Factor 5: Logros obtenidos (10% del score)
-    const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0);
-    score += Math.min(achievementPoints * 0.5, 10); // Máximo 10 puntos
+    // Factor 5: Logros obtenidos (10% del score) - DESACTIVADO: Modelo no existe
+    // const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0);
+    // score += Math.min(achievementPoints * 0.5, 10); // Máximo 10 puntos
+    score += 0; // Sin logros por ahora
 
     // Factor 6: Reseñas positivas (5% del score)
     const positiveReviews = user.resenas_escritas.filter(r => r.calificacion >= 4).length;
@@ -78,10 +77,8 @@ exports.getProfessionalsRanking = async (req, res) => {
             servicios_como_profesional: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: {
-              include: { logro: true }
-            }
+            resenas_escritas: true
+            // logros_obtenidos: { include: { logro: true } } // DESACTIVADO: Modelo no existe
           }
         }
       }
@@ -149,10 +146,8 @@ exports.getProfessionalRanking = async (req, res) => {
             servicios_como_profesional: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: {
-              include: { logro: true }
-            }
+            resenas_escritas: true
+            // logros_obtenidos: { include: { logro: true } } // DESACTIVADO: Modelo no existe
           }
         }
       }
@@ -166,7 +161,8 @@ exports.getProfessionalRanking = async (req, res) => {
     }
 
     const user = professional.usuario;
-    const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0);
+    // const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0); // DESACTIVADO
+    const achievementPoints = 0; // Sin logros por ahora
     const positiveReviews = user.resenas_escritas.filter(r => r.calificacion >= 4).length;
 
     res.json({
@@ -208,10 +204,8 @@ const getAllRankingsData = async () => {
           servicios_como_profesional: {
             where: { estado: 'COMPLETADO' }
           },
-          resenas_escritas: true,
-          logros_obtenidos: {
-            include: { logro: true }
-          }
+          resenas_escritas: true
+          // logros_obtenidos: { include: { logro: true } } // DESACTIVADO: Modelo no existe
         }
       }
     }
@@ -251,10 +245,8 @@ exports.getTopProfessionalsBySpecialty = async (req, res) => {
             servicios_como_profesional: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: {
-              include: { logro: true }
-            }
+            resenas_escritas: true
+            // logros_obtenidos: { include: { logro: true } } // DESACTIVADO: Modelo no existe
           }
         }
       }

@@ -94,7 +94,6 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const smsRoutes = require('./routes/smsRoutes');
 const favoritesRoutes = require('./routes/favoritesRoutes');
 const achievementsRoutes = require('./routes/achievementsRoutes');
-const rankingRoutes = require('./routes/rankingRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
@@ -121,12 +120,12 @@ backupService.initialize().then(success => {
   }
 });
 
-// Inicializar logros por defecto
-initializeDefaultAchievements().then(() => {
-  console.log('🏆 Logros por defecto inicializados');
-}).catch(error => {
-  console.error('❌ Error inicializando logros:', error);
-});
+// Inicializar logros por defecto - DESACTIVADO: Modelo logros no existe en schema
+// initializeDefaultAchievements().then(() => {
+//   console.log('🏆 Logros por defecto inicializados');
+// }).catch(error => {
+//   console.error('❌ Error inicializando logros:', error);
+// });
 const app = express();
 const server = http.createServer(app);
 
