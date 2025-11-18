@@ -170,9 +170,25 @@ async function staleWhileRevalidate(request) {
       cache.put(request, networkResponse.clone());
     }
     return networkResponse;
+  }).catch((error) => {
+    console.error('SW: fetch failed for:', request.url, error);
+    // Si fetch falla y no hay cache, devolver error controlado
+    if (!cachedResponse) {
+      return new Response('Network error and no cache available', { status: 503 });
+    }
+    // Si hay cache, devolverlo aunque fetch falló
   });
 
-  return cachedResponse || fetchPromise;
+  if (cachedResponse) {
+    return cachedResponse;
+  } else {
+    try {
+      return await fetchPromise;
+    } catch (error) {
+      console.error('SW: fetchPromise rejected:', error);
+      return new Response('Fetch failed', { status: 503 });
+    }
+  }
 }
 
 // Manejar notificaciones push

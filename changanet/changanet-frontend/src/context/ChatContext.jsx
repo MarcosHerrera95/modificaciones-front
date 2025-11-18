@@ -23,6 +23,13 @@ export const ChatProvider = ({ children }) => {
     let newSocket = null;
 
     if (user) {
+      // Skip Socket.IO in development to avoid connection errors
+      if (import.meta.env.DEV) {
+        console.log('Socket.IO omitido en modo desarrollo');
+        setIsConnected(false);
+        return;
+      }
+
       // Diagnostic logs for Socket.IO connection
       const backendUrl = 'http://localhost:3002'; // Updated to match backend port
       const token = localStorage.getItem('changanet_token');

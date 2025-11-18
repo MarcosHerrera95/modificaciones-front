@@ -52,6 +52,8 @@ export const NotificationProvider = ({ children }) => {
             console.info('2. Busca "Notificaciones" en la configuración del sitio');
             console.info('3. Cambia el permiso a "Permitir"');
             console.info('4. Recarga la página');
+          } else if (result.error === 'Skipped in development') {
+            console.log('FCM omitido en modo desarrollo');
           } else {
             console.error('Error inicializando FCM:', result.error);
           }

@@ -66,7 +66,7 @@ const Hero = () => {
         </div>
 
         {/* Search Bar */}
-        <div className="max-w-5xl mx-auto bg-white/95 backdrop-blur-lg rounded-3xl p-6 shadow-2xl border border-white/20 animate-fade-in" style={{ animationDelay: '0.6s' }}>
+        <div className="max-w-5xl mx-auto bg-white rounded-3xl p-6 shadow-2xl border border-gray-300 animate-fade-in" style={{ animationDelay: '0.6s' }}>
           <SearchBar />
         </div>
 

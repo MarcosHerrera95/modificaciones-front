@@ -20,6 +20,12 @@ import { app } from "../config/firebaseConfig";
  */
 export const initializeFCM = async () => {
   try {
+    // Skip FCM in development to avoid service worker issues
+    if (import.meta.env.DEV) {
+      console.log('FCM skipped in development mode');
+      return { success: false, error: 'Skipped in development' };
+    }
+
     const messaging = getMessaging(app);
     // Verificar si Firebase Messaging está disponible
     if (!messaging) {

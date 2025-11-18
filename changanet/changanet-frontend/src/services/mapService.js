@@ -9,6 +9,9 @@
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { GOOGLE_MAPS_CONFIG } from '../config/googleMapsConfig';
 
+// Configurar opciones globales de Google Maps al cargar el módulo
+setOptions(GOOGLE_MAPS_CONFIG);
+
 // Estado del servicio
 let isInitialized = false;
 let initializationPromise = null;
@@ -44,7 +47,6 @@ const initializeGoogleMaps = async () => {
       return null;
     }
 
-    setOptions(GOOGLE_MAPS_CONFIG);
     isInitialized = true;
     googleMapsInstance = { maps: window.google?.maps };
     console.log('Google Maps API initialized successfully');

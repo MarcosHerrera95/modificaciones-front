@@ -122,10 +122,10 @@ const SearchBar = () => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        serviceInputRef.current &&
-        !serviceInputRef.current.contains(event.target) &&
         serviceSuggestionsRef.current &&
-        !serviceSuggestionsRef.current.contains(event.target)
+        !serviceSuggestionsRef.current.contains(event.target) &&
+        serviceInputRef.current &&
+        !serviceInputRef.current.contains(event.target)
       ) {
         setShowServiceSuggestions(false);
         setSelectedServiceIndex(-1);
@@ -138,16 +138,10 @@ const SearchBar = () => {
 
   return (
     <div className="search-bar max-w-4xl mx-auto relative">
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-2">
-        <div className="flex items-center gap-2">
+      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-4 border border-gray-300">
+        <div className="flex items-center gap-4">
           {/* Campo de servicio */}
           <div className="flex-1 relative">
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-emerald-500 z-10">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
             <input
               ref={serviceInputRef}
               type="text"
@@ -158,7 +152,7 @@ const SearchBar = () => {
                 if (serviceSuggestions.length > 0) setShowServiceSuggestions(true);
               }}
               placeholder="¿Qué necesitas? (Plomero, Electricista...)"
-              className="w-full pl-12 pr-4 py-4 text-base rounded-xl border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-emerald-50/50 transition-all duration-300 text-gray-700 placeholder-gray-500"
+              className="search-input w-full pl-4 pr-20 py-4 text-base rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-800 placeholder-gray-500 shadow-sm"
               aria-label="Buscar servicio profesional"
               aria-describedby="service-help"
               aria-expanded={showServiceSuggestions}
@@ -166,23 +160,40 @@ const SearchBar = () => {
               role="combobox"
               aria-activedescendant={selectedServiceIndex >= 0 ? `service-suggestion-${selectedServiceIndex}` : undefined}
             />
+            {/* Iconos dentro del campo */}
+            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex items-center space-x-2">
+              {service && (
+                <button
+                  type="button"
+                  onClick={() => setService('')}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              <div className="text-gray-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
           </div>
+
+          {/* Separador vertical */}
+          <div className="w-px h-12 bg-gray-300"></div>
 
           {/* Campo de ubicación */}
           <div className="flex-1 relative">
-            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-emerald-500 z-10">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
             <input
               ref={locationInputRef}
               type="text"
               value={location}
               onChange={(e) => setLocation(e.target.value)}
               placeholder="¿Dónde? (Buenos Aires, CABA...)"
-              className="w-full pl-12 pr-4 py-4 text-base rounded-xl border-0 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-emerald-50/50 transition-all duration-300 text-gray-700 placeholder-gray-500"
+              className="search-input w-full pl-4 pr-4 py-4 text-base rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-gray-800 placeholder-gray-500 shadow-sm"
               aria-label="Buscar ubicación geográfica"
               aria-describedby="location-help"
             />
@@ -192,10 +203,10 @@ const SearchBar = () => {
           <button
             type="submit"
             disabled={!service.trim() && !location.trim()}
-            className="bg-[#E30613] text-white px-8 py-4 rounded-xl hover:bg-[#c9050f] disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 font-semibold shadow-md hover:shadow-lg min-h-[56px] flex items-center justify-center"
+            className="bg-gray-200 hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed px-4 py-3 rounded-lg border border-gray-300 transition-all duration-200 shadow-sm flex items-center justify-center"
             aria-label="Buscar profesionales"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
           </button>
@@ -214,7 +225,7 @@ const SearchBar = () => {
       {showServiceSuggestions && serviceSuggestions.length > 0 && (
         <div
           ref={serviceSuggestionsRef}
-          className="absolute top-full left-2 right-2 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 max-h-80 overflow-y-auto"
+          className="absolute top-full left-2 right-2 mt-2 bg-white border border-gray-200 rounded-2xl shadow-xl z-50 max-h-80 overflow-y-auto border-t-0"
           role="listbox"
           aria-label="Sugerencias de servicios"
         >
