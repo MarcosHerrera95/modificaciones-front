@@ -7,6 +7,65 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 /**
+ * Obtener todos los logros activos
+ */
+exports.getAllAchievements = async (req, res) => {
+  try {
+    const achievements = await prisma.logros.findMany({
+      where: { activo: true }
+    });
+    res.json(achievements);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Obtener logros de un usuario específico
+ */
+exports.getUserAchievements = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const userAchievements = await prisma.logros_usuario.findMany({
+      where: { usuario_id: userId },
+      include: { logro: true }
+    });
+    res.json(userAchievements);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Crear un nuevo logro (solo administradores)
+ */
+exports.createAchievement = async (req, res) => {
+  try {
+    const { nombre, descripcion, icono, categoria, criterio, puntos } = req.body;
+
+    // Validar campos requeridos
+    if (!nombre || !descripcion || !icono || !categoria || !criterio) {
+      return res.status(400).json({ error: 'Faltan campos requeridos' });
+    }
+
+    const achievement = await prisma.logros.create({
+      data: {
+        nombre,
+        descripcion,
+        icono,
+        categoria,
+        criterio,
+        puntos: puntos || 0
+      }
+    });
+
+    res.status(201).json(achievement);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+/**
  * Inicializar logros por defecto
  */
 exports.initializeDefaultAchievements = async () => {
