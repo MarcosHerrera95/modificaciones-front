@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import useSmartNavigation from '../../hooks/useSmartNavigation';
+import MisCotizaciones from './MisCotizaciones';
 
 // Backend URL configuration
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
@@ -20,6 +21,7 @@ const ProfessionalDashboard = ({ user }) => {
   const [recentQuotes, setRecentQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
+  const [showCotizacionesModal, setShowCotizacionesModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -85,6 +87,7 @@ const ProfessionalDashboard = ({ user }) => {
     }
   };
 
+
   const handleVerifyClick = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/verification/status`, {
@@ -108,6 +111,7 @@ const ProfessionalDashboard = ({ user }) => {
     setTimeout(() => setMessage(''), 5000);
   };
 
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -117,7 +121,7 @@ const ProfessionalDashboard = ({ user }) => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" style={{ backgroundColor: '#009688', minHeight: '100vh', padding: '20px' }}>
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
@@ -184,9 +188,10 @@ const ProfessionalDashboard = ({ user }) => {
         <h2 className="text-xl font-bold text-gray-800 mb-4">Acciones Rápidas</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <button
-            onClick={() => smartNavigate('/mis-cotizaciones')}
+            onClick={() => setShowCotizacionesModal(true)}
             type="button"
-            className="flex items-center p-4 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors duration-200 w-full text-left">
+            className="flex items-center p-4 rounded-lg hover:bg-emerald-100 transition-colors duration-200 w-full text-left"
+            style={{ backgroundColor: '#e8f5e9' }}>
             <span className="text-2xl mr-3">📋</span>
             <div>
               <h3 className="font-semibold text-gray-800">Mis Cotizaciones</h3>
@@ -218,33 +223,7 @@ const ProfessionalDashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Recent Quotes */}
-      {recentQuotes.length > 0 && (
-        <div className="bg-white p-6 rounded-2xl shadow-lg">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Cotizaciones Recientes</h2>
-          <div className="space-y-4">
-            {recentQuotes.map(quote => (
-              <div key={quote.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                <div>
-                  <h3 className="font-semibold text-gray-800">{quote.descripcion}</h3>
-                  <p className="text-sm text-gray-600">
-                    Cliente: {quote.cliente.nombre} • Zona: {quote.zona_cobertura}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    quote.estado === 'pendiente' ? 'bg-amber-100 text-amber-800' :
-                    quote.estado === 'aceptado' ? 'bg-emerald-100 text-emerald-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
-                    {quote.estado}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* Verification Status */}
       <div className="bg-gradient-to-r from-emerald-50 to-turquoise-50 rounded-2xl p-6">
@@ -266,6 +245,8 @@ const ProfessionalDashboard = ({ user }) => {
           </button>
         </div>
       </div>
+
+      <MisCotizaciones show={showCotizacionesModal} onClose={() => setShowCotizacionesModal(false)} />
     </div>
   );
 };
