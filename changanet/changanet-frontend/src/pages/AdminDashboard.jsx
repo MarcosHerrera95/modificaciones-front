@@ -1,30 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
-  const [stats, setStats] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [disputes, setDisputes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
+  const [stats, setStats] = useState(null);
+  const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user && user.rol === 'admin') {
       loadDashboardData();
+    } else {
+      navigate('/');
     }
-  }, [user]);
+  }, [user, navigate]);
 
   const loadDashboardData = async () => {
     try {
-      const [statsRes, usersRes, disputesRes] = await Promise.all([
+      setLoading(true);
+      const [statsRes, verificationsRes] = await Promise.all([
         fetch('/api/admin/stats', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         }),
-        fetch('/api/admin/users?limit=20', {
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
-        }),
-        fetch('/api/admin/disputes', {
+        fetch('/api/admin/verifications/pending', {
           headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
         })
       ]);
@@ -34,266 +35,227 @@ const AdminDashboard = () => {
         setStats(statsData.data);
       }
 
-      if (usersRes.ok) {
-        const usersData = await usersRes.json();
-        setUsers(usersData.data);
-      }
-
-      if (disputesRes.ok) {
-        const disputesData = await disputesRes.json();
-        setDisputes(disputesData.data);
+      if (verificationsRes.ok) {
+        const verificationsData = await verificationsRes.json();
+        setPendingVerifications(verificationsData.data);
       }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
+      console.error('Error loading admin dashboard:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleUserBlock = async (userId, currentlyBlocked) => {
+  const handleApproveVerification = async (requestId) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/toggle-block`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          bloqueado: !currentlyBlocked,
-          razon: currentlyBlocked ? 'Desbloqueo administrativo' : 'Bloqueo administrativo'
-        })
+      const response = await fetch(`/api/admin/verifications/${requestId}/approve`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
       });
 
       if (response.ok) {
-        // Update local state
-        setUsers(users.map(u =>
-          u.id === userId ? { ...u, bloqueado: !currentlyBlocked } : u
-        ));
-        alert(`Usuario ${!currentlyBlocked ? 'bloqueado' : 'desbloqueado'} correctamente`);
+        alert('Verificación aprobada exitosamente');
+        loadDashboardData(); // Recargar datos
+      } else {
+        alert('Error al aprobar verificación');
       }
     } catch (error) {
-      console.error('Error toggling user block:', error);
-      alert('Error al cambiar estado del usuario');
+      console.error('Error approving verification:', error);
+      alert('Error al aprobar verificación');
     }
   };
 
+  const handleRejectVerification = async (requestId) => {
+    const reason = prompt('Motivo del rechazo:');
+    if (!reason) return;
+
+    try {
+      const response = await fetch(`/api/admin/verifications/${requestId}/reject`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({ motivo_rechazo: reason })
+      });
+
+      if (response.ok) {
+        alert('Verificación rechazada');
+        loadDashboardData(); // Recargar datos
+      } else {
+        alert('Error al rechazar verificación');
+      }
+    } catch (error) {
+      console.error('Error rejecting verification:', error);
+      alert('Error al rechazar verificación');
+    }
+  };
+
+  const tabs = [
+    { id: 'overview', name: 'Resumen', icon: '📊' },
+    { id: 'verifications', name: 'Verificaciones', icon: '✅' },
+    { id: 'users', name: 'Usuarios', icon: '👥' },
+    { id: 'payments', name: 'Pagos', icon: '💳' }
+  ];
+
   if (!user || user.rol !== 'admin') {
-    return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-red-50 border border-red-200 rounded-md p-4">
-            <p className="text-red-600">Acceso denegado. Se requieren permisos de administrador.</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <div>No tienes permisos para acceder a esta página</div>;
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Cargando panel administrativo...</p>
-          </div>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Panel de Administración</h1>
-          <p className="mt-2 text-gray-600">Gestiona usuarios, servicios y la plataforma Changánet</p>
+          <p className="mt-2 text-gray-600">Gestiona usuarios, verificaciones y pagos de la plataforma</p>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="mb-8">
-          <nav className="flex space-x-8">
-            {[
-              { id: 'overview', label: 'Resumen', icon: '📊' },
-              { id: 'users', label: 'Usuarios', icon: '👥' },
-              { id: 'disputes', label: 'Disputas', icon: '⚠️' }
-            ].map(tab => (
+        {/* Tabs */}
+        <div className="mb-6">
+          <nav className="flex space-x-1 bg-white p-1 rounded-lg shadow">
+            {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center px-4 py-2 rounded-md font-medium transition-colors ${
+                className={`flex items-center px-4 py-2 text-sm font-medium rounded-md transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-blue-100 text-blue-700 border-b-2 border-blue-500'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    ? 'bg-red-600 text-white'
+                    : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <span className="mr-2">{tab.icon}</span>
-                {tab.label}
+                {tab.name}
               </button>
             ))}
           </nav>
         </div>
 
-        {/* Overview Tab */}
-        {activeTab === 'overview' && stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <span className="text-2xl">👥</span>
+        {/* Content */}
+        <div className="space-y-6">
+          {activeTab === 'overview' && stats && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <span className="text-2xl">👥</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Total Usuarios</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.users.total}</p>
+                  </div>
                 </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Usuarios</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.usuarios.total}</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <span className="text-2xl">✅</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Usuarios Verificados</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.users.verified}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center">
+                  <div className="p-2 bg-yellow-100 rounded-lg">
+                    <span className="text-2xl">⏳</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Verificaciones Pendientes</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.users.pendingVerifications}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow">
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <span className="text-2xl">💰</span>
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm font-medium text-gray-600">Ingresos Totales</p>
+                    <p className="text-2xl font-bold text-gray-900">${stats.payments.totalRevenue}</p>
+                  </div>
                 </div>
               </div>
             </div>
+          )}
 
+          {activeTab === 'verifications' && (
             <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 rounded-full">
-                  <span className="text-2xl">🔧</span>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Profesionales</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.usuarios.profesionales}</p>
-                </div>
-              </div>
-            </div>
+              <h2 className="text-xl font-bold mb-4">Solicitudes de Verificación Pendientes</h2>
 
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 rounded-full">
-                  <span className="text-2xl">📋</span>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Servicios</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.servicios.total}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
-                <div className="p-3 bg-yellow-100 rounded-full">
-                  <span className="text-2xl">✅</span>
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Verificaciones Pendientes</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.verificaciones.pendientes}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Users Tab */}
-        {activeTab === 'users' && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Gestión de Usuarios</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usuario</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Servicios</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.map(user => (
-                    <tr key={user.id}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">{user.nombre}</div>
-                          <div className="text-sm text-gray-500">{user.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          user.rol === 'admin' ? 'bg-purple-100 text-purple-800' :
-                          user.rol === 'profesional' ? 'bg-green-100 text-green-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {user.rol}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          user.bloqueado ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                        }`}>
-                          {user.bloqueado ? 'Bloqueado' : 'Activo'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {user._count.servicios_como_cliente + user._count.servicios_como_profesional}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => toggleUserBlock(user.id, user.bloqueado)}
-                          className={`px-3 py-1 rounded text-xs font-medium ${
-                            user.bloqueado
-                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                              : 'bg-red-100 text-red-800 hover:bg-red-200'
-                          }`}
-                        >
-                          {user.bloqueado ? 'Desbloquear' : 'Bloquear'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Disputes Tab */}
-        {activeTab === 'disputes' && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Disputas y Servicios Problemáticos</h3>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {disputes.length === 0 ? (
-                <div className="px-6 py-8 text-center text-gray-500">
-                  No hay disputas pendientes
-                </div>
+              {pendingVerifications.length === 0 ? (
+                <p className="text-gray-600">No hay solicitudes pendientes</p>
               ) : (
-                disputes.map(dispute => (
-                  <div key={dispute.id} className="px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="flex items-center space-x-3">
-                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            dispute.estado === 'cancelado' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {dispute.estado}
-                          </span>
-                          <span className="text-sm text-gray-600">
-                            Cliente: {dispute.cliente.nombre} | Profesional: {dispute.profesional.nombre}
-                          </span>
+                <div className="space-y-4">
+                  {pendingVerifications.map((request) => (
+                    <div key={request.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{request.usuario.nombre}</h3>
+                          <p className="text-gray-600">{request.usuario.email}</p>
+                          <p className="text-sm text-gray-500">
+                            Solicitado: {new Date(request.fecha_solicitud).toLocaleDateString()}
+                          </p>
+                          {request.documento_url && (
+                            <a
+                              href={request.documento_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                              Ver documento
+                            </a>
+                          )}
                         </div>
-                        {dispute.resena && (
-                          <div className="mt-2 text-sm text-gray-600">
-                            ⭐ {dispute.resena.calificacion}/5 - {dispute.resena.comentario}
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(dispute.creado_en).toLocaleDateString()}
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleApproveVerification(request.id)}
+                            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                          >
+                            Aprobar
+                          </button>
+                          <button
+                            onClick={() => handleRejectVerification(request.id)}
+                            className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+                          >
+                            Rechazar
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
+
+          {activeTab === 'users' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Gestión de Usuarios</h2>
+              <p className="text-gray-600">Funcionalidad de gestión de usuarios próximamente</p>
+            </div>
+          )}
+
+          {activeTab === 'payments' && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-xl font-bold mb-4">Gestión de Pagos</h2>
+              <p className="text-gray-600">Funcionalidad de gestión de pagos próximamente</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

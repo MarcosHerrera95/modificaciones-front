@@ -102,7 +102,7 @@ export const initializeFCM = async () => {
 
 /**
  * @función onFCMMessage - Escuchar mensajes FCM
- * @descripción Configura listener para mensajes FCM entrantes
+ * @descripción Configura listener para mensajes FCM entrantes con soporte móvil nativo
  * @sprint Sprint 2 – Notificaciones y Comunicación
  * @tarjeta Tarjeta 4: [Frontend] Implementar Notificaciones Push con Firebase
  * @impacto Social: Recepción de notificaciones en tiempo real
@@ -122,22 +122,74 @@ export const onFCMMessage = (callback) => {
     return onMessage(messaging, (payload) => {
       console.log('Mensaje FCM recibido:', payload);
 
-      // Mostrar notificación del navegador
+      // Mostrar notificación del navegador con soporte móvil mejorado
       if (Notification.permission === 'granted') {
-        const notification = new Notification(payload.notification?.title || 'Nueva notificación', {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        const notificationOptions = {
           body: payload.notification?.body || 'Tienes una nueva notificación',
           icon: '/vite.svg',
           data: payload.data || {},
-          tag: 'changanet-notification'
-        });
+          tag: 'changanet-notification',
+          badge: '/vite.svg', // Para móviles
+          requireInteraction: false, // Auto-cierre en móviles
+          silent: false // Sonido activado
+        };
 
-        // Manejar click en la notificación
+        // Opciones específicas para móviles
+        if (isMobile) {
+          notificationOptions.vibrate = [200, 100, 200]; // Patrón de vibración
+          notificationOptions.silent = false;
+          // En móviles, las notificaciones nativas manejan el sonido automáticamente
+        }
+
+        const notification = new Notification(
+          payload.notification?.title || 'Nueva notificación',
+          notificationOptions
+        );
+
+        // Manejar click en la notificación con navegación inteligente
         notification.onclick = () => {
           notification.close();
+
           // Enfocar la ventana de la app
           window.focus();
-          // Aquí se podría navegar a la sección correspondiente
+
+          // Navegación inteligente basada en el tipo de notificación
+          const data = payload.data || {};
+          if (data.type) {
+            switch (data.type) {
+              case 'mensaje':
+                // Navegar al chat con el usuario específico
+                if (data.senderId) {
+                  window.location.href = `/chat/${data.senderId}`;
+                }
+                break;
+              case 'cotizacion_recibida':
+                // Navegar a cotizaciones
+                window.location.href = '/mis-cotizaciones';
+                break;
+              case 'resena_recibida':
+                // Navegar al perfil profesional
+                window.location.href = '/mi-cuenta';
+                break;
+              case 'servicio_completado':
+                // Navegar a reseñas
+                window.location.href = '/cliente/resenas';
+                break;
+              default:
+                // Navegar al dashboard por defecto
+                window.location.href = '/mi-cuenta';
+            }
+          }
         };
+
+        // Auto-cierre para móviles (mejor UX)
+        if (isMobile) {
+          setTimeout(() => {
+            notification.close();
+          }, 5000); // 5 segundos en móvil
+        }
       }
 
       // Ejecutar callback con los datos del mensaje
@@ -206,6 +258,56 @@ export const requestNotificationPermission = async () => {
 
   const permission = await Notification.requestPermission();
   return permission;
+};
+
+/**
+ * @función isMobileDevice - Detectar si el dispositivo es móvil
+ * @descripción Verifica si el usuario está accediendo desde un dispositivo móvil
+ * @returns {boolean} True si es dispositivo móvil
+ */
+export const isMobileDevice = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
+/**
+ * @función initializeMobileNotifications - Inicializar notificaciones optimizadas para móvil
+ * @descripción Configura FCM con opciones específicas para dispositivos móviles
+ * @returns {Promise<Object>} Resultado de la inicialización
+ */
+export const initializeMobileNotifications = async () => {
+  try {
+    const isMobile = isMobileDevice();
+
+    if (!isMobile) {
+      // Para desktop, usar inicialización estándar
+      return await initializeFCM();
+    }
+
+    // Inicialización específica para móviles
+    console.log('Inicializando notificaciones optimizadas para móvil');
+
+    const result = await initializeFCM();
+
+    if (result.success) {
+      // Configurar opciones específicas para móviles
+      if ('vibrate' in navigator) {
+        console.log('Vibración soportada en este dispositivo');
+      }
+
+      // Verificar si es PWA instalada
+      const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                    window.navigator.standalone === true;
+
+      if (isPWA) {
+        console.log('App ejecutándose como PWA - notificaciones nativas activas');
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error inicializando notificaciones móviles:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 /**

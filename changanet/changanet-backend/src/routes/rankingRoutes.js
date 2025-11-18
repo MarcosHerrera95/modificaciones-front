@@ -1,14 +1,15 @@
-// src/routes/rankingRoutes.js
+/**
+ * Rutas para el sistema de rankings y reputación
+ * REQ-39: Sistema de rankings basado en reputación
+ */
+
 const express = require('express');
-const { getRanking, getProfessionalRanking } = require('../controllers/rankingController');
-const { authenticateToken } = require('../middleware/authenticate');
-
 const router = express.Router();
+const rankingController = require('../controllers/rankingController');
 
-// Aplicar autenticación a todas las rutas
-router.use(authenticateToken);
-
-router.get('/', getRanking);
-router.get('/professional/:professionalId', getProfessionalRanking);
+// Rutas públicas
+router.get('/professionals', rankingController.getProfessionalsRanking);
+router.get('/professionals/:professionalId', rankingController.getProfessionalRanking);
+router.get('/specialty/:specialty', rankingController.getTopProfessionalsBySpecialty);
 
 module.exports = router;

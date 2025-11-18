@@ -182,7 +182,16 @@ const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
                   </span>
                   {onScheduleService && slot.esta_disponible ? (
                     <button
-                      onClick={() => onScheduleService(slot)}
+                      onClick={async () => {
+                        try {
+                          await onScheduleService(slot);
+                          // REQ-30: Confirmación automática al agendar
+                          alert(`✅ Servicio agendado exitosamente para ${new Date(slot.hora_inicio).toLocaleString()}. Recibirás una confirmación por email y notificación push.`);
+                        } catch (error) {
+                          console.error('Error agendando servicio:', error);
+                          alert('Error al agendar el servicio. Inténtalo de nuevo.');
+                        }
+                      }}
                       className="bg-emerald-500 text-white px-3 py-1 rounded text-sm hover:bg-emerald-600 transition-colors"
                       title="Agendar servicio en este horario"
                     >

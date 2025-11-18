@@ -1,26 +1,330 @@
 /**
- * Controlador de panel de administración
- * Implementa sección 15 del PRD: Panel de Administración
- * Gestiona usuarios, estadísticas, disputas y operaciones administrativas
+ * Controlador de administración
+ * REQ-40: Panel admin para gestión de verificaciones
  */
 
-// src/controllers/adminController.js
 const { PrismaClient } = require('@prisma/client');
-const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
 const prisma = new PrismaClient();
+const logger = require('../services/logger');
 
 /**
- * Lista todos los usuarios con filtros opcionales
+ * Obtener solicitudes de verificación pendientes
  */
-exports.getUsers = async (req, res) => {
+exports.getPendingVerifications = async (req, res) => {
   try {
-    const { rol, bloqueado, page = 1, limit = 10 } = req.query;
+    const pendingRequests = await prisma.verification_requests.findMany({
+      where: {
+        estado: 'pendiente'
+      },
+      include: {
+        usuario: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true,
+            telefono: true,
+            rol: true
+          }
+        }
+      },
+      orderBy: {
+        fecha_solicitud: 'asc'
+      }
+    });
+
+    res.json({
+      success: true,
+      data: pendingRequests
+    });
+  } catch (error) {
+    logger.error('Error obteniendo verificaciones pendientes', {
+      service: 'admin',
+      error,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Aprobar una solicitud de verificación
+ */
+exports.approveVerification = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const adminId = req.user.id;
+
+    // Obtener la solicitud
+    const request = await prisma.verification_requests.findUnique({
+      where: { id: requestId },
+      include: { usuario: true }
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        error: 'Solicitud de verificación no encontrada'
+      });
+    }
+
+    if (request.estado !== 'pendiente') {
+      return res.status(400).json({
+        success: false,
+        error: 'Esta solicitud ya ha sido procesada'
+      });
+    }
+
+    // Actualizar solicitud
+    await prisma.verification_requests.update({
+      where: { id: requestId },
+      data: {
+        estado: 'aprobado',
+        revisado_por: adminId,
+        fecha_revision: new Date()
+      }
+    });
+
+    // Actualizar usuario como verificado
+    await prisma.usuarios.update({
+      where: { id: request.usuario_id },
+      data: {
+        esta_verificado: true,
+        verificado_en: new Date()
+      }
+    });
+
+    // Otorgar logro de verificación
+    const { checkAndAwardAchievements } = require('./achievementsController');
+    await checkAndAwardAchievements(request.usuario_id, 'verification_approved');
+
+    // Notificar al usuario
+    const { createNotification } = require('../services/notificationService');
+    await createNotification(
+      request.usuario_id,
+      'verificacion_aprobada',
+      '¡Felicitaciones! Tu identidad ha sido verificada exitosamente.',
+      { verification_request_id: requestId }
+    );
+
+    logger.info('Verification approved', {
+      service: 'admin',
+      adminId,
+      userId: request.usuario_id,
+      requestId
+    });
+
+    res.json({
+      success: true,
+      message: 'Verificación aprobada exitosamente'
+    });
+
+  } catch (error) {
+    logger.error('Error aprobando verificación', {
+      service: 'admin',
+      error,
+      requestId: req.params.requestId,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Rechazar una solicitud de verificación
+ */
+exports.rejectVerification = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { motivo_rechazo } = req.body;
+    const adminId = req.user.id;
+
+    // Obtener la solicitud
+    const request = await prisma.verification_requests.findUnique({
+      where: { id: requestId },
+      include: { usuario: true }
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        error: 'Solicitud de verificación no encontrada'
+      });
+    }
+
+    if (request.estado !== 'pendiente') {
+      return res.status(400).json({
+        success: false,
+        error: 'Esta solicitud ya ha sido procesada'
+      });
+    }
+
+    // Actualizar solicitud
+    await prisma.verification_requests.update({
+      where: { id: requestId },
+      data: {
+        estado: 'rechazado',
+        motivo_rechazo: motivo_rechazo || 'Documentación insuficiente',
+        revisado_por: adminId,
+        fecha_revision: new Date()
+      }
+    });
+
+    // Notificar al usuario
+    const { createNotification } = require('../services/notificationService');
+    await createNotification(
+      request.usuario_id,
+      'verificacion_rechazada',
+      `Tu solicitud de verificación ha sido rechazada. Motivo: ${motivo_rechazo || 'Documentación insuficiente'}`,
+      { verification_request_id: requestId }
+    );
+
+    logger.info('Verification rejected', {
+      service: 'admin',
+      adminId,
+      userId: request.usuario_id,
+      requestId,
+      reason: motivo_rechazo
+    });
+
+    res.json({
+      success: true,
+      message: 'Verificación rechazada'
+    });
+
+  } catch (error) {
+    logger.error('Error rechazando verificación', {
+      service: 'admin',
+      error,
+      requestId: req.params.requestId,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Obtener estadísticas del sistema
+ */
+exports.getSystemStats = async (req, res) => {
+  try {
+    const [
+      totalUsers,
+      verifiedUsers,
+      pendingVerifications,
+      totalServices,
+      completedServices,
+      totalPayments
+    ] = await Promise.all([
+      prisma.usuarios.count(),
+      prisma.usuarios.count({ where: { esta_verificado: true } }),
+      prisma.verification_requests.count({ where: { estado: 'pendiente' } }),
+      prisma.servicios.count(),
+      prisma.servicios.count({ where: { estado: 'COMPLETADO' } }),
+      prisma.pagos.count({ where: { estado: 'liberado' } })
+    ]);
+
+    // Calcular ingresos totales
+    const paymentsResult = await prisma.pagos.aggregate({
+      where: { estado: 'liberado' },
+      _sum: { comision_plataforma: true }
+    });
+
+    const totalRevenue = paymentsResult._sum.comision_plataforma || 0;
+
+    res.json({
+      success: true,
+      data: {
+        users: {
+          total: totalUsers,
+          verified: verifiedUsers,
+          pendingVerifications: pendingVerifications
+        },
+        services: {
+          total: totalServices,
+          completed: completedServices,
+          completionRate: totalServices > 0 ? (completedServices / totalServices * 100).toFixed(1) : 0
+        },
+        payments: {
+          totalProcessed: totalPayments,
+          totalRevenue: totalRevenue
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error obteniendo estadísticas del sistema', {
+      service: 'admin',
+      error,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Liberar fondos manualmente (para administradores)
+ */
+exports.manualReleaseFunds = async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const adminId = req.user.id;
+
+    const { releaseFunds } = require('../services/mercadoPagoService');
+    await releaseFunds(paymentId);
+
+    logger.info('Manual funds release', {
+      service: 'admin',
+      adminId,
+      paymentId
+    });
+
+    res.json({
+      success: true,
+      message: 'Fondos liberados manualmente'
+    });
+
+  } catch (error) {
+    logger.error('Error liberando fondos manualmente', {
+      service: 'admin',
+      error,
+      paymentId: req.params.paymentId,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Obtener lista de usuarios con filtros
+ */
+exports.getUsersList = async (req, res) => {
+  try {
+    const { page = 1, limit = 20, role, verified, search } = req.query;
 
     const where = {};
-    if (rol) where.rol = rol;
-    if (bloqueado !== undefined) where.bloqueado = bloqueado === 'true';
-
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    if (role) where.rol = role;
+    if (verified !== undefined) where.esta_verificado = verified === 'true';
+    if (search) {
+      where.OR = [
+        { nombre: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } }
+      ];
+    }
 
     const users = await prisma.usuarios.findMany({
       where,
@@ -35,14 +339,13 @@ exports.getUsers = async (req, res) => {
         _count: {
           select: {
             servicios_como_cliente: true,
-            servicios_como_profesional: true,
-            resenas_escritas: true
+            servicios_como_profesional: true
           }
         }
       },
-      skip,
-      take: parseInt(limit),
-      orderBy: { creado_en: 'desc' }
+      orderBy: { creado_en: 'desc' },
+      skip: (page - 1) * limit,
+      take: parseInt(limit)
     });
 
     const total = await prisma.usuarios.count({ where });
@@ -54,144 +357,21 @@ exports.getUsers = async (req, res) => {
         page: parseInt(page),
         limit: parseInt(limit),
         total,
-        pages: Math.ceil(total / parseInt(limit))
+        pages: Math.ceil(total / limit)
       }
     });
+
   } catch (error) {
-    console.error('Error obteniendo usuarios:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    logger.error('Error obteniendo lista de usuarios', {
+      service: 'admin',
+      error,
+      userId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
   }
 };
 
-/**
- * Bloquea o desbloquea un usuario
- */
-exports.toggleUserBlock = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { bloqueado, razon } = req.body;
-
-    const user = await prisma.usuarios.findUnique({
-      where: { id: userId },
-      select: { id: true, nombre: true, email: true, bloqueado: true }
-    });
-
-    if (!user) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
-
-    // Actualizar estado de bloqueo
-    await prisma.usuarios.update({
-      where: { id: userId },
-      data: { bloqueado }
-    });
-
-    // Enviar notificación al usuario
-    const notificationType = bloqueado ? 'cuenta_bloqueada' : 'cuenta_desbloqueada';
-    const message = bloqueado
-      ? `Tu cuenta ha sido bloqueada. Razón: ${razon || 'Violación de términos de servicio'}`
-      : 'Tu cuenta ha sido desbloqueada. Ya puedes acceder nuevamente.';
-
-    await createNotification(userId, notificationType, message);
-
-    res.json({
-      success: true,
-      message: `Usuario ${bloqueado ? 'bloqueado' : 'desbloqueado'} correctamente`,
-      data: { userId, bloqueado }
-    });
-  } catch (error) {
-    console.error('Error cambiando estado de bloqueo:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
-/**
- * Obtiene estadísticas generales de la plataforma
- */
-exports.getPlatformStats = async (req, res) => {
-  try {
-    const [
-      totalUsers,
-      totalProfessionals,
-      totalClients,
-      totalServices,
-      completedServices,
-      totalPayments,
-      pendingVerifications
-    ] = await Promise.all([
-      prisma.usuarios.count(),
-      prisma.usuarios.count({ where: { rol: 'profesional' } }),
-      prisma.usuarios.count({ where: { rol: 'cliente' } }),
-      prisma.servicios.count(),
-      prisma.servicios.count({ where: { estado: 'COMPLETADO' } }),
-      prisma.pagos.count(),
-      prisma.verification_requests.count({ where: { estado: 'pendiente' } })
-    ]);
-
-    res.json({
-      success: true,
-      data: {
-        usuarios: {
-          total: totalUsers,
-          profesionales: totalProfessionals,
-          clientes: totalClients
-        },
-        servicios: {
-          total: totalServices,
-          completados: completedServices,
-          tasa_completacion: totalServices > 0 ? (completedServices / totalServices * 100).toFixed(2) : 0
-        },
-        pagos: {
-          total: totalPayments
-        },
-        verificaciones: {
-          pendientes: pendingVerifications
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error obteniendo estadísticas:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
-
-/**
- * Lista disputas entre usuarios (servicios con problemas)
- */
-exports.getDisputes = async (req, res) => {
-  try {
-    // Servicios que podrían tener disputas (cancelados o con reseñas negativas)
-    const disputes = await prisma.servicios.findMany({
-      where: {
-        OR: [
-          { estado: 'CANCELADO' },
-          {
-            AND: [
-              { estado: 'COMPLETADO' },
-              {
-                resena: {
-                  calificacion: { lte: 2 } // Reseñas muy negativas
-                }
-              }
-            ]
-          }
-        ]
-      },
-      include: {
-        cliente: { select: { nombre: true, email: true } },
-        profesional: { select: { nombre: true, email: true } },
-        resena: true
-      },
-      orderBy: { creado_en: 'desc' },
-      take: 50
-    });
-
-    res.json({
-      success: true,
-      data: disputes
-    });
-  } catch (error) {
-    console.error('Error obteniendo disputas:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-};
+module.exports = exports;

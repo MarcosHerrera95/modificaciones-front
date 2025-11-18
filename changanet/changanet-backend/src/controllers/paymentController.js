@@ -9,6 +9,8 @@
  */
 
 const paymentService = require('../services/paymentsService');
+const mercadoPagoService = require('../services/mercadoPagoService');
+const receiptService = require('../services/receiptService');
 const logger = require('../services/logger');
 
 /**
@@ -19,43 +21,95 @@ const logger = require('../services/logger');
  */
 async function createPaymentPreference(req, res) {
   try {
-    const { serviceId, amount, professionalEmail, specialty } = req.body;
+    const { serviceId } = req.body;
     const clientId = req.user.id; // Obtenido del middleware de autenticación
 
     // Validar campos requeridos
-    if (!serviceId || !amount || !professionalEmail || !specialty) {
-      logger.warn('Payment preference creation failed: missing required fields', {
+    if (!serviceId) {
+      logger.warn('Payment preference creation failed: missing serviceId', {
         service: 'payments',
         userId: clientId,
         serviceId,
-        amount,
         ip: req.ip
       });
       return res.status(400).json({
-        error: 'Faltan campos requeridos: serviceId, amount, professionalEmail, specialty',
+        error: 'Falta campo requerido: serviceId',
       });
     }
 
-    // Validar que amount sea un número positivo
-    if (typeof amount !== 'number' || amount <= 0) {
-      logger.warn('Payment preference creation failed: invalid amount', {
-        service: 'payments',
-        userId: clientId,
-        serviceId,
-        amount,
-        ip: req.ip
+    // Obtener detalles del servicio
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
+      include: {
+        cliente: true,
+        profesional: {
+          include: {
+            perfil_profesional: true
+          }
+        },
+        pago: true
+      }
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        error: 'Servicio no encontrado',
       });
+    }
+
+    // Verificar que el cliente sea el propietario del servicio
+    if (service.cliente_id !== clientId) {
+      return res.status(403).json({
+        error: 'No tienes permiso para pagar este servicio',
+      });
+    }
+
+    // Verificar que no haya un pago ya creado
+    if (service.pago) {
       return res.status(400).json({
-        error: 'El monto debe ser un número positivo',
+        error: 'Ya existe un pago para este servicio',
       });
     }
 
-    const preference = await paymentService.createPaymentPreference({
+    // Calcular monto total (debe venir del frontend o calcularse)
+    const amount = req.body.amount || service.profesional.perfil_profesional?.tarifa_hora || 1000;
+
+    // Crear preferencia de pago con Mercado Pago
+    const preference = await mercadoPagoService.createPaymentPreference({
       serviceId,
       amount,
-      professionalEmail,
-      specialty,
-      clientId,
+      description: service.descripcion,
+      client: {
+        id: service.cliente.id,
+        nombre: service.cliente.nombre,
+        email: service.cliente.email
+      },
+      professional: {
+        id: service.profesional.id,
+        nombre: service.profesional.nombre,
+        email: service.profesional.email
+      }
+    });
+
+    // Crear registro de pago en custodia
+    const commissionRate = 0.05; // 5% según PRD
+    const commission = amount * commissionRate;
+    const professionalAmount = amount - commission;
+
+    const payment = await prisma.pagos.create({
+      data: {
+        servicio_id: serviceId,
+        cliente_id: clientId,
+        profesional_id: service.profesional.id,
+        monto_total: amount,
+        comision_plataforma: commission,
+        monto_profesional: professionalAmount,
+        estado: 'pendiente',
+        mercado_pago_preference_id: preference.id
+      }
     });
 
     logger.info('Payment preference created successfully', {
@@ -64,19 +118,22 @@ async function createPaymentPreference(req, res) {
       serviceId,
       amount,
       preferenceId: preference.id,
+      paymentId: payment.id,
       ip: req.ip
     });
 
     res.status(201).json({
       success: true,
-      data: preference,
+      data: {
+        ...preference,
+        paymentId: payment.id
+      },
     });
   } catch (error) {
     logger.error('Payment preference creation error', {
       service: 'payments',
       userId: req.user?.id,
       serviceId: req.body.serviceId,
-      amount: req.body.amount,
       error,
       ip: req.ip
     });
@@ -167,6 +224,7 @@ async function getPaymentStatus(req, res) {
 
 /**
  * Maneja webhooks de Mercado Pago
+ * REQ-41: Integración real con Mercado Pago
  */
 async function handleWebhook(req, res) {
   try {
@@ -183,25 +241,14 @@ async function handleWebhook(req, res) {
     if (type === 'payment') {
       const paymentId = data.id;
 
-      // Obtener detalles del pago
-      const paymentStatus = await paymentService.getPaymentStatus(paymentId);
+      // Procesar webhook con Mercado Pago service
+      await mercadoPagoService.processPaymentWebhook(data);
 
-      if (paymentStatus.status === 'approved') {
-        logger.info('Payment approved via webhook', {
-          service: 'payments',
-          paymentId,
-          amount: paymentStatus.amount,
-          userId: paymentStatus.userId
-        });
-        // Aquí podrías actualizar el estado del servicio o enviar notificaciones
-      } else if (paymentStatus.status === 'rejected') {
-        logger.warn('Payment rejected via webhook', {
-          service: 'payments',
-          paymentId,
-          amount: paymentStatus.amount,
-          userId: paymentStatus.userId
-        });
-      }
+      logger.info('Payment webhook processed successfully', {
+        service: 'payments',
+        paymentId,
+        ip: req.ip
+      });
     }
 
     // Responder a Mercado Pago
@@ -275,14 +322,59 @@ async function generateReceipt(req, res) {
       });
     }
 
-    const result = await paymentService.generatePaymentReceipt(paymentId);
+    // Generar y guardar comprobante
+    const receiptUrl = await receiptService.generateAndSaveReceipt(paymentId);
+
+    logger.info('Receipt generated successfully', {
+      service: 'payments',
+      paymentId,
+      receiptUrl,
+      userId: req.user?.id,
+      ip: req.ip
+    });
 
     res.json({
       success: true,
-      data: result,
+      data: {
+        receiptUrl,
+        message: 'Comprobante generado exitosamente'
+      },
     });
   } catch (error) {
-    console.error('Error generando comprobante:', error);
+    logger.error('Error generating receipt', {
+      service: 'payments',
+      paymentId: req.params.paymentId,
+      error,
+      userId: req.user?.id,
+      ip: req.ip
+    });
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
+/**
+ * Descarga un comprobante de pago
+ */
+async function downloadReceipt(req, res) {
+  try {
+    const { fileName } = req.params;
+
+    if (!fileName) {
+      return res.status(400).json({
+        error: 'Se requiere nombre de archivo',
+      });
+    }
+
+    const fileBuffer = await receiptService.getReceiptFile(fileName);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(fileBuffer);
+
+  } catch (error) {
+    console.error('Error descargando comprobante:', error);
     res.status(500).json({
       error: error.message || 'Error interno del servidor',
     });
@@ -296,4 +388,5 @@ module.exports = {
   handleWebhook,
   withdrawFunds,
   generateReceipt,
+  downloadReceipt,
 };

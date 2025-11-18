@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useFavorites } from '../hooks/useFavorites';
 import QuoteRequestModal from './modals/QuoteRequestModal';
 import VerifiedBadge from './VerifiedBadge';
 import RatingDisplay from './RatingDisplay';
@@ -9,9 +10,11 @@ import { getDistanceMatrix, getSimulatedCoordinates, calculateHaversineDistance 
 
 const ProfessionalCard = ({ professional }) => {
   const { user } = useAuth();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [distance, setDistance] = useState('Calculando...');
   const [loading, setLoading] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   const distanceCalculatedRef = useRef(false);
 
   const handleQuoteRequest = () => {
@@ -20,6 +23,29 @@ const ProfessionalCard = ({ professional }) => {
       return;
     }
     setShowQuoteModal(true);
+  };
+
+  const handleToggleFavorite = async () => {
+    if (!user) {
+      alert('Debes iniciar sesión para agregar a favoritos.');
+      return;
+    }
+    if (user.rol !== 'cliente') {
+      alert('Solo los clientes pueden agregar profesionales a favoritos.');
+      return;
+    }
+
+    setFavoriteLoading(true);
+    try {
+      const success = await toggleFavorite(professional.usuario_id);
+      if (success) {
+        // Feedback visual ya se maneja en el hook
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    } finally {
+      setFavoriteLoading(false);
+    }
   };
 
   // Calcular distancia usando Google Maps API o fallback
@@ -105,9 +131,45 @@ const ProfessionalCard = ({ professional }) => {
   }, [calculateDistance]);
 
   return (
-    <div className="professional-card card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll">
+    <div className="professional-card card-glow p-8 rounded-3xl overflow-hidden group hover-lift animate-on-scroll relative">
       {/* Background gradient on hover */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-cyan-50/50 opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
+
+      {/* Favorite button - top right corner */}
+      {user && user.rol === 'cliente' && (
+        <button
+          onClick={handleToggleFavorite}
+          disabled={favoriteLoading}
+          className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-all duration-300 ${
+            isFavorite(professional.usuario_id)
+              ? 'bg-red-500 text-white hover:bg-red-600'
+              : 'bg-white/80 text-gray-600 hover:bg-white hover:text-red-500'
+          } shadow-lg hover:shadow-xl disabled:opacity-50`}
+          aria-label={
+            isFavorite(professional.usuario_id)
+              ? 'Remover de favoritos'
+              : 'Agregar a favoritos'
+          }
+        >
+          {favoriteLoading ? (
+            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <svg
+              className={`w-5 h-5 ${isFavorite(professional.usuario_id) ? 'fill-current' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+              />
+            </svg>
+          )}
+        </button>
+      )}
 
       <div className="relative flex flex-col md:flex-row">
         <div className="flex-shrink-0 mb-6 md:mb-0 md:mr-8">

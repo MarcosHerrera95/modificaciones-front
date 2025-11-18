@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Rankings from '../Rankings';
+import { useFavorites } from '../../hooks/useFavorites';
 
 const ClientDashboard = ({ user }) => {
   const navigate = useNavigate();
+  const { favorites } = useFavorites();
   const [stats, setStats] = useState({
     activeServices: 0,
     pendingQuotes: 0,
@@ -185,6 +188,57 @@ const ClientDashboard = ({ user }) => {
           <h3 className="text-lg font-semibold mb-1">Mis Cotizaciones</h3>
           <p className="text-sm text-gray-600">Revisa tus solicitudes</p>
         </Link>
+      </div>
+
+      {/* Profesionales Favoritos */}
+      {favorites.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+            <svg className="w-6 h-6 mr-2 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/>
+            </svg>
+            Mis Profesionales Favoritos
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {favorites.slice(0, 6).map((favorite) => (
+              <div key={favorite.profesional_id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div className="flex items-center space-x-3">
+                  <img
+                    src={favorite.profesional.url_foto_perfil || 'https://placehold.co/40x40?text=👷'}
+                    alt={favorite.profesional.nombre}
+                    className="w-10 h-10 rounded-full object-cover"
+                  />
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900">{favorite.profesional.nombre}</h4>
+                    <p className="text-sm text-gray-600">{favorite.profesional.perfil_profesional?.especialidad}</p>
+                    <p className="text-sm text-gray-500">{favorite.profesional.perfil_profesional?.zona_cobertura}</p>
+                  </div>
+                  <Link
+                    to={`/profesional/${favorite.profesional_id}`}
+                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+                  >
+                    Ver perfil
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+          {favorites.length > 6 && (
+            <div className="text-center mt-4">
+              <Link
+                to="/profesionales?favoritos=true"
+                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium"
+              >
+                Ver todos mis favoritos ({favorites.length})
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Rankings Section */}
+      <div className="mt-8">
+        <Rankings />
       </div>
     </div>
   );

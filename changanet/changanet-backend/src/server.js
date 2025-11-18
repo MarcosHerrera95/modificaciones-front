@@ -92,11 +92,15 @@ const recurringServiceRoutes = require('./routes/recurringServiceRoutes');
 const mapsRoutes = require('./routes/mapsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const smsRoutes = require('./routes/smsRoutes');
+const favoritesRoutes = require('./routes/favoritesRoutes');
+const achievementsRoutes = require('./routes/achievementsRoutes');
+const rankingRoutes = require('./routes/rankingRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
 const { sendNotification } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
 const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
 const { scheduleRecurringServiceGeneration } = require('./services/recurringServiceScheduler');
+const { initializeDefaultAchievements } = require('./controllers/achievementsController');
 
 // Importar documentación Swagger
 const swaggerUi = require('swagger-ui-express');
@@ -115,6 +119,13 @@ backupService.initialize().then(success => {
   } else {
     console.warn('⚠️  Servicio de backup no pudo inicializarse');
   }
+});
+
+// Inicializar logros por defecto
+initializeDefaultAchievements().then(() => {
+  console.log('🏆 Logros por defecto inicializados');
+}).catch(error => {
+  console.error('❌ Error inicializando logros:', error);
 });
 const app = express();
 const server = http.createServer(app);
@@ -437,6 +448,12 @@ app.use('/api/upload', uploadRoutes);
 
 // Rutas de SMS (solo en desarrollo)
 app.use('/api/sms', smsRoutes);
+
+// Rutas de favoritos con autenticación requerida
+app.use('/api/favorites', favoritesRoutes);
+
+// Rutas de logros y gamificación
+app.use('/api/achievements', achievementsRoutes);
 
 /**
  * Configuración de eventos de Socket.IO para chat en tiempo real.

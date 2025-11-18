@@ -33,6 +33,10 @@ router.post('/withdraw', authenticateToken, paymentController.withdrawFunds);
 // Genera y obtiene comprobante de pago
 router.get('/receipt/:paymentId', authenticateToken, paymentController.generateReceipt);
 
+// GET /api/payments/receipts/:fileName
+// Descarga un comprobante de pago
+router.get('/receipts/:fileName', authenticateToken, paymentController.downloadReceipt);
+
 // POST /api/payments/auto-release
 // Liberación automática de fondos (para cron jobs - sin autenticación requerida)
 router.post('/auto-release', async (req, res) => {

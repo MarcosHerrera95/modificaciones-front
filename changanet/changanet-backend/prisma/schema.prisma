@@ -74,6 +74,13 @@ model usuarios {
   servicios_recurrrentes_cliente servicios_recurrrentes[] @relation("ServicioRecurrenteCliente")
   servicios_recurrrentes_profesional servicios_recurrrentes[] @relation("ServicioRecurrenteProfesional")
 
+  // Relaciones para favoritos
+  favoritos_como_cliente favoritos[] @relation("FavoritoCliente")
+  favoritos_como_profesional favoritos[] @relation("FavoritoProfesional")
+
+  // Relaciones para logros y gamificación
+  logros_obtenidos logros_usuario[]
+
   @@index([rol])
   @@index([esta_verificado])
   @@index([telefono])
@@ -324,3 +331,58 @@ model servicios_recurrrentes {
 // - estado (cotizaciones): "pendiente", "aceptado", "rechazado"
 // - frecuencia (servicios_recurrrentes): "semanal", "quincenal", "mensual", "bimestral", "trimestral"
 // - estado (pagos): "pendiente", "aprobado", "liberado", "reembolsado"
+
+// MODELO: favoritos
+// FUNCIÓN: Permite a los clientes marcar profesionales como favoritos para acceso rápido
+// RELACIÓN PRD: Mejora UX para clientes recurrentes
+// SPRINT: Mejoras de UX
+model favoritos {
+  id             String   @id @default(uuid())
+  cliente_id     String
+  cliente        usuarios @relation("FavoritoCliente", fields: [cliente_id], references: [id])
+  profesional_id String
+  profesional    usuarios @relation("FavoritoProfesional", fields: [profesional_id], references: [id])
+  creado_en      DateTime @default(now())
+
+  @@unique([cliente_id, profesional_id]) // Un cliente solo puede tener un favorito por profesional
+  @@index([cliente_id])
+  @@index([profesional_id])
+}
+
+// MODELO: logros
+// FUNCIÓN: Sistema de medallas y logros para gamificación (REQ-38)
+// RELACIÓN PRD: REQ-38 (Medallas por logros)
+// SPRINT: Gamificación
+model logros {
+  id          String   @id @default(uuid())
+  nombre      String   // Nombre del logro (ej: "Primer Servicio", "Cliente Recurrente")
+  descripcion String   // Descripción del logro
+  icono       String   // Emoji o URL del icono
+  categoria   String   // "servicios", "resenas", "verificacion", "experiencia"
+  criterio    String   // Condición para obtener el logro (ej: "servicios_completados >= 1")
+  puntos      Int      @default(0) // Puntos que otorga el logro
+  activo      Boolean  @default(true)
+  creado_en   DateTime @default(now())
+
+  // Relación con logros obtenidos por usuarios
+  logros_usuario logros_usuario[]
+
+  @@index([categoria])
+  @@index([activo])
+}
+
+// MODELO: logros_usuario
+// FUNCIÓN: Registra qué logros ha obtenido cada usuario
+// RELACIÓN PRD: REQ-38 (Sistema de medallas)
+model logros_usuario {
+  id         String   @id @default(uuid())
+  usuario_id String
+  usuario    usuarios @relation(fields: [usuario_id], references: [id])
+  logro_id   String
+  logro      logros   @relation(fields: [logro_id], references: [id])
+  obtenido_en DateTime @default(now())
+
+  @@unique([usuario_id, logro_id]) // Un usuario solo puede obtener un logro una vez
+  @@index([usuario_id])
+  @@index([logro_id])
+}

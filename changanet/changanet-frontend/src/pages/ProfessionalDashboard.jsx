@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
+import Achievements from '../components/Achievements';
 import '../styles/onboarding.css';
 
 const ProfessionalDashboard = () => {
@@ -148,6 +149,7 @@ const ProfessionalDashboard = () => {
     { id: 'services', name: 'Mis Servicios', icon: '🔧' },
     { id: 'quotes', name: 'Cotizaciones', icon: '💰' },
     { id: 'schedule', name: 'Mi Agenda', icon: '📅' },
+    { id: 'achievements', name: 'Logros', icon: '🏆' },
     { id: 'verification', name: 'Verificación', icon: '✅' },
     { id: 'payments', name: 'Pagos', icon: '💳' }
   ];
@@ -297,6 +299,9 @@ const ProfessionalDashboard = () => {
             </button>
           </div>
         );
+
+      case 'achievements':
+        return <Achievements />;
 
       case 'verification':
         return (

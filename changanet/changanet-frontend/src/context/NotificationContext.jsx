@@ -1,6 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { useAuth } from './AuthContext';
-import { initializeFCM, onFCMMessage, checkNotificationPermission, requestNotificationPermission } from '../services/fcmService';
+import { initializeMobileNotifications, onFCMMessage, checkNotificationPermission, requestNotificationPermission } from '../services/fcmService';
 import { useNotifications } from '../hooks/useNotifications';
 
 // Disable hot reload for this file to prevent React hooks issues during hot reload
@@ -36,8 +36,8 @@ export const NotificationProvider = ({ children }) => {
       // Verificar estado actual de permisos
       setNotificationPermission(Notification.permission);
 
-      // Inicializar FCM cuando el usuario está autenticado
-      initializeFCM().then((result) => {
+      // Inicializar FCM cuando el usuario está autenticado (con soporte móvil)
+      initializeMobileNotifications().then((result) => {
         if (result.success) {
           console.log('FCM inicializado correctamente');
           setNotificationPermission('granted');
