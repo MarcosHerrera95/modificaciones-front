@@ -10,7 +10,8 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 const GoogleLoginButton = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const backendUrl = 'http://localhost:3003'; // URL del backend externo
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003'; // URL del backend externo
+  console.log('GoogleLoginButton: Using backend URL:', backendUrl);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
