@@ -80,7 +80,7 @@ export const getDistanceMatrix = async (origin, destination) => {
     console.log('📍 Destination:', destination);
 
     // Llamar al endpoint del backend para calcular distancia
-    const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+    const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
     const response = await fetch(`${apiBaseUrl}/api/maps/distance`, {
       method: 'POST',
       headers: {

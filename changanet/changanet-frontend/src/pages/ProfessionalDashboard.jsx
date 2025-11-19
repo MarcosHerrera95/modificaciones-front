@@ -57,7 +57,7 @@ const ProfessionalDashboard = () => {
       }
 
       // Use correct backend URL
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       console.log('Using backend URL:', apiBaseUrl);
 
       // Load real stats from API
@@ -148,6 +148,7 @@ const ProfessionalDashboard = () => {
     { id: 'profile', name: 'Mi Perfil', icon: '👤' },
     { id: 'services', name: 'Mis Servicios', icon: '🔧' },
     { id: 'quotes', name: 'Cotizaciones', icon: '💰' },
+    { id: 'messages', name: 'Mensajes', icon: '💬' },
     { id: 'schedule', name: 'Mi Agenda', icon: '📅' },
     { id: 'achievements', name: 'Logros', icon: '🏆' },
     { id: 'verification', name: 'Verificación', icon: '✅' },
@@ -283,6 +284,20 @@ const ProfessionalDashboard = () => {
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Cotizaciones
+            </button>
+          </div>
+        );
+
+      case 'messages':
+        return (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mensajes de Clientes</h3>
+            <p className="text-gray-600 mb-4">Responde a consultas y coordina servicios</p>
+            <button
+              onClick={() => navigate('/profesional/mensajes')}
+              className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
+            >
+              Ver Mensajes
             </button>
           </div>
         );

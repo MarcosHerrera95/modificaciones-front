@@ -24,7 +24,7 @@ class SocketService {
     }
 
     const token = localStorage.getItem('changanet_token');
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
 
     console.log('Conectando a Socket.IO:', backendUrl);
 

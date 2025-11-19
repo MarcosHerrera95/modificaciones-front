@@ -104,11 +104,12 @@ const ClientProfile = () => {
       if (selectedFile) {
         // If there's a file to upload, use FormData
         const formData = new FormData();
-        formData.append('foto_perfil', selectedFile);
+        formData.append('foto', selectedFile);
         formData.append('nombre', profile.nombre);
         formData.append('email', profile.email);
         formData.append('telefono', profile.telefono);
-        // Note: direccion and preferencias_servicio are not stored in current schema
+        formData.append('direccion', profile.direccion);
+        formData.append('preferencias_servicio', profile.preferencias_servicio);
 
         response = await fetch('/api/profile', {
           method: 'PUT',
@@ -123,8 +124,9 @@ const ClientProfile = () => {
         const updateData = {
           nombre: profile.nombre,
           email: profile.email,
-          telefono: profile.telefono
-          // Note: direccion and preferencias_servicio are not stored in current schema
+          telefono: profile.telefono,
+          direccion: profile.direccion,
+          preferencias_servicio: profile.preferencias_servicio
         };
 
         response = await fetch('/api/profile', {
@@ -149,6 +151,17 @@ const ClientProfile = () => {
             telefono: data.usuario.telefono
           };
           login(updatedUser, localStorage.getItem('changanet_token'));
+        }
+
+        // Update local profile state with all saved data
+        if (data.usuario) {
+          setProfile({
+            nombre: data.usuario.nombre || '',
+            email: data.usuario.email || '',
+            telefono: data.usuario.telefono || '',
+            direccion: data.usuario.direccion || '',
+            preferencias_servicio: data.usuario.preferencias_servicio || ''
+          });
         }
 
         setSuccess('Perfil cliente actualizado con éxito.');

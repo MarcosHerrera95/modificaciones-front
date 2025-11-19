@@ -36,7 +36,7 @@ const useProfessionals = () => {
       urlParams.set('sort_by', sortBy);
       urlParams.set('limit', '100');
 
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const url = `${apiBaseUrl}/api/professionals?${urlParams.toString()}`;
       console.log('Fetching professionals:', url);
       const response = await fetch(url, {

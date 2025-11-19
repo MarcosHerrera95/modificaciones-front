@@ -56,6 +56,10 @@ model usuarios {
   fcm_token             String?   // Token para notificaciones push FCM
   sms_enabled           Boolean   @default(false) // Permite envío de notificaciones SMS
 
+  // Campos adicionales para perfil de cliente
+  direccion             String?   // Dirección del cliente
+  preferencias_servicio String?   // Preferencias de servicio del cliente
+
   perfil_profesional perfiles_profesionales?
   servicios_como_cliente servicios[] @relation("ServicioCliente")
   servicios_como_profesional servicios[] @relation("ServicioProfesional")

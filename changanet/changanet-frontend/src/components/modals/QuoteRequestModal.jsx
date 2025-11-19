@@ -23,7 +23,7 @@ const QuoteRequestModal = ({ isOpen, onClose, professionalId, professionalName }
     setLoading(true);
 
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const response = await fetch(`${apiBaseUrl}/api/quotes/request`, {
         method: 'POST',
         headers: {

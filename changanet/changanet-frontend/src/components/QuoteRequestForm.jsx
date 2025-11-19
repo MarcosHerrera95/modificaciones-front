@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useChat } from '../context/ChatContext';
 import QuickMessageModal from './QuickMessageModal';
 
 /**
@@ -27,6 +28,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
   const [loading, setLoading] = useState(false);
   const [showQuickMessage, setShowQuickMessage] = useState(false);
   const navigate = useNavigate();
+  const { sendMessage } = useChat();
 
   /**
    * @función handleChange - Manejar cambios en inputs del formulario
@@ -60,6 +62,8 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
     console.log('Token exists:', !!localStorage.getItem('changanet_token'));
     console.log('Token:', localStorage.getItem('changanet_token'));
 
+    console.log('Sending quote request with professionalId:', professionalId);
+
     try {
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/quotes`, {
         method: 'POST',
@@ -68,9 +72,9 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({
-          profesional_id: professionalId,
           descripcion: formData.descripción,
-          zona_cobertura: formData.zona_cobertura
+          zona_cobertura: formData.zona_cobertura,
+          profesionales_ids: `[${JSON.stringify(professionalId)}]`
         })
       });
 
@@ -278,8 +282,8 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
         onClose={() => setShowQuickMessage(false)}
         professionalName={professionalName || 'el profesional'}
         onSendMessage={(message) => {
-          // Here you would integrate with your chat service
-          console.log('Sending quick message:', message);
+          // Enviar mensaje rápido usando ChatContext
+          sendMessage(professionalId, message);
         }}
       />
     </div>

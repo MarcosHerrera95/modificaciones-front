@@ -7,7 +7,7 @@
  */
 // Removed unused Firebase messaging import
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
 
 // Función para obtener notificaciones del usuario
 export const getNotifications = async () => {

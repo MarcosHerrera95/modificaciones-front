@@ -49,6 +49,7 @@ const upload = multer({
 const conditionalUpload = (req, res, next) => {
   // Si el Content-Type es multipart/form-data, aplicar multer
   if (req.headers['content-type'] && req.headers['content-type'].startsWith('multipart/form-data')) {
+    console.log('🔍 Aplicando multer para subida de archivo, esperando campo "foto"');
     return upload.single('foto')(req, res, next); // Campo genérico 'foto'
   }
   // Si no es multipart, continuar sin multer
@@ -94,7 +95,7 @@ router.get('/', authenticateToken, async (req, res) => {
       // Para clientes, devolver info básica del usuario incluyendo foto de perfil
       const user = await prisma.usuarios.findUnique({
         where: { id: userId },
-        select: { id: true, nombre: true, email: true, telefono: true, rol: true, url_foto_perfil: true }
+        select: { id: true, nombre: true, email: true, telefono: true, rol: true, url_foto_perfil: true, direccion: true, preferencias_servicio: true }
       });
       res.status(200).json({ usuario: user });
     }

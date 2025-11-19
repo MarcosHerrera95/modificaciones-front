@@ -81,10 +81,10 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
     }
   };
 
-  if (!user || !otherUserId || !servicioId) {
+  if (!user || !otherUserId) {
     return (
       <div className="flex items-center justify-center p-4 bg-white rounded-lg shadow-sm border">
-        <span className="text-gray-600">Selecciona un servicio para iniciar el chat</span>
+        <span className="text-gray-600">Cargando chat...</span>
       </div>
     );
   }

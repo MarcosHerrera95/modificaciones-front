@@ -3,7 +3,7 @@
  * Permite a los clientes gestionar profesionales favoritos
  */
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
 
 /**
  * Agregar un profesional a favoritos

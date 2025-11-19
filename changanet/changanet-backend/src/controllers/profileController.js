@@ -183,7 +183,17 @@ exports.updateProfile = async (req, res) => {
       await invalidateProfessionalProfile(userId);
       console.log('🗑️ Professional profile cache invalidated');
 
-      res.status(200).json(profile);
+      console.log('✅ Professional profile updated successfully');
+      res.status(200).json({
+        message: 'Perfil profesional actualizado exitosamente',
+        perfil: profile,
+        usuario: {
+          nombre: user.nombre,
+          email: user.email,
+          rol: user.rol,
+          esta_verificado: user.esta_verificado
+        }
+      });
     } else if (user.rol === 'cliente') {
       // Update client profile (basic user info)
       let url_foto_perfil = user.url_foto_perfil;
@@ -213,8 +223,8 @@ exports.updateProfile = async (req, res) => {
           email,
           telefono,
           url_foto_perfil,
-          // Note: Currently only nombre, email, telefono are stored in usuarios table
-          // direccion and preferencias_servicio will be added in future schema updates
+          direccion,
+          preferencias_servicio
         },
         select: {
           id: true,
@@ -223,12 +233,27 @@ exports.updateProfile = async (req, res) => {
           telefono: true,
           rol: true,
           esta_verificado: true,
-          url_foto_perfil: true
+          url_foto_perfil: true,
+          direccion: true,
+          preferencias_servicio: true
         }
       });
 
       console.log('✅ Client profile updated successfully');
-      res.status(200).json({ usuario: updatedUser });
+      res.status(200).json({
+        message: 'Perfil de cliente actualizado exitosamente',
+        usuario: updatedUser,
+        perfil: {
+          nombre: updatedUser.nombre,
+          email: updatedUser.email,
+          telefono: updatedUser.telefono,
+          url_foto_perfil: updatedUser.url_foto_perfil,
+          direccion: updatedUser.direccion,
+          preferencias_servicio: updatedUser.preferencias_servicio,
+          rol: updatedUser.rol,
+          esta_verificado: updatedUser.esta_verificado
+        }
+      });
     } else {
       return res.status(403).json({ error: 'Rol de usuario no válido.' });
     }

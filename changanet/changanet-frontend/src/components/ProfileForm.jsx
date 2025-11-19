@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 /**
  * Componente reutilizable para formularios de perfil
@@ -23,8 +23,8 @@ const ProfileForm = ({ user, profile, onSubmit, userType }) => {
         nombre: profile?.usuario?.nombre || user?.nombre || '',
         email: profile?.usuario?.email || user?.email || '',
         telefono: profile?.usuario?.telefono || '',
-        direccion: '', // Campo adicional para clientes
-        preferencias_servicio: '' // Campo adicional para clientes
+        direccion: profile?.usuario?.direccion || '',
+        preferencias_servicio: profile?.usuario?.preferencias_servicio || ''
       };
     }
   });
@@ -33,6 +33,48 @@ const ProfileForm = ({ user, profile, onSubmit, userType }) => {
   const [preview, setPreview] = useState(profile?.url_foto_perfil || profile?.usuario?.url_foto_perfil || '');
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Actualizar formData cuando profile cambie
+  useEffect(() => {
+    if (profile) {
+      if (userType === 'profesional') {
+        setFormData({
+          nombre: profile?.usuario?.nombre || user?.nombre || '',
+          email: profile?.usuario?.email || user?.email || '',
+          telefono: profile?.usuario?.telefono || '',
+          especialidad: profile?.especialidad || '',
+          anos_experiencia: profile?.anos_experiencia || '',
+          zona_cobertura: profile?.zona_cobertura || '',
+          tarifa_hora: profile?.tarifa_hora || '',
+          descripcion: profile?.descripcion || ''
+        });
+      } else {
+        setFormData({
+          nombre: profile?.usuario?.nombre || user?.nombre || '',
+          email: profile?.usuario?.email || user?.email || '',
+          telefono: profile?.usuario?.telefono || '',
+          direccion: profile?.usuario?.direccion || '',
+          preferencias_servicio: profile?.usuario?.preferencias_servicio || ''
+        });
+      }
+      
+      // Actualizar preview de imagen si no hay archivo seleccionado
+      if (!selectedFile) {
+        setPreview(profile?.url_foto_perfil || profile?.usuario?.url_foto_perfil || '');
+      }
+    }
+  }, [profile, userType, user, selectedFile]);
+
+  // Actualizar cuando user cambie (si no hay profile)
+  useEffect(() => {
+    if (user && !profile) {
+      setFormData(prev => ({
+        ...prev,
+        nombre: user?.nombre || '',
+        email: user?.email || ''
+      }));
+    }
+  }, [user, profile]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -75,6 +117,9 @@ const ProfileForm = ({ user, profile, onSubmit, userType }) => {
       });
 
       await onSubmit(submitData);
+      
+      // Limpiar archivo seleccionado después del envío exitoso
+      setSelectedFile(null);
     } catch (error) {
       console.error('Error submitting form:', error);
     } finally {

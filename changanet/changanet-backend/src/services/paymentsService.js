@@ -46,7 +46,7 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
       throw new Error('No tienes permiso para crear un pago para este servicio');
     }
 
-    if (service.estado !== 'pendiente') {
+    if (service.estado !== 'PENDIENTE') {
       throw new Error('El servicio debe estar en estado pendiente para crear un pago');
     }
 
@@ -154,7 +154,7 @@ async function releaseFunds(paymentId, serviceId, clientId) {
       throw new Error('No tienes permiso para liberar fondos de este servicio');
     }
 
-    if (service.estado !== 'completado') {
+    if (service.estado !== 'COMPLETADO') {
       throw new Error('El servicio debe estar completado para liberar fondos');
     }
 
@@ -250,7 +250,7 @@ async function autoReleaseFunds() {
     // Buscar servicios completados hace más de 24h sin liberación manual
     const servicesToRelease = await prisma.servicios.findMany({
       where: {
-        estado: 'completado',
+        estado: 'COMPLETADO',
         completado_en: {
           lt: twentyFourHoursAgo,
         },

@@ -13,6 +13,7 @@ import { useOnboarding } from '../hooks/useOnboarding';
 import BackButton from '../components/BackButton';
 import EditProfileButton from '../components/EditProfileButton';
 import ClientOnboardingWizard from '../components/ClientOnboardingWizard';
+import MisCotizacionesCliente from '../components/MisCotizacionesCliente';
 import '../styles/onboarding.css';
 
 const ClientDashboard = () => {
@@ -159,6 +160,7 @@ const ClientDashboard = () => {
     { id: 'profile', name: 'Mi Perfil', icon: '👤' },
     { id: 'services', name: 'Mis Servicios', icon: '🔧' },
     { id: 'quotes', name: 'Cotizaciones', icon: '💰' },
+    { id: 'messages', name: 'Mensajes', icon: '💬' },
     { id: 'professionals', name: 'Profesionales', icon: '👥' },
     { id: 'reviews', name: 'Mis Reseñas', icon: '⭐' },
     { id: 'payments', name: 'Pagos', icon: '💳' }
@@ -300,6 +302,20 @@ const ClientDashboard = () => {
           </div>
         );
 
+      case 'messages':
+        return (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Mensajes</h3>
+            <p className="text-gray-600 mb-4">Comunícate directamente con los profesionales</p>
+            <button
+              onClick={() => navigate('/cliente/mensajes')}
+              className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
+            >
+              Ver Mensajes
+            </button>
+          </div>
+        );
+
       case 'professionals':
         return (
           <div className="bg-white p-6 rounded-lg shadow">
@@ -364,14 +380,68 @@ const ClientDashboard = () => {
             ¡Hola, {user.nombre || user.name || 'Usuario'}! Gestiona tus servicios y encuentra los mejores profesionales.
           </p>
           {/* Botón para testing - remover en producción */}
-          {process.env.NODE_ENV === 'development' && (
-            <button
-              onClick={handleStartOnboarding}
-              className="mt-2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
-            >
-              🔄 Reiniciar Onboarding
-            </button>
-          )}
+          <button
+            onClick={handleStartOnboarding}
+            className="mt-2 px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+          >
+            🔄 Reiniciar Onboarding
+          </button>
+        </div>
+
+        {/* Estadísticas y Acciones Rápidas */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Estadísticas del cliente */}
+          <div className="lg:col-span-2">
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Mis Estadísticas</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-600">{stats.totalServices}</div>
+                  <div className="text-sm text-gray-600">Servicios Contratados</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-600">{stats.pendingQuotes}</div>
+                  <div className="text-sm text-gray-600">Cotizaciones Pendientes</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-600">{stats.completedServices}</div>
+                  <div className="text-sm text-gray-600">Servicios Completados</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-600">${stats.totalSpent}</div>
+                  <div className="text-sm text-gray-600">Total Gastado</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Acciones Rápidas */}
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Acciones Rápidas</h2>
+            <div className="space-y-3">
+              <button
+                onClick={() => navigate('/profesionales')}
+                className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors text-left flex items-center"
+                aria-label="Buscar profesionales"
+              >
+                <span className="mr-3">🔍</span>
+                Buscar Profesionales
+              </button>
+
+              <button
+                onClick={() => navigate('/cliente/perfil')}
+                className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-left flex items-center"
+                aria-label="Ver mi perfil"
+              >
+                <span className="mr-3">👤</span>
+                Mi Perfil
+              </button>
+
+              {/* Componente Mis Cotizaciones */}
+              {console.log('Rendering MisCotizacionesCliente component')}
+              <MisCotizacionesCliente />
+            </div>
+          </div>
         </div>
 
         {/* Tabs */}

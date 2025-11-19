@@ -79,8 +79,8 @@ const Quotes = () => {
                   <div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
                       {(user.rol || user.role) === 'cliente'
-                        ? `Profesional: ${quote.profesional.nombre}`
-                        : `Cliente: ${quote.cliente.nombre}`}
+                        ? `Profesional: ${quote.profesional?.nombre || 'Nombre no disponible'}`
+                        : `Cliente: ${quote.cliente?.nombre || 'Nombre no disponible'}`}
                     </h3>
                     <p className="text-gray-600 mb-2">{quote.descripción}</p>
                     <p className="text-sm text-gray-500">Zona: {quote.zona_cobertura}</p>

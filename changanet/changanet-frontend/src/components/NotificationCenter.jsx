@@ -10,7 +10,7 @@ const NotificationCenter = ({ isOpen, onClose }) => {
     switch (notification.tipo) {
       case 'mensaje':
         // Navegar al chat
-        window.location.href = `/chat?user=${notification.datos?.senderId}`;
+        window.location.href = `/chat/${notification.datos?.senderId}`;
         break;
       case 'cotizacion':
         // Navegar a cotizaciones

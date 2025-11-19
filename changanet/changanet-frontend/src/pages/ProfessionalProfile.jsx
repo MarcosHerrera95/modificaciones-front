@@ -81,7 +81,7 @@ const ProfessionalProfile = () => {
       if (selectedFile) {
         // If there's a file to upload, use FormData
         const formData = new FormData();
-        formData.append('foto_perfil', selectedFile);
+        formData.append('foto', selectedFile);
         formData.append('especialidad', profile.especialidad);
         formData.append('anos_experiencia', profile.anos_experiencia);
         formData.append('zona_cobertura', profile.zona_cobertura);
@@ -118,6 +118,22 @@ const ProfessionalProfile = () => {
       }
 
       if (response.ok) {
+        const data = await response.json();
+
+        // Update local profile state with saved data
+        if (data.perfil) {
+          setProfile({
+            nombre: data.perfil.usuario?.nombre || profile.nombre,
+            email: data.perfil.usuario?.email || profile.email,
+            telefono: data.perfil.usuario?.telefono || profile.telefono,
+            especialidad: data.perfil.especialidad || profile.especialidad,
+            anos_experiencia: data.perfil.anos_experiencia || profile.anos_experiencia,
+            zona_cobertura: data.perfil.zona_cobertura || profile.zona_cobertura,
+            tarifa_hora: data.perfil.tarifa_hora || profile.tarifa_hora,
+            descripcion: data.perfil.descripcion || profile.descripcion
+          });
+        }
+
         setSuccess('Perfil profesional actualizado con éxito.');
         setSelectedFile(null);
       } else {

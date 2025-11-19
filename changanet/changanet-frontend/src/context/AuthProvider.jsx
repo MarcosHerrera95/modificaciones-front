@@ -44,7 +44,7 @@ export class AuthProvider extends React.Component {
       const token = localStorage.getItem('changanet_token');
       if (!token) return;
 
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -90,7 +90,7 @@ export class AuthProvider extends React.Component {
 
   loginWithEmail = async (email, password) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       console.log('AuthContext - loginWithEmail: Starting fetch to:', `${apiBaseUrl}/api/auth/login`);
       console.log('AuthContext - loginWithEmail: Request body:', { email, password });
 
@@ -142,7 +142,7 @@ export class AuthProvider extends React.Component {
 
   signup = async (name, email, password, role) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const response = await fetch(`${apiBaseUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

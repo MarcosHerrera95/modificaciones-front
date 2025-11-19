@@ -124,7 +124,7 @@ export function initializeSentry() {
 export function setUserContext(user) {
   try {
     // Verificar que Sentry esté disponible antes de intentar configurar contexto
-    if (!Sentry.getCurrentHub()?.getClient()) {
+    if (!Sentry?.init) {
       console.warn('Sentry no disponible para configurar contexto de usuario');
       return;
     }

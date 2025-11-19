@@ -42,6 +42,9 @@ const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const Chat = lazy(() => import('./pages/Chat'));
+const ClientMessages = lazy(() => import('./pages/ClientMessages'));
+const ProfessionalMessages = lazy(() => import('./pages/ProfessionalMessages'));
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -96,10 +99,12 @@ function App() {
                     <Route path="/cliente/servicios" element={<ClientServices />} />
                     <Route path="/cliente/cotizaciones" element={<ClientQuotes />} />
                     <Route path="/cliente/resenas" element={<ClientReviews />} />
+                    <Route path="/cliente/mensajes" element={<ClientMessages />} />
                     <Route path="/profesional/dashboard" element={<ProfessionalDashboard />} />
                     <Route path="/profesional/servicios" element={<ProfessionalServices />} />
                     <Route path="/profesional/cotizaciones" element={<ProfessionalQuotes />} />
                     <Route path="/profesional/pagos" element={<ProfessionalPayments />} />
+                    <Route path="/profesional/mensajes" element={<ProfessionalMessages />} />
                     <Route path="/mi-perfil-cliente" element={<ClientProfile />} />
                     <Route path="/mi-perfil-profesional" element={<ProfessionalProfile />} />
                     <Route path="/perfil" element={<ProfilePage />} />
@@ -116,6 +121,7 @@ function App() {
                     <Route path="/ranking" element={<Ranking />} />
                     <Route path="/contacto" element={<ContactPage />} />
                     <Route path="/verificar-identidad" element={<VerifyIdentity />} />
+                    <Route path="/chat/:userId" element={<Chat />} />
                     <Route path="/admin/dashboard" element={<AdminDashboard />} />
                   </Routes>
                 </Suspense>

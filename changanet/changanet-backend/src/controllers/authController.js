@@ -159,13 +159,16 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
+    // Normalizar email a minúsculas para case-insensitive login
+    const normalizedEmail = email.toLowerCase().trim();
+
     // Validar que ambos campos estén presentes (seguridad básica)
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ error: 'Email y contraseña son requeridos.' });
     }
 
     // Buscar usuario en la base de datos por email único
-    const user = await prisma.usuarios.findUnique({ where: { email } });
+    const user = await prisma.usuarios.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       // Usuario no encontrado - registrar intento fallido para seguridad
       logger.warn('Login failed: user not found', {
@@ -177,18 +180,75 @@ exports.login = async (req, res) => {
       return res.status(401).json({ error: 'Credenciales inválidas.' });
     }
 
-    // Comparar contraseña proporcionada con hash almacenado usando bcrypt
-    const isValidPassword = await bcrypt.compare(password, user.hash_contrasena);
-    if (!isValidPassword) {
-      // Contraseña incorrecta - registrar intento fallido para seguridad
-      logger.warn('Login failed: invalid password', {
+    // Debug: Verificar el tipo y contenido de hash_contrasena
+    logger.info('Debug: hash_contrasena info', {
+      service: 'auth',
+      email,
+      hash_contrasena_type: typeof user.hash_contrasena,
+      hash_contrasena_value: user.hash_contrasena ? '[EXISTS]' : '[NULL]',
+      hash_contrasena_length: user.hash_contrasena ? user.hash_contrasena.length : 0
+    });
+
+    // Verificar si el usuario tiene contraseña local (no es usuario de Google)
+    if (!user.hash_contrasena || user.hash_contrasena === null) {
+      // Usuario de Google o sin contraseña local - redirigir a login con Google
+      logger.warn('Login failed: Google user or no password', {
         service: 'auth',
+        email,
+        ip: req.ip
+      });
+      return res.status(401).json({
+        error: 'Credenciales inválidas.',
+        isGoogleUser: true
+      });
+    }
+
+    // Convertir hash_contrasena a string si es Buffer
+    let hashString;
+    try {
+      if (Buffer.isBuffer(user.hash_contrasena)) {
+        hashString = user.hash_contrasena.toString('utf8');
+      } else if (typeof user.hash_contrasena !== 'string') {
+        throw new Error(`Hash type invalid: ${typeof user.hash_contrasena}`);
+      } else {
+        hashString = user.hash_contrasena;
+      }
+    } catch (conversionError) {
+      logger.error('Login failed: hash conversion error', {
+        service: 'auth',
+        error: conversionError.message,
+        hash_type: typeof user.hash_contrasena,
         userId: user.id,
         email,
         ip: req.ip
       });
-      // Responder genéricamente para no revelar información
-      return res.status(401).json({ error: 'Credenciales inválidas.' });
+      return res.status(500).json({ error: 'Error interno del servidor.' });
+    }
+
+    // Comparar contraseña proporcionada con hash almacenado usando bcrypt
+    try {
+      const isValidPassword = await bcrypt.compare(password, hashString);
+      if (!isValidPassword) {
+        // Contraseña incorrecta - registrar intento fallido para seguridad
+        logger.warn('Login failed: invalid password', {
+          service: 'auth',
+          userId: user.id,
+          email,
+          ip: req.ip
+        });
+        // Responder genéricamente para no revelar información
+        return res.status(401).json({ error: 'Credenciales inválidas.' });
+      }
+    } catch (bcryptError) {
+      // Error en bcrypt - probablemente hash corrupto
+      logger.error('Login failed: bcrypt error', {
+        service: 'auth',
+        error: bcryptError.message,
+        userId: user.id,
+        email,
+        ip: req.ip
+      });
+      return res.status(500).json({ error: 'Error interno del servidor.' });
     }
 
     // Credenciales válidas - generar token JWT para sesión

@@ -5,7 +5,7 @@ import useSmartNavigation from '../../hooks/useSmartNavigation';
 import MisCotizaciones from './MisCotizaciones';
 
 // Backend URL configuration
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
 
 
 const ProfessionalDashboard = ({ user }) => {
