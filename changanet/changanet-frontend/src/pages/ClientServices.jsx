@@ -10,6 +10,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import BackButton from '../components/BackButton';
+import UrgentServiceIndicator from '../components/UrgentServiceIndicator';
+import UrgentServiceToggle from '../components/UrgentServiceToggle';
 
 const ClientServices = () => {
   const { user } = useAuth();
@@ -17,6 +19,7 @@ const ClientServices = () => {
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, in_progress, completed, cancelled
+  const [urgentFilter, setUrgentFilter] = useState('all'); // all, urgent, normal
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -84,8 +87,20 @@ const ClientServices = () => {
   };
 
   const filteredServices = services.filter(service => {
-    if (filter === 'all') return true;
-    return service.estado === filter;
+    // Primero filtrar por estado
+    if (filter !== 'all' && service.estado !== filter) {
+      return false;
+    }
+    
+    // Luego filtrar por urgencia
+    if (urgentFilter === 'urgent' && !service.es_urgente) {
+      return false;
+    }
+    if (urgentFilter === 'normal' && service.es_urgente) {
+      return false;
+    }
+    
+    return true;
   });
 
   const getStatusColor = (status) => {
@@ -145,47 +160,86 @@ const ClientServices = () => {
 
         {/* Filters */}
         <div className="mb-6 bg-white p-4 rounded-lg shadow">
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Todos ({services.length})
-            </button>
-            <button
-              onClick={() => setFilter('pendiente')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === 'pendiente'
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Pendientes ({services.filter(s => s.estado === 'pendiente').length})
-            </button>
-            <button
-              onClick={() => setFilter('agendado')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === 'agendado'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Agendados ({services.filter(s => s.estado === 'agendado').length})
-            </button>
-            <button
-              onClick={() => setFilter('completado')}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                filter === 'completado'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              Completados ({services.filter(s => s.estado === 'completado').length})
-            </button>
+          <h3 className="text-lg font-medium mb-3">Filtros</h3>
+          <div className="mb-4">
+            <h4 className="text-sm font-medium mb-2">Estado</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setFilter('all')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Todos ({services.length})
+              </button>
+              <button
+                onClick={() => setFilter('pendiente')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === 'pendiente'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Pendientes ({services.filter(s => s.estado === 'pendiente').length})
+              </button>
+              <button
+                onClick={() => setFilter('agendado')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === 'agendado'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Agendados ({services.filter(s => s.estado === 'agendado').length})
+              </button>
+              <button
+                onClick={() => setFilter('completado')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === 'completado'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Completados ({services.filter(s => s.estado === 'completado').length})
+              </button>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium mb-2">Prioridad</h4>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setUrgentFilter('all')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  urgentFilter === 'all'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setUrgentFilter('urgent')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  urgentFilter === 'urgent'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Urgentes ({services.filter(s => s.es_urgente).length})
+              </button>
+              <button
+                onClick={() => setUrgentFilter('normal')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  urgentFilter === 'normal'
+                    ? 'bg-gray-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Normales ({services.filter(s => !s.es_urgente).length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -231,6 +285,9 @@ const ClientServices = () => {
                         <span className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusColor(service.estado)}`}>
                           {getStatusText(service.estado)}
                         </span>
+                        <div className="ml-2">
+                          <UrgentServiceIndicator isUrgent={service.es_urgente} size="small" />
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
@@ -275,6 +332,22 @@ const ClientServices = () => {
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                    {/* Solo mostrar botón de marcar como urgente para servicios pendientes o agendados */}
+                    {(service.estado === 'pendiente' || service.estado === 'agendado') && (
+                      <UrgentServiceToggle 
+                        serviceId={service.id} 
+                        isUrgent={service.es_urgente} 
+                        onToggle={(newUrgentState) => {
+                          // Actualizar el estado local sin recargar toda la lista
+                          setServices(prevServices => 
+                            prevServices.map(s => 
+                              s.id === service.id ? {...s, es_urgente: newUrgentState} : s
+                            )
+                          );
+                        }} 
+                      />
+                    )}
+
                     {canUpdateStatus(service) && (
                       <button
                         onClick={() => updateServiceStatus(service.id, 'completado')}

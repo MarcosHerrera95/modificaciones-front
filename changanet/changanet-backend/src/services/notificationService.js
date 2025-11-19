@@ -4,11 +4,14 @@
  * @sprint Sprint 2 – Notificaciones y Comunicación
  * @tarjeta Tarjeta 4: [Backend] Implementar Servicio de Notificaciones
  * @impacto Social: Sistema de notificaciones inclusivo y accesible
+ * @mejora Sistema de plantillas y prioridades implementado
  */
 
 const { PrismaClient } = require('@prisma/client');
 const { sendPushNotification, sendMulticastPushNotification } = require('../config/firebaseAdmin');
 const { sendEmail } = require('./emailService');
+const notificationTemplates = require('./notificationTemplatesService');
+const notificationPreferences = require('./notificationPreferencesService');
 
 const prisma = new PrismaClient();
 
@@ -29,17 +32,33 @@ const NOTIFICATION_TYPES = {
 };
 
 /**
+ * Niveles de prioridad para notificaciones
+ */
+const NOTIFICATION_PRIORITIES = {
+  CRITICAL: 'critical',     // Urgente: servicios urgentes, pagos, verificaciones
+  HIGH: 'high',            // Alta: servicios agendados, cotizaciones aceptadas/rechazadas
+  MEDIUM: 'medium',        // Media: mensajes, reseñas
+  LOW: 'low'              // Baja: recordatorios, bienvenida
+};
+
+/**
  * Crear una nueva notificación respetando las preferencias del usuario
  * @param {string} userId - ID del usuario destinatario
  * @param {string} type - Tipo de notificación
  * @param {string} message - Mensaje de la notificación
  * @param {Object} metadata - Datos adicionales (opcional)
+ * @param {string} priority - Prioridad de la notificación (critical, high, medium, low)
  */
-exports.createNotification = async (userId, type, message, metadata = {}) => {
+exports.createNotification = async (userId, type, message, metadata = {}, priority = 'medium') => {
   try {
     // Validar tipo de notificación
     if (!Object.values(NOTIFICATION_TYPES).includes(type)) {
       throw new Error(`Tipo de notificación inválido: ${type}`);
+    }
+
+    // Validar prioridad
+    if (!Object.values(NOTIFICATION_PRIORITIES).includes(priority)) {
+      priority = 'medium'; // Prioridad por defecto
     }
 
     // Obtener preferencias del usuario
@@ -65,56 +84,42 @@ exports.createNotification = async (userId, type, message, metadata = {}) => {
       throw new Error('Usuario no encontrado');
     }
 
-    // Verificar si el usuario quiere recibir este tipo de notificación
-    if (!shouldSendNotification(user, type)) {
-      console.log(`Notificación ${type} omitida por preferencias del usuario ${userId}`);
-      return null; // No crear notificación si el usuario no la quiere
+    // Obtener preferencias granulares del usuario
+    const userPreferences = await notificationPreferences.getUserPreferences(userId);
+
+    // Verificar si el usuario quiere recibir este tipo de notificación usando el nuevo sistema
+    const preferenceCheck = notificationPreferences.shouldSendNotification(userPreferences, type, priority);
+    if (!preferenceCheck.shouldSend) {
+      console.log(`Notificación ${type} omitida por preferencias del usuario ${userId}: ${preferenceCheck.reason}`);
+      return {
+        skipped: true,
+        reason: preferenceCheck.reason,
+        recommendedAction: preferenceCheck.recommendedAction
+      };
     }
+
+    // Generar contenido usando plantillas
+    const variables = extractVariablesFromMetadata(metadata, user);
+    const processedNotification = notificationTemplates.generateNotification(type, 'push', variables);
+    
+    // Usar el mensaje procesado de la plantilla o el mensaje original
+    const finalMessage = processedNotification.body || message;
 
     // Crear notificación en base de datos
     const notification = await prisma.notificaciones.create({
       data: {
         usuario_id: userId,
         tipo: type,
-        mensaje: message,
-        esta_leido: false
+        mensaje: finalMessage,
+        esta_leido: false,
+        prioridad: priority // Nuevo campo de prioridad
       }
     });
 
-    console.log(`Notificación creada: ${type} para usuario ${userId}`);
+    console.log(`Notificación creada: ${type} (${priority}) para usuario ${userId}`);
 
-    // Enviar notificación push si el usuario tiene FCM token y permite push
-    if (user.fcm_token && user.notificaciones_push) {
-      try {
-        await sendPushNotification(user.fcm_token, getNotificationTitle(type), message);
-      } catch (pushError) {
-        console.error('Error enviando notificación push:', pushError);
-      }
-    }
-
-    // Enviar email si el usuario permite emails
-    if (user.notificaciones_email) {
-      try {
-        await sendEmail(
-          user.email,
-          getNotificationTitle(type),
-          `Hola ${user.nombre},\n\n${message}\n\nPuedes revisar esta notificación desde la plataforma.\n\nSaludos,\nEquipo Changánet`
-        );
-      } catch (emailError) {
-        console.warn('Error enviando email de notificación:', emailError);
-      }
-    }
-
-    // Enviar SMS para notificaciones críticas si está habilitado
-    if (shouldSendSMS(user, type)) {
-      try {
-        const { sendSMS } = require('./smsService');
-        const smsMessage = `Changánet: ${getNotificationTitle(type)} - ${message.substring(0, 100)}...`;
-        await sendSMS(user.telefono, smsMessage);
-      } catch (smsError) {
-        console.warn('Error enviando SMS de notificación:', smsError);
-      }
-    }
+    // Enviar por canales según las preferencias del usuario
+    await sendNotificationByPreferences(user, type, finalMessage, metadata, priority, processedNotification, preferenceCheck);
 
     return notification;
   } catch (error) {
@@ -265,6 +270,153 @@ function shouldSendNotification(user, type) {
 }
 
 /**
+ * Extraer variables de metadata para las plantillas
+ * @param {Object} metadata - Datos adicionales de la notificación
+ * @param {Object} user - Datos del usuario
+ * @returns {Object} Variables procesadas para la plantilla
+ */
+function extractVariablesFromMetadata(metadata = {}, user = {}) {
+  return {
+    // Variables del usuario
+    usuario: user.nombre || 'Usuario',
+    
+    // Variables del servicio
+    servicio: metadata.servicio || metadata.serviceName || 'servicio',
+    profesional: metadata.profesional || metadata.professionalName || 'profesional',
+    cliente: metadata.cliente || metadata.clientName || 'cliente',
+    
+    // Variables de tiempo
+    fecha: metadata.fecha || metadata.date || new Date().toLocaleDateString('es-AR'),
+    hora: metadata.hora || metadata.time || new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    
+    // Variables monetarias
+    monto: metadata.monto || metadata.amount || '0',
+    
+    // Variables de rating
+    rating: metadata.rating || '5',
+    
+    // Variables de contenido
+    contenido_mensaje: metadata.contenido_mensaje || metadata.messageContent || '',
+    
+    // Variables de comentario
+    comentario: metadata.comentario || metadata.comment || '',
+    
+    // Variables adicionales del metadata
+    ...metadata
+  };
+}
+
+/**
+ * Enviar notificación por múltiples canales según la prioridad
+ * @param {Object} user - Datos del usuario
+ * @param {string} type - Tipo de notificación
+ * @param {string} message - Mensaje principal
+ * @param {Object} metadata - Datos adicionales
+ * @param {string} priority - Prioridad de la notificación
+ * @param {Object} processedNotification - Notificación procesada con plantillas
+ * @param {Object} preferenceCheck - Resultado de verificación de preferencias
+ */
+async function sendNotificationByPreferences(user, type, message, metadata, priority, processedNotification, preferenceCheck) {
+  // Usar canales recomendados por el sistema de preferencias
+  const channels = preferenceCheck.recommendedChannels || ['push'];
+  
+  for (const channel of channels) {
+    try {
+      switch (channel) {
+        case 'push':
+          if (user.fcm_token && user.notificaciones_push) {
+            await sendPushNotification(user.fcm_token, processedNotification.title || getNotificationTitle(type), message);
+          }
+          break;
+          
+        case 'email':
+          if (user.notificaciones_email) {
+            const emailTemplate = notificationTemplates.generateNotification(type, 'email', extractVariablesFromMetadata(metadata, user));
+            await sendEmail(user.email, emailTemplate.subject, emailTemplate.html);
+          }
+          break;
+          
+        case 'sms':
+          if (user.sms_enabled && user.notificaciones_sms && shouldSendSMS(user, type)) {
+            const smsTemplate = notificationTemplates.generateNotification(type, 'sms', extractVariablesFromMetadata(metadata, user));
+            const { sendSMS } = require('./smsService');
+            await sendSMS(user.telefono, smsTemplate.sms || smsTemplate.body);
+          }
+          break;
+      }
+    } catch (channelError) {
+      console.warn(`Error enviando notificación por ${channel}:`, channelError);
+    }
+  }
+}
+
+/**
+ * Enviar notificación por múltiples canales según la prioridad (legacy)
+ * @param {Object} user - Datos del usuario
+ * @param {string} type - Tipo de notificación
+ * @param {string} message - Mensaje principal
+ * @param {Object} metadata - Datos adicionales
+ * @param {string} priority - Prioridad de la notificación
+ * @param {Object} processedNotification - Notificación procesada con plantillas
+ */
+async function sendNotificationByPriority(user, type, message, metadata, priority, processedNotification) {
+  const channels = determineChannelsByPriority(priority, type);
+  
+  for (const channel of channels) {
+    try {
+      switch (channel) {
+        case 'push':
+          if (user.fcm_token && user.notificaciones_push) {
+            await sendPushNotification(user.fcm_token, processedNotification.title || getNotificationTitle(type), message);
+          }
+          break;
+          
+        case 'email':
+          if (user.notificaciones_email) {
+            const emailTemplate = notificationTemplates.generateNotification(type, 'email', extractVariablesFromMetadata(metadata, user));
+            await sendEmail(user.email, emailTemplate.subject, emailTemplate.html);
+          }
+          break;
+          
+        case 'sms':
+          if (shouldSendSMS(user, type)) {
+            const smsTemplate = notificationTemplates.generateNotification(type, 'sms', extractVariablesFromMetadata(metadata, user));
+            const { sendSMS } = require('./smsService');
+            await sendSMS(user.telefono, smsTemplate.sms || smsTemplate.body);
+          }
+          break;
+      }
+    } catch (channelError) {
+      console.warn(`Error enviando notificación por ${channel}:`, channelError);
+    }
+  }
+}
+
+/**
+ * Determinar qué canales usar según la prioridad
+ * @param {string} priority - Prioridad de la notificación
+ * @param {string} type - Tipo de notificación
+ * @returns {Array} Lista de canales a usar
+ */
+function determineChannelsByPriority(priority, type) {
+  const channelsByPriority = {
+    [NOTIFICATION_PRIORITIES.CRITICAL]: ['push', 'email', 'sms'],
+    [NOTIFICATION_PRIORITIES.HIGH]: ['push', 'email'],
+    [NOTIFICATION_PRIORITIES.MEDIUM]: ['push'],
+    [NOTIFICATION_PRIORITIES.LOW]: ['push']
+  };
+  
+  let channels = channelsByPriority[priority] || channelsByPriority[NOTIFICATION_PRIORITIES.MEDIUM];
+  
+  // Ajustes específicos por tipo
+  if (type === NOTIFICATION_TYPES.BIENVENIDA) {
+    channels = ['email']; // Solo email para bienvenida
+  }
+  
+  return channels;
+}
+
+/**
  * Verificar si se debe enviar SMS para una notificación crítica
  * @param {Object} user - Datos del usuario
  * @param {string} type - Tipo de notificación
@@ -293,7 +445,7 @@ function shouldSendSMS(user, type) {
  */
 function getNotificationTitle(type) {
   const titles = {
-    [NOTIFICATION_TYPES.BIENVENIDA]: '¡Bienvenido a Changánet!',
+    [NOTIFICATION_TYPES.BIENVENIDA]: '¡Bienvenido a ChangAnet!',
     [NOTIFICATION_TYPES.COTIZACION]: 'Nueva solicitud de presupuesto',
     [NOTIFICATION_TYPES.COTIZACION_ACEPTADA]: 'Cotización aceptada',
     [NOTIFICATION_TYPES.COTIZACION_RECHAZADA]: 'Cotización rechazada',
@@ -311,18 +463,71 @@ function getNotificationTitle(type) {
 }
 
 /**
+ * Obtener prioridad por defecto según el tipo de notificación
+ * @param {string} type - Tipo de notificación
+ * @returns {string} Prioridad recomendada
+ */
+function getDefaultPriority(type) {
+  const priorityMap = {
+    // CRÍTICO
+    'servicio_urgente_agendado': NOTIFICATION_PRIORITIES.CRITICAL,
+    'fondos_liberados': NOTIFICATION_PRIORITIES.CRITICAL,
+    'fondos_liberados_auto': NOTIFICATION_PRIORITIES.CRITICAL,
+    
+    // ALTA
+    [NOTIFICATION_TYPES.SERVICIO_AGENDADO]: NOTIFICATION_PRIORITIES.HIGH,
+    [NOTIFICATION_TYPES.TURNO_AGENDADO]: NOTIFICATION_PRIORITIES.HIGH,
+    [NOTIFICATION_TYPES.COTIZACION_ACEPTADA]: NOTIFICATION_PRIORITIES.HIGH,
+    [NOTIFICATION_TYPES.COTIZACION_RECHAZADA]: NOTIFICATION_PRIORITIES.HIGH,
+    [NOTIFICATION_TYPES.VERIFICACION_APROBADA]: NOTIFICATION_PRIORITIES.HIGH,
+    
+    // MEDIA
+    [NOTIFICATION_TYPES.COTIZACION]: NOTIFICATION_PRIORITIES.MEDIUM,
+    [NOTIFICATION_TYPES.MENSAJE]: NOTIFICATION_PRIORITIES.MEDIUM,
+    [NOTIFICATION_TYPES.RESENA_RECIBIDA]: NOTIFICATION_PRIORITIES.MEDIUM,
+    [NOTIFICATION_TYPES.PAGO_LIBERADO]: NOTIFICATION_PRIORITIES.MEDIUM,
+    
+    // BAJA
+    [NOTIFICATION_TYPES.BIENVENIDA]: NOTIFICATION_PRIORITIES.LOW,
+    'recordatorio_servicio': NOTIFICATION_PRIORITIES.LOW,
+    'recordatorio_pago': NOTIFICATION_PRIORITIES.LOW
+  };
+  
+  return priorityMap[type] || NOTIFICATION_PRIORITIES.MEDIUM;
+}
+
+/**
+ * Crear notificación rápida con prioridad automática
+ * @param {string} userId - ID del usuario
+ * @param {string} type - Tipo de notificación
+ * @param {string} message - Mensaje
+ * @param {Object} metadata - Datos adicionales
+ */
+exports.createNotificationQuick = async (userId, type, message, metadata = {}) => {
+  // Obtener prioridad automáticamente según el tipo
+  const priority = getDefaultPriority(type);
+  return await exports.createNotification(userId, type, message, metadata, priority);
+};
+
+/**
  * Crear notificación programada para envío futuro
  * @param {string} userId - ID del usuario
  * @param {string} type - Tipo de notificación
  * @param {string} message - Mensaje
  * @param {Date} scheduledTime - Fecha y hora programada
  * @param {Object} metadata - Datos adicionales
+ * @param {string} priority - Prioridad de la notificación
  */
-exports.scheduleNotification = async (userId, type, message, scheduledTime, metadata = {}) => {
+exports.scheduleNotification = async (userId, type, message, scheduledTime, metadata = {}, priority = 'medium') => {
   try {
     // Validar que la fecha programada sea futura
     if (new Date(scheduledTime) <= new Date()) {
       throw new Error('La fecha programada debe ser futura');
+    }
+
+    // Validar prioridad
+    if (!Object.values(NOTIFICATION_PRIORITIES).includes(priority)) {
+      priority = 'medium';
     }
 
     // Crear registro de notificación programada (podríamos crear una tabla separada)
@@ -333,13 +538,14 @@ exports.scheduleNotification = async (userId, type, message, scheduledTime, meta
         tipo: `scheduled_${type}`,
         mensaje: message,
         esta_leido: false,
+        prioridad: priority,
         // Podríamos agregar campos como scheduled_for en el futuro
       }
     });
 
     // En una implementación completa, aquí se programaría el envío
     // Por ahora, solo registramos la notificación programada
-    console.log(`Notificación programada: ${type} para usuario ${userId} en ${scheduledTime}`);
+    console.log(`Notificación programada: ${type} (${priority}) para usuario ${userId} en ${scheduledTime}`);
 
     return scheduledNotification;
   } catch (error) {
@@ -456,6 +662,7 @@ async function sendPaymentReminders(now) {
 
 module.exports = {
   createNotification: exports.createNotification,
+  createNotificationQuick: exports.createNotificationQuick,
   getUserNotifications: exports.getUserNotifications,
   getNotificationById: exports.getNotificationById,
   markAsRead: exports.markAsRead,
@@ -463,5 +670,6 @@ module.exports = {
   deleteNotification: exports.deleteNotification,
   scheduleNotification: exports.scheduleNotification,
   processScheduledNotifications: exports.processScheduledNotifications,
-  NOTIFICATION_TYPES
+  NOTIFICATION_TYPES,
+  NOTIFICATION_PRIORITIES
 };

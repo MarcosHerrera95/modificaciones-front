@@ -27,7 +27,8 @@ import { sendQuoteSubmittedNotification } from '../services/quoteNotificationSer
 const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
   const [formData, setFormData] = useState({
     descripción: '',
-    zona_cobertura: ''
+    zona_cobertura: '',
+    es_urgente: false
   });
   const [selectedImages, setSelectedImages] = useState([]);
   const [selectedProfessionals, setSelectedProfessionals] = useState(
@@ -127,6 +128,7 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
       formDataToSend.append('descripcion', formData.descripción);
       formDataToSend.append('zona_cobertura', formData.zona_cobertura);
       formDataToSend.append('profesionales_ids', JSON.stringify(selectedProfessionals));
+      formDataToSend.append('es_urgente', formData.es_urgente ? 'true' : 'false');
 
       // Agregar imágenes si existen
       selectedImages.forEach((image, index) => {
@@ -308,6 +310,39 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
               aria-describedby="zona-help"
             />
             <div id="zona-help" className="sr-only">Ingresa la ubicación donde necesitas el servicio, incluyendo calle y barrio si es posible</div>
+          </div>
+
+          {/* Nueva sección para servicios urgentes */}
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <input
+                id="es_urgente"
+                name="es_urgente"
+                type="checkbox"
+                checked={formData.es_urgente}
+                onChange={(e) => setFormData({ ...formData, es_urgente: e.target.checked })}
+                className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500"
+              />
+              <label htmlFor="es_urgente" className="ml-2 flex items-center text-gray-900 font-semibold text-base">
+                <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.493-1.646 1.743-2.98l-4.243-5.5a3.54 3.54 0 00-.514-1.332l-1.243-2.24a1.5 1.5 0 00-.514-1.332l-4.243-5.5A1.5 1.5 0 004.14 4.5L6.5 5.5c1.046.667 1.7 1.81 1.7 3.135 0 .88-.34 1.684-.916 2.257L4.5 7.5A1.5 1.5 0 004.5 5.5L2 4.5A1.5 1.5 0 001.5 3H1c0-1.657 1.343-3 3-3h12c1.657 0 3 1.343 3 3v6.5a3.5 3.5 0 01-3.5 3.5h-7A3.5 3.5 0 018 9.5V8" />
+                </svg>
+                ¿Es un servicio urgente?
+              </label>
+            </div>
+            <p className="text-sm text-gray-500">
+              Marca esta casilla si necesitas atención inmediata. Los servicios urgentes reciben prioridad de atención.
+            </p>
+            {formData.es_urgente && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-700 font-medium flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  Servicio marcado como urgente - Recibirá atención prioritaria
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Nueva sección para subida de imágenes */}
