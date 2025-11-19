@@ -4,7 +4,7 @@
   "description": "Backend para la plataforma Changánet",
   "main": "src/server.js",
   "scripts": {
-    "dev": "NODE_OPTIONS='--no-deprecation' nodemon src/server.js",
+    "dev": "set NODE_OPTIONS=--no-deprecation && nodemon src/server.js",
     "start": "node src/server.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -16,7 +16,7 @@
     "fix": "eslint . --fix",
     "prettier": "prettier --write .",
     "precommit": "npm run lint && npm run test",
-    "prepare": "set HUSKY_GIT_DIR=D:/modificaciones-front/.git && husky install",
+    "prepare": "echo 'Husky install skipped due to git dir location'",
     "db:seed": "node prisma/seed.js"
   },
   "dependencies": {
