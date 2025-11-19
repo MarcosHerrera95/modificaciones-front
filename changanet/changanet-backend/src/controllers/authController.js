@@ -623,6 +623,7 @@ exports.verifyEmail = async (req, res) => {
  */
 exports.googleLogin = async (req, res) => {
   try {
+    console.log('Google OAuth request received:', req.body);
     const { uid, email, nombre, foto, rol } = req.body;
 
     console.log('Google OAuth attempt:', { email, uid, nombre, rol });

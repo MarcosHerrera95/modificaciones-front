@@ -10,8 +10,9 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 const GoogleLoginButton = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003'; // URL del backend externo
-  console.log('GoogleLoginButton: Using backend URL:', backendUrl);
+  // Usar el proxy de Vite para evitar problemas de CORS
+  const apiUrl = '/api/auth/google-login';
+  console.log('GoogleLoginButton: Using API URL:', apiUrl);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
@@ -20,7 +21,7 @@ const GoogleLoginButton = () => {
     const provider = new GoogleAuthProvider();
 
     try {
-      console.log("Frontend: Iniciando flujo OAuth de Google con backend:", backendUrl);
+      console.log("Frontend: Iniciando flujo OAuth de Google con API:", apiUrl);
       // Paso 1: Login con Firebase para obtener credenciales
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
@@ -34,7 +35,7 @@ const GoogleLoginButton = () => {
       console.log("Frontend: ID Token obtenido, enviando datos del usuario a backend");
 
       // Paso 2: Enviar datos del usuario al backend para crear/actualizar usuario y obtener token de sesión
-      const response = await fetch(`${backendUrl}/api/auth/google-login`, {
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
