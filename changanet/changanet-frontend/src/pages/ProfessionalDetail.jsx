@@ -184,31 +184,42 @@ const ProfessionalDetail = () => {
     if (!confirm(confirmMessage)) return;
 
     try {
-      const response = await fetch('/api/services', {
+      // CORRECCIÓN CRÍTICA: Usar el endpoint correcto de disponibilidad
+      // Esto asegura que el slot se marque como reservado y se envíen notificaciones automáticas
+      const response = await fetch(`/api/availability/${slot.id}/book`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
         body: JSON.stringify({
-          profesional_id: professionalId,
-          descripcion: `Servicio agendado para ${new Date(slot.fecha).toLocaleDateString()}`,
-          fecha_agendada: new Date(slot.hora_inicio).toISOString()
+          descripcion: `Servicio agendado para ${new Date(slot.fecha).toLocaleDateString()} de ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} a ${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
         })
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        alert('Servicio agendado exitosamente. Recibirás una confirmación por email.');
-        // Refresh availability to show the slot as booked
+        // REQ-30: Confirmación automática implementada en el backend
+        alert('✅ Servicio agendado exitosamente.\n\nRecibirás una confirmación por email y notificación push.\n\nEl profesional ha sido notificado de tu reserva.');
+        // Recargar la página para mostrar el slot como reservado
+        // TODO: En el futuro, implementar actualización sin recarga completa
         window.location.reload();
       } else {
-        alert(data.error || 'Error al agendar el servicio');
+        // Mensajes de error más específicos
+        if (response.status === 400) {
+          alert('⚠️ ' + (data.error || 'Este horario ya no está disponible. Por favor, selecciona otro.'));
+        } else if (response.status === 403) {
+          alert('⚠️ No tienes permisos para realizar esta acción.');
+        } else if (response.status === 404) {
+          alert('⚠️ El horario seleccionado no existe o fue eliminado.');
+        } else {
+          alert('❌ ' + (data.error || 'Error al agendar el servicio. Intenta nuevamente.'));
+        }
       }
     } catch (error) {
       console.error('Error scheduling service:', error);
-      alert('Error de red. Intenta nuevamente.');
+      alert('❌ Error de red. Por favor, verifica tu conexión e intenta nuevamente.');
     }
   };
 

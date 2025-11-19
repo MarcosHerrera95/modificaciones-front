@@ -261,6 +261,12 @@ exports.releaseFunds = async (paymentId) => {
 
     // Calcular comisión al liberar fondos (RB-03)
     const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+    
+    // REQ-43: Validar que la comisión esté entre 5-10% según PRD
+    if (commissionRate < 0.05 || commissionRate > 0.10) {
+      throw new Error('La comisión debe estar entre 5% y 10% según configuración del sistema');
+    }
+    
     const totalAmount = payment.monto_total;
     const commission = Math.round(totalAmount * commissionRate);
     const professionalAmount = totalAmount - commission;

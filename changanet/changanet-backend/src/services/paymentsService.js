@@ -56,8 +56,15 @@ async function createPaymentPreference({ serviceId, amount, professionalEmail, s
     }
 
     // Validar montos razonables
-    if (amount <= 0 || amount > 1000000) { // Máximo $1M ARS
-      throw new Error('Monto de pago inválido');
+    const minPayment = parseFloat(process.env.MIN_PAYMENT_AMOUNT || '500'); // Mínimo $500 ARS
+    const maxPayment = parseFloat(process.env.MAX_PAYMENT_AMOUNT || '500000'); // Máximo $500,000 ARS
+
+    if (amount < minPayment) {
+      throw new Error(`El monto mínimo de pago es ${minPayment} ARS`);
+    }
+
+    if (amount > maxPayment) {
+      throw new Error(`El monto máximo de pago es ${maxPayment} ARS`);
     }
 
     // Según RB-03: La comisión se cobra solo si el servicio se completa
@@ -164,6 +171,12 @@ async function releaseFunds(paymentId, serviceId, clientId) {
 
     // Calcular comisión al momento de liberar fondos (RB-03)
     const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+    
+    // REQ-43: Validar que la comisión esté entre 5-10% según PRD
+    if (commissionRate < 0.05 || commissionRate > 0.10) {
+      throw new Error('La comisión debe estar entre 5% y 10% según configuración del sistema');
+    }
+    
     const totalAmount = service.pago.monto_total;
     const commission = Math.round(totalAmount * commissionRate);
     const professionalAmount = totalAmount - commission;
@@ -284,6 +297,18 @@ async function autoReleaseFunds() {
 
         // Calcular comisión al liberar fondos automáticamente (RB-03)
         const commissionRate = parseFloat(process.env.PLATFORM_COMMISSION_RATE || '0.05');
+        
+        // REQ-43: Validar que la comisión esté entre 5-10% según PRD
+        if (commissionRate < 0.05 || commissionRate > 0.10) {
+          console.warn(`Comisión inválida ${commissionRate} para servicio ${service.id}, saltando liberación automática`);
+          results.push({
+            serviceId: service.id,
+            status: 'skipped',
+            reason: 'invalid commission rate'
+          });
+          continue;
+        }
+        
         const totalAmount = payment.monto_total;
         const commission = Math.round(totalAmount * commissionRate);
         const professionalAmount = totalAmount - commission;
@@ -367,6 +392,18 @@ async function withdrawFunds(professionalId, amount, bankDetails) {
       throw new Error('Solo los profesionales pueden retirar fondos');
     }
 
+    // REQ-44: Validar límites de retiro según configuración del sistema
+    const minWithdrawal = parseFloat(process.env.MIN_WITHDRAWAL_AMOUNT || '100'); // Mínimo $100 ARS
+    const maxWithdrawal = parseFloat(process.env.MAX_WITHDRAWAL_AMOUNT || '50000'); // Máximo $50,000 ARS
+
+    if (amount < minWithdrawal) {
+      throw new Error(`El monto mínimo de retiro es ${minWithdrawal} ARS`);
+    }
+
+    if (amount > maxWithdrawal) {
+      throw new Error(`El monto máximo de retiro es ${maxWithdrawal} ARS`);
+    }
+
     // Calcular fondos disponibles (pagos liberados menos retiros previos)
     const availableFunds = await calculateAvailableFunds(professionalId);
 
@@ -374,27 +411,70 @@ async function withdrawFunds(professionalId, amount, bankDetails) {
       throw new Error('Fondos insuficientes para el retiro solicitado');
     }
 
+    // REQ-44: Validar datos bancarios requeridos
+    if (!bankDetails || !bankDetails.cvu || !bankDetails.alias) {
+      throw new Error('Se requieren datos bancarios completos (CVU y alias)');
+    }
+
+    // Validar formato básico del CVU (22 dígitos numéricos)
+    const cvuRegex = /^[0-9]{22}$/;
+    if (!cvuRegex.test(bankDetails.cvu)) {
+      throw new Error('El CVU debe tener exactamente 22 dígitos');
+    }
+
+    // Validar alias bancario
+    if (!bankDetails.alias || bankDetails.alias.length < 3) {
+      throw new Error('El alias bancario es requerido y debe tener al menos 3 caracteres');
+    }
+
     // En una implementación real, aquí se integraría con el sistema bancario
     // Por ahora, simulamos el retiro y registramos la transacción
 
-    // Crear registro de retiro (podríamos agregar una tabla de retiros)
-    // Por simplicidad, actualizamos un campo en el perfil del profesional
+    // Crear registro de retiro (en producción se guardaría en tabla de retiros)
+    const withdrawalId = `wd_${Date.now()}`;
+    
+    // Para trazabilidad, podríamos agregar una tabla retiros:
+    // await prisma.retiros.create({
+    //   data: {
+    //     id: withdrawalId,
+    //     profesional_id: professionalId,
+    //     monto: amount,
+    //     cvu: bankDetails.cvu,
+    //     alias: bankDetails.alias,
+    //     estado: 'procesando',
+    //     creado_en: new Date()
+    //   }
+    // });
 
     // Enviar notificación de retiro exitoso
     const { createNotification } = require('./notificationService');
     await createNotification(
       professionalId,
       'retiro_exitoso',
-      `Se ha procesado tu retiro de $${amount} a tu cuenta bancaria.`,
-      { amount, bankDetails: { ...bankDetails, masked: true } }
+      `Se ha procesado tu retiro de ${amount} a tu cuenta bancaria (alias: ${bankDetails.alias}).`,
+      { 
+        withdrawalId, 
+        amount, 
+        bankDetails: { 
+          ...bankDetails, 
+          cvu: `***${bankDetails.cvu.slice(-4)}`, // Solo mostrar últimos 4 dígitos
+          masked: true 
+        } 
+      }
     );
+
+    console.log(`💳 Retiro procesado: ${withdrawalId} - Profesional: ${professionalId} - Monto: ${amount}`);
 
     return {
       success: true,
-      withdrawalId: `wd_${Date.now()}`,
+      withdrawalId,
       amount,
       processedAt: new Date(),
       estimatedArrival: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 días hábiles
+      bankDetails: {
+        alias: bankDetails.alias,
+        cvuMasked: `***${bankDetails.cvu.slice(-4)}`
+      }
     };
   } catch (error) {
     console.error('Error en retiro de fondos:', error);

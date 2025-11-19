@@ -184,12 +184,33 @@ const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
                     <button
                       onClick={async () => {
                         try {
+                          // MEJORA: Validar disponibilidad en tiempo real antes de agendar
+                          // Esto previene problemas de doble reserva
+                          const checkResponse = await fetch(`/api/availability/${professionalId}?date=${selectedDate}`, {
+                            headers: {
+                              'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+                            }
+                          });
+                          
+                          if (checkResponse.ok) {
+                            const currentAvailability = await checkResponse.json();
+                            const currentSlot = currentAvailability.find(s => s.id === slot.id);
+                            
+                            if (!currentSlot || !currentSlot.esta_disponible || currentSlot.reservado_por) {
+                              alert('⚠️ Este horario ya no está disponible. Por favor, selecciona otro.');
+                              // Actualizar lista de disponibilidad
+                              setAvailabilities(currentAvailability);
+                              return;
+                            }
+                          }
+                          
+                          // Proceder con el agendamiento
                           await onScheduleService(slot);
-                          // REQ-30: Confirmación automática al agendar
-                          alert(`✅ Servicio agendado exitosamente para ${new Date(slot.hora_inicio).toLocaleString()}. Recibirás una confirmación por email y notificación push.`);
+                          // REQ-30: Confirmación automática al agendar (implementada en backend)
+                          // El mensaje de éxito se muestra en ProfessionalDetail.jsx
                         } catch (error) {
                           console.error('Error agendando servicio:', error);
-                          alert('Error al agendar el servicio. Inténtalo de nuevo.');
+                          alert('❌ Error al agendar el servicio. Inténtalo de nuevo.');
                         }
                       }}
                       className="bg-emerald-500 text-white px-3 py-1 rounded text-sm hover:bg-emerald-600 transition-colors"

@@ -1,6 +1,6 @@
 /**
  * @component QuoteRequestForm - Formulario de solicitud de presupuesto
- * @descripción Componente para crear solicitudes de presupuesto a múltiples profesionales (REQ-31, REQ-32, REQ-33)
+ * @descripción Componente para crear solicitudes de presupuesto a múltiples profesionales (REQ-31, REQ-32, REQ-33, REQ-35)
  * @sprint Sprint 2 – Solicitudes y Presupuestos
  * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
  * @impacto Económico: Facilita comparación de precios y acceso a servicios profesionales
@@ -9,7 +9,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat } from '../context/ChatContext';
+import { useNotificationContext } from '../context/NotificationContext';
 import QuickMessageModal from './QuickMessageModal';
+import ImageUpload from './ImageUpload';
+import VerificationStatus, { VerificationBadge } from './VerificationBadge';
+import IdentityVerification from './IdentityVerification';
+import { sendQuoteSubmittedNotification } from '../services/quoteNotificationService';
 
 /**
  * @función QuoteRequestForm - Componente principal del formulario
@@ -24,11 +29,17 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
     descripción: '',
     zona_cobertura: ''
   });
+  const [selectedImages, setSelectedImages] = useState([]);
+  const [selectedProfessionals, setSelectedProfessionals] = useState(
+    professionalId ? [professionalId] : []
+  );
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showQuickMessage, setShowQuickMessage] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
   const navigate = useNavigate();
   const { sendMessage } = useChat();
+  const notificationContext = useNotificationContext();
 
   /**
    * @función handleChange - Manejar cambios en inputs del formulario
@@ -46,8 +57,47 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
   };
 
   /**
+   * @función handleImageSelect - Manejar selección de imágenes
+   * @descripción Agrega imágenes seleccionadas al estado (REQ-31)
+   * @param {File} file - Archivo de imagen seleccionado
+   */
+  const handleImageSelect = (file) => {
+    setSelectedImages(prev => [...prev, file]);
+  };
+
+  /**
+   * @función handleImageRemove - Manejar remoción de imágenes
+   * @descripción Remueve imagen del estado
+   * @param {number} index - Índice de la imagen a remover
+   */
+  const handleImageRemove = (index) => {
+    setSelectedImages(prev => prev.filter((_, i) => i !== index));
+  };
+
+  /**
+   * @función handleProfessionalsSelect - Manejar selección de profesionales
+   * @descripción Agrega/remueve profesionales de la lista seleccionada (REQ-32)
+   * @param {string} professionalId - ID del profesional
+   */
+  const handleProfessionalsSelect = (professionalId) => {
+    setSelectedProfessionals(prev => 
+      prev.includes(professionalId)
+        ? prev.filter(id => id !== professionalId)
+        : [...prev, professionalId]
+    );
+  };
+
+  /**
+   * @función handleVerificationModal - Mostrar modal de verificación
+   * @descripción Muestra el formulario de verificación de identidad
+   */
+  const handleVerificationModal = () => {
+    setShowVerificationModal(true);
+  };
+
+  /**
    * @función handleSubmit - Enviar solicitud de presupuesto
-   * @descripción Envía solicitud a backend y maneja respuesta con métricas (REQ-32, REQ-33)
+   * @descripción Envía solicitud a backend y maneja respuesta con métricas (REQ-31, REQ-32, REQ-33)
    * @sprint Sprint 2 – Solicitudes y Presupuestos
    * @tarjeta Tarjeta 5: [Frontend] Implementar Formulario de Solicitud de Presupuesto
    * @impacto Económico: Conecta eficientemente demanda y oferta de servicios profesionales
@@ -62,20 +112,34 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
     console.log('Token exists:', !!localStorage.getItem('changanet_token'));
     console.log('Token:', localStorage.getItem('changanet_token'));
 
-    console.log('Sending quote request with professionalId:', professionalId);
+    // Validar selección de profesionales
+    if (selectedProfessionals.length === 0) {
+      setError('Debes seleccionar al menos un profesional');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Sending quote request with professionalIds:', selectedProfessionals);
+    console.log('Selected images:', selectedImages.length);
 
     try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('descripcion', formData.descripción);
+      formDataToSend.append('zona_cobertura', formData.zona_cobertura);
+      formDataToSend.append('profesionales_ids', JSON.stringify(selectedProfessionals));
+
+      // Agregar imágenes si existen
+      selectedImages.forEach((image, index) => {
+        formDataToSend.append(`imagen_${index}`, image);
+      });
+
       const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/quotes`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          // No establecer Content-Type para FormData, el navegador lo establece automáticamente
         },
-        body: JSON.stringify({
-          descripcion: formData.descripción,
-          zona_cobertura: formData.zona_cobertura,
-          profesionales_ids: `[${JSON.stringify(professionalId)}]`
-        })
+        body: formDataToSend
       });
 
       console.log('Response status:', response.status);
@@ -85,11 +149,16 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
       console.log('Response data:', data);
 
       if (response.ok) {
+        // Enviar notificación de confirmación
+        if (notificationContext) {
+          await sendQuoteSubmittedNotification(notificationContext, data, selectedProfessionals);
+        }
+
         // Cerrar modal y mostrar mensaje de éxito
         if (onClose) {
           onClose();
         }
-        alert('Solicitud de cotización enviada exitosamente. El profesional recibirá una notificación y podrás ver las respuestas en tu panel.');
+        alert(`Solicitud de cotización enviada exitosamente a ${selectedProfessionals.length} profesional(es). Recibirás notificaciones cuando respondan y podrás comparar ofertas en tu panel.`);
         navigate('/mi-cuenta/presupuestos');
       } else {
         setError(data.error || 'Error al enviar solicitud');
@@ -241,6 +310,26 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
             <div id="zona-help" className="sr-only">Ingresa la ubicación donde necesitas el servicio, incluyendo calle y barrio si es posible</div>
           </div>
 
+          {/* Nueva sección para subida de imágenes */}
+          <div className="space-y-2">
+            <label className="flex items-center text-gray-900 font-semibold text-base">
+              <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              ¿Tienes fotos del trabajo? (Opcional)
+            </label>
+            <ImageUpload
+              onImageSelect={handleImageSelect}
+              onImageRemove={handleImageRemove}
+              placeholder="Sube fotos del trabajo a realizar..."
+              className="max-w-md"
+              showPreview={true}
+            />
+            <div className="text-xs text-gray-500 text-center">
+              Las fotos ayudan a los profesionales a dar cotizaciones más precisas
+            </div>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -286,6 +375,35 @@ const QuoteRequestForm = ({ onClose, professionalName, professionalId }) => {
           sendMessage(professionalId, message);
         }}
       />
+
+      {/* Modal de Verificación de Identidad */}
+      {showVerificationModal && (
+        <IdentityVerification
+          isModal={true}
+          onClose={() => setShowVerificationModal(false)}
+        />
+      )}
+
+      {/* Enlace de verificación */}
+      <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            <div>
+              <p className="text-blue-900 font-medium">¿Eres un profesional?</p>
+              <p className="text-blue-700 text-sm">Verifica tu identidad para aumentar la confianza de tus clientes.</p>
+            </div>
+          </div>
+          <button
+            onClick={handleVerificationModal}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            Verificar Identidad
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
