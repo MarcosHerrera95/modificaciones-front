@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { registerWithEmail } from '../../services/authService';
+import PasswordStrengthMeter from '../PasswordStrengthMeter';
 
 const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
   const [name, setName] = useState('');
@@ -30,7 +30,13 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
         alert('Cuenta creada exitosamente. ¡Bienvenido a Changánet!');
         onClose();
       } else {
-        setError(result.error || 'Error al crear la cuenta');
+        // Mejorar el manejo de errores con detalles de validación
+        if (result.details && result.details.suggestions) {
+          const suggestions = result.details.suggestions.join('\n• ');
+          setError(`${result.error}\n\n💡 Sugerencias:\n• ${suggestions}`);
+        } else {
+          setError(result.error || 'Error al crear la cuenta');
+        }
       }
     } catch (err) {
       console.error('Error en registro:', err);
@@ -120,6 +126,12 @@ const SignupModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                   required
                 />
               </div>
+              {/* Medidor de fortaleza de contraseña */}
+              {password && (
+                <div className="mt-3">
+                  <PasswordStrengthMeter password={password} />
+                </div>
+              )}
             </div>
 
             <div>

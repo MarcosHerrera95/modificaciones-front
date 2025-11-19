@@ -20,6 +20,123 @@ const logger = require('../services/logger');
 const { sendEmail } = require('../services/emailService');
 
 /**
+ * Función avanzada de validación de fortaleza de contraseña
+ * Evalúa múltiples criterios de seguridad y proporciona feedback detallado
+ */
+function validatePasswordStrength(password) {
+  const feedback = {
+    isValid: false,
+    score: 0,
+    suggestions: [],
+    warnings: []
+  };
+
+  if (!password) {
+    feedback.warnings.push('La contraseña es requerida');
+    return feedback;
+  }
+
+  // Validación básica de longitud
+  if (password.length < 8) {
+    feedback.warnings.push('La contraseña debe tener al menos 8 caracteres');
+  }
+
+  if (password.length < 6) {
+    feedback.suggestions.push('Usa al menos 8 caracteres para mayor seguridad');
+    return feedback;
+  }
+
+  // Verificar presencia de diferentes tipos de caracteres
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasSpaces = /\s/.test(password);
+
+  // Validaciones específicas
+  if (hasSpaces) {
+    feedback.warnings.push('La contraseña no debe contener espacios');
+  }
+
+  // Detectar contraseñas comunes
+  const commonPasswords = [
+    'password', '123456', '123456789', 'qwerty', 'abc123',
+    'password123', 'admin', 'letmein', 'welcome', 'monkey',
+    'dragon', 'master', 'sunshine', 'flower', 'iloveyou'
+  ];
+
+  if (commonPasswords.includes(password.toLowerCase())) {
+    feedback.warnings.push('Esta contraseña es muy común y fácilmente adivinable');
+    return feedback;
+  }
+
+  // Verificar patrones comunes
+  const patterns = [
+    /(.)\1{2,}/, // Caracteres repetidos 3+ veces
+    /\d{4,}/, // 4+ dígitos consecutivos
+    /[a-zA-Z]{4,}/, // 4+ letras consecutivas
+    /^[A-Z]/, // Empieza con mayúscula
+    /[a-z]$/ // Termina con minúscula
+  ];
+
+  patterns.forEach((pattern, index) => {
+    if (pattern.test(password)) {
+      switch (index) {
+        case 0:
+          feedback.warnings.push('Evita caracteres repetidos consecutivamente');
+          break;
+        case 1:
+          feedback.warnings.push('Evita secuencias numéricas largas');
+          break;
+        case 2:
+          feedback.warnings.push('Evita secuencias de letras largas');
+          break;
+      }
+    }
+  });
+
+  // Calcular puntuación basada en factores de seguridad
+  let score = 0;
+
+  // Longitud (máximo 25 puntos)
+  if (password.length >= 8) score += 5;
+  if (password.length >= 12) score += 10;
+  if (password.length >= 16) score += 10;
+
+  // Variedad de caracteres (máximo 30 puntos)
+  if (hasLowerCase) score += 5;
+  if (hasUpperCase) score += 5;
+  if (hasNumbers) score += 5;
+  if (hasSpecialChars) score += 15; // Los caracteres especiales valen más
+
+  // Complejidad adicional (máximo 45 puntos)
+  if (password.length >= 12 && hasLowerCase && hasUpperCase && hasNumbers && hasSpecialChars) {
+    score += 25; // Bonus por contraseña muy fuerte
+  }
+
+  feedback.score = Math.min(score, 100);
+
+  // Generar sugerencias basadas en la puntuación
+  if (score < 30) {
+    feedback.suggestions.push('Usa una combinación de letras, números y símbolos');
+    feedback.suggestions.push('Aumenta la longitud de la contraseña');
+  } else if (score < 60) {
+    feedback.suggestions.push('Considera usar una passphrase más larga');
+    if (!hasSpecialChars) {
+      feedback.suggestions.push('Agrega símbolos especiales para mayor seguridad');
+    }
+  } else if (score < 80) {
+    feedback.suggestions.push('Tu contraseña es buena, pero podría ser mejor');
+  } else {
+    feedback.suggestions.push('¡Excelente! Tu contraseña es muy segura');
+  }
+
+  feedback.isValid = score >= 30 && !hasSpaces && !feedback.warnings.some(w => w.includes('común'));
+  
+  return feedback;
+}
+
+/**
  * Registro de usuario cliente
  * REQ-01: Permite el registro con correo y contraseña
  * REQ-03: Envía correo de verificación al registrarse
@@ -42,10 +159,33 @@ exports.register = async (req, res) => {
       return res.status(400).json({ error: 'Formato de email inválido.' });
     }
 
-    // Validar longitud mínima de contraseña por seguridad (REQ-01: contraseña segura)
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    // Validar fortaleza de contraseña usando sistema avanzado de scoring
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.isValid) {
+      logger.warn('Registration failed: weak password', {
+        service: 'auth',
+        email,
+        passwordScore: passwordValidation.score,
+        warnings: passwordValidation.warnings,
+        ip: req.ip
+      });
+      return res.status(400).json({ 
+        error: 'La contraseña no cumple con los requisitos de seguridad.',
+        details: {
+          score: passwordValidation.score,
+          warnings: passwordValidation.warnings,
+          suggestions: passwordValidation.suggestions
+        }
+      });
     }
+
+    // Log de contraseña aceptable para auditoría
+    logger.info('Password validation passed', {
+      service: 'auth',
+      email,
+      passwordScore: passwordValidation.score,
+      ip: req.ip
+    });
 
     // Validar que el rol sea uno de los valores permitidos (cliente o profesional)
     if (!['cliente', 'profesional'].includes(rol)) {
@@ -512,10 +652,35 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ error: 'Token y nueva contraseña requeridos' });
     }
 
-    // Validar longitud de contraseña
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    // Validar fortaleza de contraseña usando sistema avanzado de scoring
+    const passwordValidation = validatePasswordStrength(newPassword);
+    if (!passwordValidation.isValid) {
+      logger.warn('Password reset failed: weak password', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        passwordScore: passwordValidation.score,
+        warnings: passwordValidation.warnings,
+        ip: req.ip
+      });
+      return res.status(400).json({ 
+        error: 'La nueva contraseña no cumple con los requisitos de seguridad.',
+        details: {
+          score: passwordValidation.score,
+          warnings: passwordValidation.warnings,
+          suggestions: passwordValidation.suggestions
+        }
+      });
     }
+
+    // Log de contraseña aceptable para auditoría
+    logger.info('Password reset validation passed', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email,
+      passwordScore: passwordValidation.score,
+      ip: req.ip
+    });
 
     // Buscar usuario con el token
     const user = await prisma.usuarios.findUnique({

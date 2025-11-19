@@ -5,10 +5,13 @@ export const useChatHook = (otherUserId) => {
   const {
     messages,
     unreadCounts,
+    typingUsers,
     sendMessage: contextSendMessage,
     markAsRead: contextMarkAsRead,
     loadMessageHistory,
-    isConnected
+    isConnected,
+    emitTyping: contextEmitTyping,
+    stopTyping: contextStopTyping
   } = useChatContext();
 
   const [localMessages, setLocalMessages] = useState([]);
@@ -59,13 +62,28 @@ export const useChatHook = (otherUserId) => {
 
   const unreadCount = unreadCounts[otherUserId] || 0;
 
+  const emitTyping = useCallback(() => {
+    if (otherUserId && isConnected) {
+      contextEmitTyping(otherUserId);
+    }
+  }, [otherUserId, isConnected, contextEmitTyping]);
+
+  const stopTyping = useCallback(() => {
+    if (otherUserId && isConnected) {
+      contextStopTyping(otherUserId);
+    }
+  }, [otherUserId, isConnected, contextStopTyping]);
+
   return {
     messages: localMessages,
     unreadCount,
     isLoading,
     error,
     isConnected,
+    typingUsers: typingUsers[otherUserId] || false,
     sendMessage,
-    markAsRead
+    markAsRead,
+    emitTyping,
+    stopTyping
   };
 };

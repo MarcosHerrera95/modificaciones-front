@@ -217,8 +217,8 @@
 }
 
 .estado-badge.pendiente {
-  background-color: #fef3c7;
-  color: #d97706;
+  background-color: #fee2e2;
+  color: #dc2626;
 }
 
 .estado-badge.enviada {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import MisCotizacionesCliente from './MisCotizacionesCliente';
 import './MiCuentaCliente.css';
 
 // Componente funcional para el panel de "Mi Cuenta" del cliente en Changánet
@@ -17,6 +18,9 @@ const MiCuentaCliente = () => {
     loading: true,
     error: null
   });
+
+  // Estado para controlar el modal de cotizaciones
+  const [showCotizacionesModal, setShowCotizacionesModal] = useState(false);
 
   // Función para cargar datos del dashboard
   const fetchDashboardData = async () => {
@@ -77,7 +81,13 @@ const MiCuentaCliente = () => {
 
   // Función para manejar la redirección a gestionar cotizaciones
   const handleManageQuotes = () => {
-    navigate('/mis-cotizaciones');
+    // Abrir el modal de cotizaciones
+    setShowCotizacionesModal(true);
+  };
+
+  // Función para cerrar el modal de cotizaciones
+  const handleCloseCotizacionesModal = () => {
+    setShowCotizacionesModal(false);
   };
 
   // Función para manejar la navegación al perfil
@@ -160,6 +170,11 @@ const MiCuentaCliente = () => {
           </button>
         </div>
       </div>
+
+      {/* Modal de Cotizaciones */}
+      {showCotizacionesModal && (
+        <MisCotizacionesCliente onClose={handleCloseCotizacionesModal} />
+      )}
     </div>
   );
 };

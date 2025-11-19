@@ -1,14 +1,14 @@
 // src/pages/Professionals.jsx
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ProfessionalCard from '../components/ProfessionalCard';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import BackButton from '../components/BackButton';
 import useProfessionals from '../hooks/useProfessionals';
-import { useAuth } from '../context/AuthContext';
+import useGeolocation from '../hooks/useGeolocation';
 
 const Professionals = () => {
   console.log('🚀 Professionals component mounted');
-  const { user } = useAuth();
+  
   const {
     professionals: filteredProfessionals,
     loading,
@@ -19,53 +19,75 @@ const Professionals = () => {
     setFilterVerified,
     zonaCobertura,
     setZonaCobertura,
+    ciudad,
+    setCiudad,
+    barrio,
+    setBarrio,
     precioMin,
     setPrecioMin,
     precioMax,
     setPrecioMax,
     especialidad,
-    setEspecialidad
+    setEspecialidad,
+    radioDistancia,
+    setRadioDistancia,
+    hasMore,
+    loadMore,
+    clearFilters
   } = useProfessionals();
-  const [selectedProfessionals, setSelectedProfessionals] = useState([]);
+  
+  const {
+    location: geoLocation,
+    loading: geoLoading,
+    error: geoError,
+    requestLocation,
+    clearLocation
+  } = useGeolocation();
+  
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [currentProfessional, setCurrentProfessional] = useState(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  
+  // Ref para scroll infinito
+  const observerRef = useRef();
+  const loadMoreRef = useRef(null);
 
   console.log('🎯 Filtered professionals:', filteredProfessionals.length);
 
-  // Funciones para manejar selección
-  const handleSelectProfessional = (professionalId) => {
-    setSelectedProfessionals(prev =>
-      prev.includes(professionalId)
-        ? prev.filter(id => id !== professionalId)
-        : [...prev, professionalId]
-    );
-  };
+  // Configurar IntersectionObserver para scroll infinito
+  useEffect(() => {
+    if (loading) return;
 
-  const handleSelectAll = () => {
-    if (selectedProfessionals.length === filteredProfessionals.length) {
-      setSelectedProfessionals([]);
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore && !loading) {
+        console.log('📜 Loading more professionals...');
+        loadMore();
+      }
+    });
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loading, hasMore, loadMore]);
+
+  // Mostrar prompt de ubicación si se selecciona radio sin ubicación
+  useEffect(() => {
+    if (radioDistancia && !geoLocation) {
+      setShowLocationPrompt(true);
     } else {
-      setSelectedProfessionals(filteredProfessionals.map(p => p.usuario_id));
+      setShowLocationPrompt(false);
     }
-  };
+  }, [radioDistancia, geoLocation]);
 
-  const handleRequestServices = () => {
-    if (selectedProfessionals.length === 0) {
-      alert('Por favor selecciona al menos un profesional');
-      return;
-    }
-
-    // For now, handle one professional at a time
-    const professionalId = selectedProfessionals[0];
-    const professional = filteredProfessionals.find(p => p.usuario_id === professionalId);
-
-    if (professional) {
-      setCurrentProfessional(professional);
-      setShowQuoteModal(true);
-    }
-  };
-
-  if (loading) {
+  if (loading && filteredProfessionals.length === 0) {
     console.log('⏳ Still loading...');
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
@@ -92,11 +114,6 @@ const Professionals = () => {
           </h1>
           <p className="text-gray-600 text-xl font-medium">
             {filteredProfessionals.length} profesionales encontrados para ti
-            {selectedProfessionals.length > 0 && (
-              <span className="text-emerald-600 font-semibold ml-4">
-                • {selectedProfessionals.length} seleccionado(s)
-              </span>
-            )}
             {searchTime && (
               <span className="text-sm text-emerald-600 ml-2">
                 (búsqueda en {searchTime}ms)
@@ -105,9 +122,77 @@ const Professionals = () => {
           </p>
         </div>
 
+        {/* Location Prompt */}
+        {showLocationPrompt && (
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <span className="text-2xl mr-3">📍</span>
+                <div>
+                  <p className="font-semibold text-blue-800">Activa tu ubicación</p>
+                  <p className="text-sm text-blue-600">Para buscar por radio de distancia, necesitamos tu ubicación</p>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={requestLocation}
+                  disabled={geoLoading}
+                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                >
+                  {geoLoading ? 'Obteniendo...' : 'Activar'}
+                </button>
+                <button
+                  onClick={() => setRadioDistancia('')}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+            {geoError && (
+              <p className="text-sm text-red-600 mt-2">⚠️ {geoError}</p>
+            )}
+          </div>
+        )}
+
         {/* Filters and Sort */}
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-center">
+          {/* Geolocation Status */}
+          <div className="mb-4 pb-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className="text-2xl">📍</span>
+                {geoLocation ? (
+                  <div>
+                    <span className="text-green-600 font-semibold">Ubicación activada</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      ({geoLocation.latitude.toFixed(4)}, {geoLocation.longitude.toFixed(4)})
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-gray-500">Ubicación desactivada</span>
+                )}
+              </div>
+              {geoLocation ? (
+                <button
+                  onClick={clearLocation}
+                  className="text-sm text-red-600 hover:text-red-700 underline"
+                >
+                  Desactivar ubicación
+                </button>
+              ) : (
+                <button
+                  onClick={requestLocation}
+                  disabled={geoLoading}
+                  className="text-sm text-blue-600 hover:text-blue-700 underline disabled:opacity-50"
+                >
+                  {geoLoading ? 'Obteniendo...' : 'Activar ubicación'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 items-center">
             {/* Verified Filter */}
             <div className="flex items-center space-x-2">
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -117,7 +202,7 @@ const Professionals = () => {
                   onChange={(e) => setFilterVerified(e.target.checked)}
                   className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
                 />
-                <span className="text-gray-700 font-medium">Solo verificados</span>
+                <span className="text-gray-700 font-medium text-sm">Solo verificados</span>
                 <span className="text-emerald-600">✅</span>
               </label>
             </div>
@@ -127,57 +212,101 @@ const Professionals = () => {
               <label className="text-gray-700 font-medium text-sm">Especialidad</label>
               <input
                 type="text"
-                placeholder="Ej: Plomero, Electricista"
+                placeholder="Ej: Plomero"
                 value={especialidad}
                 onChange={(e) => setEspecialidad(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               />
             </div>
 
-            {/* Location Filter */}
+            {/* City Filter */}
             <div className="flex flex-col space-y-1">
-              <label className="text-gray-700 font-medium text-sm">Zona/Barrio</label>
+              <label className="text-gray-700 font-medium text-sm">Ciudad</label>
               <input
                 type="text"
-                placeholder="Ej: Palermo, CABA"
-                value={zonaCobertura}
-                onChange={(e) => setZonaCobertura(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                placeholder="Ej: Buenos Aires"
+                value={ciudad}
+                onChange={(e) => setCiudad(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               />
             </div>
 
-            {/* Price Filters */}
+            {/* Neighborhood Filter */}
             <div className="flex flex-col space-y-1">
-              <label className="text-gray-700 font-medium text-sm">Precio mínimo</label>
+              <label className="text-gray-700 font-medium text-sm">Barrio</label>
+              <input
+                type="text"
+                placeholder="Ej: Palermo"
+                value={barrio}
+                onChange={(e) => setBarrio(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Distance Radius Filter */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Radio (km)</label>
+              <select
+                value={radioDistancia}
+                onChange={(e) => setRadioDistancia(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+                disabled={!geoLocation}
+              >
+                <option value="">Sin límite</option>
+                <option value="5">5 km</option>
+                <option value="10">10 km</option>
+                <option value="20">20 km</option>
+                <option value="50">50 km</option>
+                <option value="100">100 km</option>
+              </select>
+            </div>
+
+            {/* Price Min Filter */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Precio mín</label>
               <input
                 type="number"
                 placeholder="Min $"
                 value={precioMin}
                 onChange={(e) => setPrecioMin(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               />
             </div>
+          </div>
 
+          {/* Second Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center mt-4">
+            {/* Price Max Filter */}
             <div className="flex flex-col space-y-1">
-              <label className="text-gray-700 font-medium text-sm">Precio máximo</label>
+              <label className="text-gray-700 font-medium text-sm">Precio máx</label>
               <input
                 type="number"
                 placeholder="Max $"
                 value={precioMax}
                 onChange={(e) => setPrecioMax(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               />
             </div>
-          </div>
 
-          {/* Sort Options and Selection Controls */}
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700 font-medium">Ordenar por:</span>
+            {/* General Zone (fallback) */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Zona general</label>
+              <input
+                type="text"
+                placeholder="Ej: CABA, GBA"
+                value={zonaCobertura}
+                onChange={(e) => setZonaCobertura(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Sort Options */}
+            <div className="flex flex-col space-y-1">
+              <label className="text-gray-700 font-medium text-sm">Ordenar por</label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
               >
                 <option value="calificacion_promedio">⭐ Mejor calificación</option>
                 <option value="tarifa_hora">💰 Precio más bajo</option>
@@ -186,25 +315,15 @@ const Professionals = () => {
               </select>
             </div>
 
-            {/* Selection Controls */}
-            {user && (
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleSelectAll}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  {selectedProfessionals.length === filteredProfessionals.length ? 'Deseleccionar Todos' : 'Seleccionar Todos'}
-                </button>
-                {selectedProfessionals.length > 0 && (
-                  <button
-                    onClick={handleRequestServices}
-                    className="px-6 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-semibold"
-                  >
-                    Solicitar Servicios ({selectedProfessionals.length})
-                  </button>
-                )}
-              </div>
-            )}
+            {/* Clear Filters Button */}
+            <div className="flex items-end">
+              <button
+                onClick={clearFilters}
+                className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                🗑️ Limpiar filtros
+              </button>
+            </div>
           </div>
         </div>
 
@@ -215,68 +334,53 @@ const Professionals = () => {
             <h2 className="text-2xl font-bold text-gray-800 mb-4">No encontramos profesionales</h2>
             <p className="text-gray-600 mb-6">Intenta ajustar tus filtros o búsqueda</p>
             <button
-              onClick={() => window.history.back()}
-              className="bg-white text-black px-6 py-3 rounded-lg hover:bg-gray-50 hover:shadow-md hover:scale-[1.02] transition-all duration-200 flex items-center justify-center"
+              onClick={clearFilters}
+              className="bg-emerald-500 text-white px-6 py-3 rounded-lg hover:bg-emerald-600 hover:shadow-md hover:scale-[1.02] transition-all duration-200 inline-flex items-center justify-center mx-auto"
             >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Volver a buscar
+              Limpiar todos los filtros
             </button>
           </div>
         ) : (
-          <div>
-            {/* Lista de profesionales */}
-            <div className="mb-8">
-              <h3 className="text-xl font-bold mb-6 text-center">Lista de Profesionales Disponibles</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredProfessionals.map((professional) => (
-                  <div key={professional.usuario_id} className={`bg-white p-4 rounded-lg shadow-md border-2 transition-all ${selectedProfessionals.includes(professional.usuario_id) ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200'}`}>
-                    {user && (
-                      <div className="flex items-center mb-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedProfessionals.includes(professional.usuario_id)}
-                          onChange={() => handleSelectProfessional(professional.usuario_id)}
-                          className="w-5 h-5 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Seleccionar</span>
-                      </div>
-                    )}
-                    <img
-                      src={professional.usuario?.url_foto_perfil || 'https://placehold.co/100x100?text=👷'}
-                      alt={professional.usuario?.nombre}
-                      className="w-16 h-16 rounded-full mx-auto mb-2"
-                    />
-                    <h4 className="font-bold text-center">{professional.usuario?.nombre}</h4>
-                    <p className="text-sm text-center text-gray-600">{professional.especialidad}</p>
-                    <p className="text-sm text-center text-gray-500">{professional.zona_cobertura}</p>
-                    <p className="text-sm text-center font-semibold text-green-600">${professional.tarifa_hora}/hora</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Grid original con ProfessionalCard */}
+          <>
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {console.log('🎨 Rendering grid with', filteredProfessionals.length, 'professionals')}
               {filteredProfessionals.map((professional) => (
-                <ProfessionalCard key={professional.usuario_id} professional={professional} />
+                <ProfessionalCard 
+                  key={professional.usuario_id} 
+                  professional={professional}
+                  showDistance={!!geoLocation}
+                />
               ))}
             </div>
-          </div>
-        )}
 
-        {/* Load More Button */}
-        {filteredProfessionals.length > 0 && filteredProfessionals.length % 12 === 0 && (
-          <div className="text-center mt-12">
-            <button className="bg-emerald-500 text-black px-8 py-4 rounded-full hover:bg-emerald-600 hover:shadow-md hover:scale-[1.02] transition-all duration-200 shadow-lg font-semibold flex items-center justify-center">
-              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Cargar más profesionales
-            </button>
-          </div>
+            {/* Scroll Infinito - Elemento observador */}
+            {hasMore && (
+              <div ref={loadMoreRef} className="text-center mt-12 py-8">
+                {loading ? (
+                  <div className="flex flex-col items-center">
+                    <div className="loading-spinner mb-4"></div>
+                    <p className="text-gray-600">Cargando más profesionales...</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={loadMore}
+                    className="bg-emerald-500 text-white px-8 py-4 rounded-full hover:bg-emerald-600 hover:shadow-md hover:scale-[1.02] transition-all duration-200 shadow-lg font-semibold inline-flex items-center justify-center mx-auto"
+                  >
+                    <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Cargar más profesionales
+                  </button>
+                )}
+              </div>
+            )}
+
+            {!hasMore && filteredProfessionals.length > 0 && (
+              <div className="text-center mt-12 py-8">
+                <p className="text-gray-500 text-lg">✨ Has visto todos los profesionales disponibles</p>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -288,7 +392,6 @@ const Professionals = () => {
               onClick={() => {
                 setShowQuoteModal(false);
                 setCurrentProfessional(null);
-                setSelectedProfessionals([]); // Clear selection after request
               }}
               className="absolute top-4 right-4 text-emerald-500 hover:text-emerald-700 text-2xl z-10"
               aria-label="Cerrar modal"
@@ -301,7 +404,6 @@ const Professionals = () => {
               onClose={() => {
                 setShowQuoteModal(false);
                 setCurrentProfessional(null);
-                setSelectedProfessionals([]); // Clear selection after request
               }}
             />
           </div>

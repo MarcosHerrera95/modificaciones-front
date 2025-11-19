@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Rankings from '../Rankings';
 import { useFavorites } from '../../hooks/useFavorites';
+import MisCotizacionesCliente from '../MisCotizacionesCliente';
 
 const ClientDashboard = ({ user }) => {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ const ClientDashboard = ({ user }) => {
   });
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showCotizacionesModal, setShowCotizacionesModal] = useState(false);
   const dataFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -180,14 +182,14 @@ const ClientDashboard = ({ user }) => {
           <p className="text-sm text-gray-600">Gestiona tu información</p>
         </button>
 
-        <Link
-          to="/mis-cotizaciones"
+        <button
+          onClick={() => setShowCotizacionesModal(true)}
           className="bg-white text-gray-800 p-6 rounded-xl hover:bg-gray-50 transition-colors duration-200 text-center border border-gray-200"
         >
           <span className="text-3xl block mb-2">📋</span>
           <h3 className="text-lg font-semibold mb-1">Mis Cotizaciones</h3>
           <p className="text-sm text-gray-600">Revisa tus solicitudes</p>
-        </Link>
+        </button>
       </div>
 
       {/* Profesionales Favoritos */}
@@ -240,6 +242,11 @@ const ClientDashboard = ({ user }) => {
       <div className="mt-8">
         <Rankings />
       </div>
+
+      {/* Modal de Cotizaciones */}
+      {showCotizacionesModal && (
+        <MisCotizacionesCliente onClose={() => setShowCotizacionesModal(false)} />
+      )}
     </div>
   );
 };

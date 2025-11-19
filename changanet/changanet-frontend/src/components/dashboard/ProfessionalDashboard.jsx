@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import useSmartNavigation from '../../hooks/useSmartNavigation';
 import MisCotizaciones from './MisCotizaciones';
+import MisCotizacionesProfesional from '../MisCotizacionesProfesional';
 
 // Backend URL configuration
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
@@ -22,6 +23,7 @@ const ProfessionalDashboard = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [showCotizacionesModal, setShowCotizacionesModal] = useState(false);
+  const [showCotizacionesSimpleModal, setShowCotizacionesSimpleModal] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -246,7 +248,10 @@ const ProfessionalDashboard = ({ user }) => {
         </div>
       </div>
 
-      <MisCotizaciones show={showCotizacionesModal} onClose={() => setShowCotizacionesModal(false)} />
+      {/* Modal de Cotizaciones Simplificado */}
+      {showCotizacionesModal && (
+        <MisCotizacionesProfesional onClose={() => setShowCotizacionesModal(false)} />
+      )}
     </div>
   );
 };

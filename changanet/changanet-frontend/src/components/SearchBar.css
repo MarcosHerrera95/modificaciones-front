@@ -63,7 +63,7 @@
 .search-icon {
   position: absolute;
   right: 10px;
-  top: 540%;
+  top: 50%;
   transform: translateY(-50%);
   font-size: 18px;
   color: #999;
@@ -99,6 +99,27 @@
 
   .location-group {
     margin-left: 0;
-    margin-top: -10px; /* Superposición ligera en vertical */
+    margin-top: 0;
+  }
+
+  .search-button {
+    width: 100%;
+    margin-top: 10px;
+  }
+}
+
+/* Ajustes para 3 campos en desktop */
+@media (min-width: 769px) {
+  .search-bar-container {
+    max-width: 1200px;
+  }
+
+  .input-group {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .location-group {
+    margin-left: -10px;
   }
 }

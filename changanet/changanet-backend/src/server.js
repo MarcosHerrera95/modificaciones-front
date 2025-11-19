@@ -389,6 +389,9 @@ app.use('/api/profile', profileRoutes);
 // Rutas de profesionales
 app.use('/api/professionals', professionalsRoutes);
 
+// Rutas de búsqueda de profesionales (REQ-11 a REQ-15)
+app.use('/api/search', searchRoutes);
+
 // Rutas de mensajería con autenticación requerida
 app.use('/api/messages', authenticateToken, messageRoutes);
 
@@ -613,6 +616,18 @@ io.on('connection', (socket) => {
       console.error('Error al marcar mensajes como leídos:', error);
       socket.emit('error', { message: 'No se pudieron marcar los mensajes como leídos.' });
     }
+  });
+
+  /**
+   * Evento para manejar el estado de "escribiendo" de los usuarios.
+   * Permite mostrar indicadores en tiempo real cuando alguien está escribiendo.
+   */
+  socket.on('typing', (data) => {
+    const { from, to, isTyping } = data;
+    console.log(`⌨️ Typing event - From: ${from}, To: ${to}, IsTyping: ${isTyping}`);
+    
+    // Enviar evento de typing al destinatario
+    socket.to(to).emit('userTyping', { from, isTyping });
   });
 
   /**

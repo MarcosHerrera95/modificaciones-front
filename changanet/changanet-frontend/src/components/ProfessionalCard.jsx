@@ -17,6 +17,15 @@ const ProfessionalCard = ({ professional }) => {
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const distanceCalculatedRef = useRef(false);
 
+  // Si ya viene la distancia calculada desde el hook, usarla
+  useEffect(() => {
+    if (professional.distancia_calculada !== undefined) {
+      setDistance(`${professional.distancia_calculada} km`);
+      setLoading(false);
+      distanceCalculatedRef.current = true;
+    }
+  }, [professional.distancia_calculada]);
+
   const handleQuoteRequest = () => {
     if (!user) {
       alert('Debes iniciar sesión para solicitar un presupuesto.');

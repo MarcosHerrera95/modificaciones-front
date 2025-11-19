@@ -99,10 +99,19 @@ exports.getAvailability = async (req, res) => {
   const { date } = req.query;
 
   try {
-    // Parse date properly - assuming date comes as YYYY-MM-DD
-    const startDate = new Date(date);
-    const endDate = new Date(date);
-    endDate.setDate(endDate.getDate() + 1); // Next day for range
+    let startDate, endDate;
+    
+    if (date) {
+      // Parse date properly - assuming date comes as YYYY-MM-DD
+      startDate = new Date(date);
+      endDate = new Date(date);
+      endDate.setDate(endDate.getDate() + 1); // Next day for range
+    } else {
+      // If no date provided, get availability for next 7 days
+      startDate = new Date();
+      endDate = new Date();
+      endDate.setDate(endDate.getDate() + 7);
+    }
 
     const availabilities = await prisma.disponibilidad.findMany({
       where: {

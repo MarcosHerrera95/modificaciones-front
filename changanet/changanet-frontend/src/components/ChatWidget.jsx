@@ -12,13 +12,18 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
     isLoading,
     error,
     isConnected,
+    typingUsers,
     sendMessage,
-    markAsRead
+    markAsRead,
+    emitTyping,
+    stopTyping
   } = useChatHook(otherUserId);
 
   const [newMessage, setNewMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingTimeout, setTypingTimeout] = useState(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -29,6 +34,37 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Manejar el estado de typing
+  const handleTyping = () => {
+    if (!isTyping) {
+      setIsTyping(true);
+      emitTyping();
+    }
+    
+    // Limpiar timeout anterior
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    // Establecer nuevo timeout para parar de typing después de 2 segundos sin actividad
+    const timeout = setTimeout(() => {
+      setIsTyping(false);
+      stopTyping();
+    }, 2000);
+    
+    setTypingTimeout(timeout);
+  };
+
+  // Limpiar typing cuando se envía el mensaje
+  useEffect(() => {
+    if (isTyping && typingTimeout) {
+      clearTimeout(typingTimeout);
+      setTypingTimeout(null);
+      setIsTyping(false);
+      stopTyping();
+    }
+  }, [newMessage]);
 
   // Marcar mensajes como leídos cuando se abre el chat
   useEffect(() => {
@@ -158,6 +194,20 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
           ))
         )}
         <div ref={messagesEndRef} />
+        
+        {/* Indicador de "escribiendo..." */}
+        {typingUsers && (
+          <div className="flex justify-start mt-2">
+            <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-sm px-4 py-2 text-sm text-gray-500 flex items-center">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              </div>
+              <span className="ml-2 italic">escribiendo...</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Input de Mensaje */}
@@ -216,7 +266,10 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
           <input
             type="text"
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping();
+            }}
             onKeyPress={handleKeyPress}
             className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
             placeholder="Escribe tu mensaje..."

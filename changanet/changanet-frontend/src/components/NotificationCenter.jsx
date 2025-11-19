@@ -13,12 +13,13 @@ const NotificationCenter = ({ isOpen, onClose }) => {
         window.location.href = `/chat/${notification.datos?.senderId}`;
         break;
       case 'cotizacion':
-        // Navegar a cotizaciones
-        window.location.href = '/mis-cotizaciones';
+        // Las cotizaciones se gestionan a través del modal en el dashboard del cliente
+        // Solo navegar al dashboard del cliente donde está el botón de cotizaciones
+        window.location.href = '/cliente/dashboard';
         break;
       case 'servicio_agendado':
         // Navegar a servicios
-        window.location.href = '/mis-servicios';
+        window.location.href = '/cliente/servicios';
         break;
       default:
         // Mantener en la misma página

@@ -92,7 +92,6 @@ function App() {
                     <Route path="/profesionales" element={<Professionals />} />
                     <Route path="/profesional/:id" element={<ProfessionalDetail />} />
                     <Route path="/mi-cuenta" element={<Dashboard />} />
-                    <Route path="/mis-cotizaciones" element={<Quotes />} />
                     <Route path="/disponibilidad" element={<Availability />} />
                     <Route path="/cliente/dashboard" element={<ClientDashboard />} />
                     <Route path="/cliente/perfil" element={<ClientProfile />} />

@@ -18,6 +18,7 @@ export const ChatProvider = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState({});
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [typingUsers, setTypingUsers] = useState({}); // Estado para usuarios escribiendo
 
   useEffect(() => {
     let newSocket = null;
@@ -150,6 +151,24 @@ export const ChatProvider = ({ children }) => {
         }
       });
 
+      newSocket.on('userTyping', ({ from, isTyping }) => {
+        // Manejar estado de typing de otros usuarios
+        setTypingUsers(prev => ({
+          ...prev,
+          [from]: isTyping
+        }));
+        
+        // Auto-ocultar el indicador después de 3 segundos si no hay más typing
+        if (isTyping) {
+          setTimeout(() => {
+            setTypingUsers(prev => ({
+              ...prev,
+              [from]: false
+            }));
+          }, 3000);
+        }
+      });
+
       setSocket(newSocket);
     }
 
@@ -163,6 +182,7 @@ export const ChatProvider = ({ children }) => {
         newSocket.off('receiveMessage');
         newSocket.off('messageSent');
         newSocket.off('messagesRead');
+        newSocket.off('userTyping');
         newSocket.close();
         setIsConnected(false);
       }
@@ -194,6 +214,26 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const emitTyping = (to) => {
+    if (socket && isConnected && user) {
+      socket.emit('typing', {
+        from: user.id,
+        to,
+        isTyping: true
+      });
+    }
+  };
+
+  const stopTyping = (to) => {
+    if (socket && isConnected && user) {
+      socket.emit('typing', {
+        from: user.id,
+        to,
+        isTyping: false
+      });
+    }
+  };
+
   const loadMessageHistory = async (otherUserId) => {
     try {
       const response = await fetch(`/api/messages?with=${otherUserId}`, {
@@ -219,9 +259,12 @@ export const ChatProvider = ({ children }) => {
     isConnected,
     messages,
     unreadCounts,
+    typingUsers,
     sendMessage,
     markAsRead,
-    loadMessageHistory
+    loadMessageHistory,
+    emitTyping,
+    stopTyping
   };
 
   return (

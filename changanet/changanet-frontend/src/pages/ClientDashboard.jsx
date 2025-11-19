@@ -29,6 +29,7 @@ const ClientDashboard = () => {
   });
   const [recentActivity, setRecentActivity] = useState([]);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showCotizacionesModal, setShowCotizacionesModal] = useState(false);
 
   // Verificar permisos y mostrar onboarding
   useEffect(() => {
@@ -171,6 +172,16 @@ const ClientDashboard = () => {
     setShowOnboarding(true);
   };
 
+  // Handlers para el modal de cotizaciones
+  const handleOpenCotizacionesModal = () => {
+    setShowCotizacionesModal(true);
+  };
+
+  const handleCloseCotizacionesModal = () => {
+    console.log('Cerrando modal de cotizaciones');
+    setShowCotizacionesModal(false);
+  };
+
   // Handler para completar onboarding
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
@@ -178,6 +189,7 @@ const ClientDashboard = () => {
       localStorage.setItem(`changanet_onboarding_${user.id}_cliente`, 'completed');
     }
   };
+
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -294,7 +306,7 @@ const ClientDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Mis Cotizaciones</h3>
             <button
-              onClick={() => navigate('/cliente/cotizaciones')}
+              onClick={handleOpenCotizacionesModal}
               className="bg-[#E30613] text-white px-4 py-2 rounded-lg hover:bg-[#C9050F] transition-colors"
             >
               Gestionar Cotizaciones
@@ -437,9 +449,14 @@ const ClientDashboard = () => {
                 Mi Perfil
               </button>
 
-              {/* Componente Mis Cotizaciones */}
-              {console.log('Rendering MisCotizacionesCliente component')}
-              <MisCotizacionesCliente />
+              <button
+                onClick={handleOpenCotizacionesModal}
+                className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors text-left flex items-center"
+                aria-label="Abrir panel de Mis Cotizaciones"
+              >
+                <span className="mr-3">💰</span>
+                Mis Cotizaciones
+              </button>
             </div>
           </div>
         </div>
@@ -469,6 +486,12 @@ const ClientDashboard = () => {
           {renderTabContent()}
         </div>
       </div>
+
+
+      {/* Modal de Cotizaciones */}
+      {showCotizacionesModal && (
+        <MisCotizacionesCliente onClose={handleCloseCotizacionesModal} />
+      )}
 
       {/* Onboarding Wizard */}
       {showOnboarding && (

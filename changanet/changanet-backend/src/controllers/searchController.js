@@ -118,7 +118,7 @@ exports.searchProfessionals = async (req, res) => {
     // Ahora busca tanto en especialidad principal como en array JSON de especialidades
     if (especialidad) {
       where.OR = [
-        { especialidad: { contains: especialidad, mode: 'insensitive' } }, // Especialidad principal
+        { especialidad: { contains: especialidad } }, // Especialidad principal
         // Nota: Búsqueda en JSON array requeriría lógica más compleja, por ahora solo especialidad principal
       ];
     }

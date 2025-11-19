@@ -33,8 +33,7 @@ const Dashboard = () => {
   const currentPath = window.location.pathname;
 
   switch (currentPath) {
-    case '/mis-cotizaciones':
-      return <Quotes />;
+    // /mis-cotizaciones ya no es una ruta separada - ahora se maneja como modal en ClientDashboard
     case '/mis-presupuestos':
       return <Quotes />;
     case '/mi-perfil':

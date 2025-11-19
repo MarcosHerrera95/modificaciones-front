@@ -1,380 +1,226 @@
-import React, { useState } from 'react';
-import './MisCotizacionesCliente.css';
+import React, { useState, useEffect } from 'react';
 
-/**
- * Componente MisCotizacionesCliente
- * Gestiona las cotizaciones del cliente en el panel de "Mi Cuenta"
- * Permite ver cotizaciones recibidas y recientes, aceptar o rechazar ofertas
- */
-const MisCotizacionesCliente = () => {
-  console.log('MisCotizacionesCliente component rendered');
+// Estilos CSS integrados para el modal
+const styles = `
+/* Overlay principal del modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-out;
+}
 
-  // Estados para gestionar las cotizaciones y la interfaz
-  const [cotizacionesRecibidas, setCotizacionesRecibidas] = useState([
-    {
-      id: 1,
-      cliente: { nombre: 'Diego Eduardo Euler', zona: 'QUILMES' },
-      servicio: 'instalacion red electrica',
-      descripcion: 'Necesito cambiar la instalación eléctrica de un baño.',
-      imagenes: [],
-      ubicacion: 'Buenos Aires',
-      fecha: '2025-04-05',
-      estado: 'PENDIENTE',
-      profesional: {
-        nombre: 'Isabella Gómez González',
-        oferta: {
-          precio: 5631,
-          tiempo: 2,
-          comentarios: 'Puedo comenzar mañana a las 9am.'
-        }
+/* Contenido principal del modal */
+.modal-content {
+  background-color: white;
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  max-width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 600px;
+  position: relative;
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateY(-30px) scale(0.95);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Encabezado del modal */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.modal-title {
+  color: #2c3e50;
+  font-size: 1.8rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.modal-subtitle {
+  color: #7f8c8d;
+  font-size: 1rem;
+  margin-bottom: 25px;
+  margin-top: 5px;
+}
+
+/* Botón de cerrar */
+.btn-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #ecf0f1;
+  color: #7f8c8d;
+  font-size: 1.5rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-close:hover {
+  background-color: #e74c3c;
+  color: white;
+  transform: rotate(90deg) scale(1.1);
+}
+
+/* Contenido del modal */
+.modal-body {
+  padding: 20px 0;
+  text-align: center;
+}
+
+.empty-state {
+  padding: 40px 20px;
+  color: #7f8c8d;
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.6;
+}
+
+.empty-state-text {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .modal-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* Accesibilidad */
+.btn-close:focus {
+  outline: 2px solid #3498db;
+  outline-offset: 2px;
+}
+`;
+
+const MisCotizacionesCliente = ({ onClose }) => {
+  // Estado para manejar el modal
+  const [isVisible, setIsVisible] = useState(true);
+
+  // Función para cerrar modal con tecla Escape
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        handleClose();
       }
-    },
-    {
-      id: 2,
-      cliente: { nombre: 'María López', zona: 'PALERMO' },
-      servicio: 'reparacion grifería',
-      descripcion: 'La grifería del baño pierde agua constantemente.',
-      imagenes: [],
-      ubicacion: 'Buenos Aires',
-      fecha: '2025-04-03',
-      estado: 'PENDIENTE',
-      profesional: {
-        nombre: 'Carlos Rodríguez',
-        oferta: {
-          precio: 2895,
-          tiempo: 1,
-          comentarios: 'Disponible este viernes.'
-        }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  // Función para cerrar el modal
+  const handleClose = () => {
+    setIsVisible(false);
+    // Pequeño delay para la animación de salida
+    setTimeout(() => {
+      if (onClose) {
+        onClose();
       }
+    }, 300);
+  };
+
+  // Función para manejar click en overlay
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
     }
-  ]);
-
-  const [cotizacionesRecientes, setCotizacionesRecientes] = useState([
-    {
-      id: 3,
-      cliente: { nombre: 'Ana García', zona: 'BELGRANO' },
-      servicio: 'instalacion aire acondicionado',
-      descripcion: 'Necesito instalar aire acondicionado en sala y dormitorio.',
-      imagenes: [],
-      ubicacion: 'Buenos Aires',
-      fecha: '2025-03-28',
-      estado: 'ENVIADA',
-      profesional: {
-        nombre: 'Luis Martínez',
-        oferta: {
-          precio: 8500,
-          tiempo: 3,
-          comentarios: 'Incluye materiales y mano de obra.'
-        }
-      }
-    }
-  ]);
-
-  // Estados para controlar la interfaz
-  const [showPanel, setShowPanel] = useState(false);
-  const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
-
-  /**
-   * Abre el panel principal de cotizaciones
-   */
-  const handleOpenCotizaciones = () => {
-    console.log('Abriendo panel de cotizaciones');
-    console.log('showPanel antes:', showPanel);
-    setShowPanel(true);
-    console.log('showPanel después de setState:', true);
   };
 
-  /**
-   * Cierra el panel principal y resetea estados
-   */
-  const handleCloseCotizaciones = () => {
-    setShowPanel(false);
-    setCotizacionSeleccionada(null);
-    setShowDetails(false);
-  };
-
-  /**
-   * Abre el modal de detalles de una cotización específica
-   * @param {Object} cotizacion - La cotización seleccionada
-   */
-  const handleOpenDetails = (cotizacion) => {
-    setCotizacionSeleccionada(cotizacion);
-    setShowDetails(true);
-  };
-
-  /**
-   * Cierra el modal de detalles
-   */
-  const handleCloseDetails = () => {
-    setShowDetails(false);
-    setCotizacionSeleccionada(null);
-  };
-
-  /**
-   * Procesa la aceptación de una cotización
-   * @param {Event} e - Evento del formulario
-   */
-  const handleAcceptQuote = (e) => {
-    e.preventDefault();
-    // Simulación de aceptación (en producción haría llamada a API)
-    console.log("Aceptando cotización:", cotizacionSeleccionada);
-    alert(`¡Cotización aceptada! Se ha notificado al profesional ${cotizacionSeleccionada.profesional.nombre}`);
-
-    // Actualizar estado localmente
-    if (cotizacionSeleccionada.estado === 'PENDIENTE') {
-      setCotizacionesRecibidas(prev => prev.map(c =>
-        c.id === cotizacionSeleccionada.id ? { ...c, estado: 'ACEPTADA' } : c
-      ));
-    }
-
-    handleCloseDetails();
-  };
-
-  /**
-   * Procesa el rechazo de una cotización
-   * @param {Event} e - Evento del formulario
-   */
-  const handleRejectQuote = (e) => {
-    e.preventDefault();
-    // Simulación de rechazo (en producción haría llamada a API)
-    console.log("Rechazando cotización:", cotizacionSeleccionada);
-    alert(`Cotización rechazada. Se ha notificado al profesional ${cotizacionSeleccionada.profesional.nombre}`);
-
-    // Actualizar estado localmente
-    if (cotizacionSeleccionada.estado === 'PENDIENTE') {
-      setCotizacionesRecibidas(prev => prev.map(c =>
-        c.id === cotizacionSeleccionada.id ? { ...c, estado: 'RECHAZADA' } : c
-      ));
-    }
-
-    handleCloseDetails();
-  };
-
-  console.log('Renderizando botón Mis Cotizaciones');
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <>
-      {/* Botón principal para abrir el panel de cotizaciones */}
-      <button
-        onClick={() => {
-          console.log('Botón Mis Cotizaciones clickeado');
-          alert('Botón clickeado - abriendo modal'); // Debug temporal
-          handleOpenCotizaciones();
-        }}
-        className="btn-mis-cotizaciones"
-        aria-label="Abrir panel de Mis Cotizaciones"
-        style={{
-          backgroundColor: 'red',
-          color: 'white',
-          padding: '10px 20px',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: 'pointer',
-          fontSize: '16px',
-          fontWeight: 'bold'
-        }}
+      <style dangerouslySetInnerHTML={{ __html: styles }} />
+      <div 
+        className="modal-overlay" 
+        role="presentation"
+        onClick={handleOverlayClick}
       >
-        🔍 Mis Cotizaciones
-      </button>
-
-      {/* Panel/Modal principal de cotizaciones */}
-      {showPanel && (
-        <div
-          className="modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-          style={{ zIndex: 9999 }}
+        <div 
+          className="modal-content" 
+          role="dialog" 
+          aria-labelledby="modal-title" 
+          aria-describedby="modal-subtitle"
         >
-          {console.log('Renderizando modal de cotizaciones')}
-          <div className="modal-content" style={{ zIndex: 10000 }}>
-            <div className="modal-header">
-              <h2 id="modal-title">Mis Cotizaciones</h2>
-              <p className="modal-subtitle">Gestiona tus solicitudes pendientes y recientes</p>
-              <button
-                onClick={handleCloseCotizaciones}
-                className="btn-close"
-                aria-label="Cerrar panel de cotizaciones"
-              >
-                ✕
-              </button>
-            </div>
+          <button 
+            onClick={handleClose} 
+            className="btn-close" 
+            aria-label="Cerrar modal de cotizaciones"
+          >
+            ×
+          </button>
+          
+          <div className="modal-header">
+            <h2 id="modal-title" className="modal-title">
+              Mis Cotizaciones
+            </h2>
+          </div>
+          
+          <p id="modal-subtitle" className="modal-subtitle">
+            Gestiona tus solicitudes pendientes y recientes.
+          </p>
 
-            <div className="modal-body">
-              {/* Sección de Cotizaciones Recibidas */}
-              <section className="cotizaciones-section" aria-labelledby="recibidas-title">
-                <h3 id="recibidas-title">Cotizaciones Recibidas</h3>
-                <div className="cotizaciones-list" role="list">
-                  {cotizacionesRecibidas.length === 0 ? (
-                    <p className="no-cotizaciones">No tienes cotizaciones recibidas pendientes.</p>
-                  ) : (
-                    cotizacionesRecibidas.map(cotizacion => (
-                      <div key={cotizacion.id} className="cotizacion-card" role="listitem">
-                        <div className="cotizacion-info">
-                          <h4 className="servicio-titulo">{cotizacion.servicio}</h4>
-                          <p className="cliente-info">
-                            Cliente: {cotizacion.cliente.nombre} • Zona: {cotizacion.cliente.zona}
-                          </p>
-                        </div>
-                        <span
-                          className={`estado-badge ${cotizacion.estado.toLowerCase()}`}
-                          aria-label={`Estado: ${cotizacion.estado}`}
-                        >
-                          {cotizacion.estado}
-                        </span>
-                        <button
-                          onClick={() => handleOpenDetails(cotizacion)}
-                          className="btn-ver-detalles"
-                          aria-label={`Ver detalles de la cotización ${cotizacion.servicio}`}
-                        >
-                          Ver Detalles
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-
-              {/* Sección de Cotizaciones Recientes */}
-              <section className="cotizaciones-section" aria-labelledby="recientes-title">
-                <h3 id="recientes-title">Cotizaciones Recientes</h3>
-                <div className="cotizaciones-list" role="list">
-                  {cotizacionesRecientes.length === 0 ? (
-                    <p className="no-cotizaciones">No tienes cotizaciones recientes.</p>
-                  ) : (
-                    cotizacionesRecientes.map(cotizacion => (
-                      <div key={cotizacion.id} className="cotizacion-card" role="listitem">
-                        <div className="cotizacion-info">
-                          <h4 className="servicio-titulo">{cotizacion.servicio}</h4>
-                          <p className="cliente-info">
-                            Cliente: {cotizacion.cliente.nombre} • Zona: {cotizacion.cliente.zona}
-                          </p>
-                        </div>
-                        <span
-                          className={`estado-badge ${cotizacion.estado.toLowerCase()}`}
-                          aria-label={`Estado: ${cotizacion.estado}`}
-                        >
-                          {cotizacion.estado}
-                        </span>
-                        <button
-                          onClick={() => handleOpenDetails(cotizacion)}
-                          className="btn-ver-detalles"
-                          aria-label={`Ver detalles de la cotización ${cotizacion.servicio}`}
-                        >
-                          Ver Detalles
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                onClick={handleCloseCotizaciones}
-                className="btn-secondary"
-              >
-                Cerrar
-              </button>
+          <div className="modal-body">
+            <div className="empty-state">
+              <div className="empty-state-icon">📋</div>
+              <p className="empty-state-text">
+                No hay cotizaciones para mostrar
+              </p>
+              <p style={{ fontSize: '0.9rem', marginTop: '10px', opacity: 0.8 }}>
+                Las cotizaciones aparecerán aquí cuando los profesionales respondan a tus solicitudes.
+              </p>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal de detalles de cotización */}
-      {showDetails && cotizacionSeleccionada && (
-        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="details-title">
-          <div className="modal-content modal-details">
-            <div className="modal-header">
-              <h2 id="details-title">Detalles de la Cotización</h2>
-              <button
-                onClick={handleCloseDetails}
-                className="btn-close"
-                aria-label="Cerrar detalles de cotización"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {/* Información del cliente */}
-              <section className="detalles-section" aria-labelledby="cliente-title">
-                <h3 id="cliente-title">Información del Cliente</h3>
-                <div className="info-grid">
-                  <p><strong>Nombre:</strong> {cotizacionSeleccionada.cliente.nombre}</p>
-                  <p><strong>Zona:</strong> {cotizacionSeleccionada.cliente.zona}</p>
-                  <p><strong>Ubicación:</strong> {cotizacionSeleccionada.ubicacion}</p>
-                  <p><strong>Fecha de solicitud:</strong> {cotizacionSeleccionada.fecha}</p>
-                </div>
-              </section>
-
-              {/* Descripción del servicio */}
-              <section className="detalles-section" aria-labelledby="servicio-title">
-                <h3 id="servicio-title">Descripción del Servicio</h3>
-                <p className="descripcion">{cotizacionSeleccionada.descripcion}</p>
-              </section>
-
-              {/* Imágenes adjuntas */}
-              {cotizacionSeleccionada.imagenes && cotizacionSeleccionada.imagenes.length > 0 && (
-                <section className="detalles-section" aria-labelledby="imagenes-title">
-                  <h3 id="imagenes-title">Imágenes Adjuntas</h3>
-                  <div className="imagenes-grid">
-                    {cotizacionSeleccionada.imagenes.map((imagen, index) => (
-                      <img
-                        key={index}
-                        src={imagen}
-                        alt={`Imagen ${index + 1} del servicio`}
-                        className="imagen-servicio"
-                      />
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* Oferta del profesional */}
-              <section className="detalles-section oferta-section" aria-labelledby="oferta-title">
-                <h3 id="oferta-title">Oferta del Profesional</h3>
-                <div className="oferta-info">
-                  <p><strong>Profesional:</strong> {cotizacionSeleccionada.profesional.nombre}</p>
-                  <p><strong>Precio Final:</strong> ${cotizacionSeleccionada.profesional.oferta.precio.toLocaleString()}</p>
-                  <p><strong>Tiempo Estimado:</strong> {cotizacionSeleccionada.profesional.oferta.tiempo} día(s)</p>
-                  <p><strong>Comentarios Adicionales:</strong></p>
-                  <p className="comentarios">{cotizacionSeleccionada.profesional.oferta.comentarios}</p>
-                </div>
-              </section>
-            </div>
-
-            <div className="modal-footer">
-              {cotizacionSeleccionada.estado === 'PENDIENTE' && (
-                <div className="acciones-cotizacion">
-                  <button
-                    onClick={handleRejectQuote}
-                    className="btn-rechazar"
-                    aria-label="Rechazar cotización"
-                  >
-                    ❌ Rechazar Cotización
-                  </button>
-                  <button
-                    onClick={handleAcceptQuote}
-                    className="btn-aceptar"
-                    aria-label="Aceptar cotización"
-                  >
-                    ✅ Aceptar Cotización
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={handleCloseDetails}
-                className="btn-secondary"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </>
   );
 };

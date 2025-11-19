@@ -1,0 +1,374 @@
+import React, { useState } from 'react';
+import './MisCotizacionesProfesional.css';
+
+const MisCotizacionesProfesional = ({ onClose }) => {
+  // Estados para manejar detalles y sub-modales
+  const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [tipoSeccion, setTipoSeccion] = useState(''); // 'recibidas' o 'enviadas'
+
+  // Función para abrir el sub-modal con la cotización específica
+  const handleOpenDetails = (cotizacion, tipo) => {
+    setCotizacionSeleccionada(cotizacion);
+    setShowDetails(true);
+    setTipoSeccion(tipo);
+  };
+
+  // Función para cerrar el sub-modal
+  const handleCloseDetails = () => {
+    setShowDetails(false);
+    setCotizacionSeleccionada(null);
+    setTipoSeccion('');
+  };
+
+  // Función para procesar la aceptación de la cotización (enviar respuesta)
+  const handleEnviarRespuesta = (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const precio = formData.get('precio');
+    const tiempo = formData.get('tiempo');
+    const comentarios = formData.get('comentarios');
+
+    console.log("Enviando respuesta:", {
+      ...cotizacionSeleccionada,
+      respuesta: {
+        precio: parseFloat(precio),
+        tiempo: parseInt(tiempo),
+        comentarios
+      }
+    });
+
+    alert(`¡Respuesta enviada! Precio: $${precio}, Tiempo: ${tiempo} horas`);
+    handleCloseDetails();
+  };
+
+  // Función para simular la finalización de un trabajo
+  const handleFinalizarTrabajo = (e) => {
+    e.preventDefault();
+    console.log("Finalizando trabajo:", cotizacionSeleccionada);
+    alert(`¡Trabajo marcado como completado!`);
+    handleCloseDetails();
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>Mis Cotizaciones</h2>
+          <button 
+            onClick={onClose} 
+            className="close-button"
+            aria-label="Cerrar modal"
+          >
+            ✕
+          </button>
+        </div>
+        
+        <div className="modal-body">
+          <p className="modal-subtitle">Gestiona las solicitudes de tus clientes y tus respuestas.</p>
+
+          {/* Sección de Solicitudes Recibidas */}
+          <div className="quote-section">
+            <h4>Solicitudes Recibidas</h4>
+            <p className="section-description">Solicitudes de clientes que necesitan tus servicios</p>
+            <div className="quotes-list">
+              {/* Solicitudes Pendientes */}
+              <div className="quote-item pending">
+                <div className="quote-info">
+                  <h5>Instalación de Aire Acondicionado</h5>
+                  <p className="client-info">
+                    <strong>Cliente:</strong> Diego Eduardo Euler<br/>
+                    <strong>Zona:</strong> QUILMES<br/>
+                    <strong>Ubicación:</strong> Buenos Aires<br/>
+                    <strong>Fecha:</strong> 2025-01-19
+                  </p>
+                  <p className="quote-description">
+                    <strong>Descripción:</strong> Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.
+                  </p>
+                </div>
+                <div className="quote-actions">
+                  <span className="status-badge pending">PENDIENTE</span>
+                  <button 
+                    onClick={() => handleOpenDetails({
+                      id: 1,
+                      titulo: 'Instalación de Aire Acondicionado',
+                      cliente: { nombre: 'Diego Eduardo Euler', zona: 'QUILMES' },
+                      descripcion: 'Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.',
+                      ubicacion: 'Buenos Aires',
+                      fecha: '2025-01-19',
+                      estado: 'PENDIENTE'
+                    }, 'recibidas')}
+                    className="btn-details"
+                  >
+                    Ver Detalles y Responder
+                  </button>
+                </div>
+              </div>
+
+              {/* Solicitudes Enviadas */}
+              <div className="quote-item sent">
+                <div className="quote-info">
+                  <h5>Reparación de Calefón</h5>
+                  <p className="client-info">
+                    <strong>Cliente:</strong> María González<br/>
+                    <strong>Zona:</strong> PALERMO<br/>
+                    <strong>Fecha:</strong> 2025-01-18
+                  </p>
+                  <div className="response-info">
+                    <p><strong>Mi Respuesta:</strong></p>
+                    <p>💰 <strong>Precio:</strong> $15.000</p>
+                    <p>⏰ <strong>Tiempo:</strong> 2 horas</p>
+                    <p>💬 <strong>Comentarios:</strong> Disponible este fin de semana. Tengo experiencia con marcas Rheem.</p>
+                  </div>
+                </div>
+                <div className="quote-actions">
+                  <span className="status-badge sent">ENVIADA</span>
+                  <button 
+                    onClick={() => handleOpenDetails({
+                      id: 2,
+                      titulo: 'Reparación de Calefón',
+                      cliente: { nombre: 'María González', zona: 'PALERMO' },
+                      descripcion: 'El calefón no enciende. Probablemente sea el piloto.',
+                      ubicacion: 'Buenos Aires',
+                      fecha: '2025-01-18',
+                      estado: 'ENVIADA',
+                      mi_respuesta: {
+                        precio: 15000,
+                        tiempo: 2,
+                        comentarios: 'Disponible este fin de semana. Tengo experiencia con marcas Rheem.',
+                        fecha_respuesta: '2025-01-18'
+                      }
+                    }, 'enviadas')}
+                    className="btn-details"
+                  >
+                    Ver Mi Respuesta
+                  </button>
+                </div>
+              </div>
+
+              {/* Trabajos Aceptados */}
+              <div className="quote-item accepted">
+                <div className="quote-info">
+                  <h5>Instalación Eléctrica</h5>
+                  <p className="client-info">
+                    <strong>Cliente:</strong> Carlos Mendoza<br/>
+                    <strong>Zona:</strong> RECOLETA<br/>
+                    <strong>Fecha:</strong> 2025-01-17
+                  </p>
+                  <div className="response-info">
+                    <p><strong>Mi Respuesta:</strong></p>
+                    <p>💰 <strong>Precio:</strong> $25.000</p>
+                    <p>⏰ <strong>Tiempo:</strong> 6 horas</p>
+                    <p>💬 <strong>Comentarios:</strong> Aceptado. Comenzamos mañana a las 8:00 AM.</p>
+                  </div>
+                </div>
+                <div className="quote-actions">
+                  <span className="status-badge accepted">ACEPTADA</span>
+                  <button 
+                    onClick={() => handleOpenDetails({
+                      id: 3,
+                      titulo: 'Instalación Eléctrica',
+                      cliente: { nombre: 'Carlos Mendoza', zona: 'RECOLETA' },
+                      descripcion: 'Necesito instalar el sistema eléctrico completo para una ampliación.',
+                      ubicacion: 'Buenos Aires',
+                      fecha: '2025-01-17',
+                      estado: 'ACEPTADA',
+                      mi_respuesta: {
+                        precio: 25000,
+                        tiempo: 6,
+                        comentarios: 'Aceptado. Comenzamos mañana a las 8:00 AM.',
+                        fecha_respuesta: '2025-01-17'
+                      }
+                    }, 'enviadas')}
+                    className="btn-details"
+                  >
+                    Ver Detalles
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sección de Cotizaciones Recientes */}
+          <div className="quote-section">
+            <h4>Mis Respuestas Recientes</h4>
+            <p className="section-description">Las últimas respuestas que has enviado a solicitudes de clientes</p>
+            <div className="quotes-list">
+              <div className="quote-item recent">
+                <div className="quote-info">
+                  <h5>Mantenimiento de Pileta</h5>
+                  <p className="client-info">
+                    <strong>Cliente:</strong> Ana Torres<br/>
+                    <strong>Zona:</strong> BELGRANO<br/>
+                    <strong>Fecha solicitud:</strong> 2025-01-19
+                  </p>
+                  <div className="response-info">
+                    <p><strong>Mi Respuesta (Hoy):</strong></p>
+                    <p>💰 <strong>Precio:</strong> $8.000</p>
+                    <p>⏰ <strong>Tiempo:</strong> 3 horas</p>
+                    <p>💬 <strong>Comentarios:</strong> Incluyo productos químicos. Trabajo los sábados.</p>
+                  </div>
+                </div>
+                <div className="quote-actions">
+                  <span className="status-badge recent">RECIENTE</span>
+                  <button 
+                    onClick={() => handleOpenDetails({
+                      id: 4,
+                      titulo: 'Mantenimiento de Pileta',
+                      cliente: { nombre: 'Ana Torres', zona: 'BELGRANO' },
+                      descripcion: 'Necesito limpieza y mantenimiento de pileta para temporada de verano.',
+                      ubicacion: 'Buenos Aires',
+                      fecha: '2025-01-19',
+                      estado: 'RECIENTE',
+                      mi_respuesta: {
+                        precio: 8000,
+                        tiempo: 3,
+                        comentarios: 'Incluyo productos químicos. Trabajo los sábados.',
+                        fecha_respuesta: '2025-01-19'
+                      }
+                    }, 'enviadas')}
+                    className="btn-details"
+                  >
+                    Ver Mi Respuesta
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sub-modal para detalles y respuesta */}
+        {showDetails && cotizacionSeleccionada && (
+          <div className="modal-overlay-details" onClick={handleCloseDetails}>
+            <div className="modal-content-details" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h3>
+                  {tipoSeccion === 'recibidas' && cotizacionSeleccionada.estado === 'PENDIENTE' 
+                    ? 'Responder Solicitud' 
+                    : 'Detalles de la Solicitud'}
+                </h3>
+                <button 
+                  onClick={handleCloseDetails} 
+                  className="close-button"
+                  aria-label="Cerrar detalles"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="request-details">
+                  <h4>{cotizacionSeleccionada.titulo}</h4>
+                  <div className="detail-group">
+                    <p><strong>Cliente:</strong> {cotizacionSeleccionada.cliente.nombre}</p>
+                    <p><strong>Zona:</strong> {cotizacionSeleccionada.cliente.zona}</p>
+                    <p><strong>Ubicación:</strong> {cotizacionSeleccionada.ubicacion}</p>
+                    <p><strong>Fecha de solicitud:</strong> {cotizacionSeleccionada.fecha}</p>
+                  </div>
+                  
+                  <div className="detail-group">
+                    <p><strong>Descripción del trabajo:</strong></p>
+                    <p className="description-text">{cotizacionSeleccionada.descripcion}</p>
+                  </div>
+
+                  {/* Mostrar mi respuesta si ya fue enviada */}
+                  {cotizacionSeleccionada.mi_respuesta && (
+                    <div className="detail-group">
+                      <p><strong>Mi Respuesta:</strong></p>
+                      <div className="my-response">
+                        <p>💰 <strong>Precio:</strong> ${cotizacionSeleccionada.mi_respuesta.precio.toLocaleString()}</p>
+                        <p>⏰ <strong>Tiempo estimado:</strong> {cotizacionSeleccionada.mi_respuesta.tiempo} horas</p>
+                        <p>💬 <strong>Comentarios:</strong> {cotizacionSeleccionada.mi_respuesta.comentarios}</p>
+                        <p><small>Respondido el: {cotizacionSeleccionada.mi_respuesta.fecha_respuesta}</small></p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Formulario de respuesta para solicitudes pendientes */}
+                {tipoSeccion === 'recibidas' && cotizacionSeleccionada.estado === 'PENDIENTE' && (
+                  <form className="response-form" onSubmit={handleEnviarRespuesta}>
+                    <h4>Enviar Mi Respuesta</h4>
+                    
+                    <div className="form-group">
+                      <label htmlFor="precio">Precio Total ($):</label>
+                      <input
+                        type="number"
+                        id="precio"
+                        name="precio"
+                        required
+                        min="1"
+                        placeholder="Ej: 15000"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="tiempo">Tiempo Estimado (horas):</label>
+                      <input
+                        type="number"
+                        id="tiempo"
+                        name="tiempo"
+                        required
+                        min="1"
+                        max="100"
+                        placeholder="Ej: 2"
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label htmlFor="comentarios">Comentarios Adicionales:</label>
+                      <textarea
+                        id="comentarios"
+                        name="comentarios"
+                        rows="3"
+                        placeholder="Ej: Disponible este fin de semana. Tengo experiencia con..."
+                      ></textarea>
+                    </div>
+
+                    <div className="form-actions">
+                      <button type="submit" className="btn-submit">
+                        📤 Enviar Respuesta
+                      </button>
+                      <button type="button" onClick={handleCloseDetails} className="btn-cancel">
+                        Cancelar
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Botón para trabajos aceptados */}
+                {tipoSeccion === 'enviadas' && cotizacionSeleccionada.estado === 'ACEPTADA' && (
+                  <div className="accepted-work-actions">
+                    <div className="form-actions">
+                      <button 
+                        onClick={handleFinalizarTrabajo}
+                        className="btn-complete"
+                      >
+                        ✅ Marcar como Completado
+                      </button>
+                      <button onClick={handleCloseDetails} className="btn-cancel">
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Solo botón cerrar para otros estados */}
+                {((tipoSeccion === 'enviadas' && cotizacionSeleccionada.estado !== 'ACEPTADA') || 
+                  (tipoSeccion === 'recibidas' && cotizacionSeleccionada.estado !== 'PENDIENTE')) && (
+                  <div className="form-actions">
+                    <button onClick={handleCloseDetails} className="btn-cancel">
+                      Cerrar
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default MisCotizacionesProfesional;
