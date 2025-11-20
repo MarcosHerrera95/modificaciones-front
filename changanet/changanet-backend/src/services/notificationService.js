@@ -111,8 +111,7 @@ exports.createNotification = async (userId, type, message, metadata = {}, priori
         usuario_id: userId,
         tipo: type,
         mensaje: finalMessage,
-        esta_leido: false,
-        prioridad: priority // Nuevo campo de prioridad
+        esta_leido: false
       }
     });
 
@@ -537,8 +536,7 @@ exports.scheduleNotification = async (userId, type, message, scheduledTime, meta
         usuario_id: userId,
         tipo: `scheduled_${type}`,
         mensaje: message,
-        esta_leido: false,
-        prioridad: priority,
+        esta_leido: false
         // Podríamos agregar campos como scheduled_for en el futuro
       }
     });

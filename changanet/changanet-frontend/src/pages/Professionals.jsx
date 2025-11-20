@@ -8,7 +8,14 @@ import useGeolocation from '../hooks/useGeolocation';
 import { useAuth } from '../context/AuthContext';
 
 const Professionals = () => {
-  console.log('🚀 Professionals component mounted');
+  console.log('🚀 Professionals component mounted - FORCE REFRESH');
+  console.log('Current timestamp:', new Date().toISOString());
+
+  // Clear localStorage cache on component mount to ensure fresh data
+  useEffect(() => {
+    console.log('🧹 Clearing professional filters cache on mount');
+    localStorage.removeItem('professionalFilters');
+  }, []);
   
   const { user } = useAuth();
 
@@ -63,6 +70,16 @@ const Professionals = () => {
   console.log('🔍 DEBUGGING - Professional type:', typeof filteredProfessionals);
   console.log('🔍 DEBUGGING - Is array:', Array.isArray(filteredProfessionals));
   console.log('🔍 DEBUGGING - First professional:', filteredProfessionals[0]);
+
+  // Log all professional IDs for debugging
+  if (filteredProfessionals.length > 0) {
+    console.log('📋 ALL PROFESSIONAL IDs currently displayed:');
+    filteredProfessionals.forEach((prof, index) => {
+      console.log(`   ${index + 1}. ID: ${prof.usuario_id}, Name: ${prof.usuario?.nombre}`);
+    });
+  } else {
+    console.log('⚠️ NO PROFESSIONALS DISPLAYED IN FRONTEND!');
+  }
 
   // Configurar IntersectionObserver para scroll infinito
   useEffect(() => {

@@ -58,27 +58,15 @@ const useProfessionals = () => {
 
   // Load cached professionals from localStorage on mount
   useEffect(() => {
-    try {
-      const cached = localStorage.getItem('cachedProfessionals');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setCachedProfessionals(parsed);
-        setProfessionals(parsed); // Show cached data immediately
-        console.log('🔄 Loaded cached professionals from localStorage:', parsed.length);
-      } else {
-        // No cached data, use defaults to ensure list is never empty
-        const defaults = getDefaultProfessionals();
-        setProfessionals(defaults);
-        setCachedProfessionals(defaults);
-        console.log('🔄 Using default professionals (no cached data)');
-      }
-    } catch (error) {
-      console.error('Error loading cached professionals:', error);
-      // Fallback to defaults on error
-      const defaults = getDefaultProfessionals();
-      setProfessionals(defaults);
-      setCachedProfessionals(defaults);
-    }
+    // Force complete reset - clear everything
+    localStorage.removeItem('cachedProfessionals');
+    localStorage.removeItem('professionalFilters');
+    setCachedProfessionals([]);
+    setProfessionals([]); // Start with empty array
+    console.log('🧹 COMPLETE RESET - Cleared all caches and starting fresh');
+
+    // Don't load any cached data - let the API fetch handle everything
+    // This ensures we get real data from the backend
   }, []);
   const [sortBy, setSortBy] = useState(savedFilters.sortBy || 'calificacion_promedio');
   const [filterVerified, setFilterVerified] = useState(savedFilters.filterVerified || false);
@@ -131,6 +119,8 @@ const useProfessionals = () => {
   }, [location.search]);
 
   const fetchProfessionals = useCallback(async (loadMore = false) => {
+    console.log('🚀 fetchProfessionals called with loadMore:', loadMore);
+
     if (isFetchingRef.current) {
       console.log('Skipping fetch, already fetching');
       return;
@@ -213,14 +203,33 @@ const useProfessionals = () => {
       }
 
       const data = await response.json();
-      console.log('Received data from API:', data);
+      console.log('✅ Received data from API:', data);
       console.log('🔍 DEBUGGING API - Response data type:', typeof data);
       console.log('🔍 DEBUGGING API - Professionals data:', data.professionals);
       const newProfessionals = data.professionals || [];
-      console.log('New professionals array:', newProfessionals);
-      console.log('New professionals length:', newProfessionals.length);
+      console.log('✅ New professionals array:', newProfessionals);
+      console.log('✅ New professionals length:', newProfessionals.length);
       console.log('🔍 DEBUGGING - New professionals type:', typeof newProfessionals);
       console.log('🔍 DEBUGGING - Is new professionals array:', Array.isArray(newProfessionals));
+
+      // Log each professional's ID for debugging
+      if (newProfessionals.length > 0) {
+        console.log('📋 Professional IDs from API:');
+        newProfessionals.forEach((prof, index) => {
+          console.log(`   ${index + 1}. ID: ${prof.usuario_id}, Name: ${prof.usuario?.nombre}`);
+        });
+      } else {
+        console.log('⚠️ No professionals received from API!');
+      }
+
+      // Log each professional's ID for debugging
+      if (newProfessionals.length > 0) {
+        console.log('📋 Professional IDs from API:');
+        newProfessionals.forEach((prof, index) => {
+          console.log(`   ${index + 1}. ID: ${prof.usuario_id}, Name: ${prof.usuario?.nombre}`);
+        });
+      }
+
       console.log('🔍 CRITICAL - About to set state with professionals:', newProfessionals);
 
       // Si estamos cargando más, agregar a los existentes
@@ -242,6 +251,11 @@ const useProfessionals = () => {
           console.error('Error saving to localStorage:', error);
         }
       }
+
+      // Force immediate state update to ensure UI shows real data
+      console.log('🔄 FORCE UPDATE - Setting professionals state immediately');
+      setProfessionals(newProfessionals);
+      setLoading(false);
 
       // Verificar si hay más resultados
       setHasMore(newProfessionals.length === 20);

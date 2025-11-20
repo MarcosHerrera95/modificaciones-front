@@ -23,29 +23,68 @@ const QuoteRequestModal = ({ isOpen, onClose, professionalId, professionalName }
     setError('');
     setLoading(true);
 
+    // Frontend validation
+    if (!formData.descripción.trim()) {
+      setError('La descripción del trabajo es obligatoria.');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.zona_cobertura.trim()) {
+      setError('La zona de cobertura es obligatoria.');
+      setLoading(false);
+      return;
+    }
+
+    if (!professionalId) {
+      setError('ID del profesional no válido.');
+      setLoading(false);
+      return;
+    }
+
+    console.log('📤 SUBMITTING QUOTE REQUEST:');
+    console.log('- Professional ID:', professionalId);
+    console.log('- Professional Name:', professionalName);
+    console.log('- Description:', formData.descripción);
+    console.log('- Zone:', formData.zona_cobertura);
+
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      console.log('🌐 API Base URL:', apiBaseUrl);
+
+      const requestBody = {
+        profesionales_ids: JSON.stringify([professionalId]),
+        descripcion: formData.descripción.trim(),
+        zona_cobertura: formData.zona_cobertura.trim()
+      };
+
+      console.log('📦 Request Body:', requestBody);
+
       const response = await fetch(`${apiBaseUrl}/api/quotes/request`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         },
-        body: JSON.stringify({
-          profesional_id: professionalId,
-          ...formData
-        })
+        body: JSON.stringify(requestBody)
       });
+
+      console.log('📡 Response Status:', response.status);
+      console.log('📡 Response OK:', response.ok);
+
       const data = await response.json();
+      console.log('📨 Response Data:', data);
 
       if (response.ok) {
-        alert('Solicitud de cotización enviada exitosamente. Recibirás respuestas pronto.');
+        alert('✅ Solicitud de cotización enviada exitosamente. Recibirás respuestas pronto.');
         onClose();
         setFormData({ descripción: '', zona_cobertura: '' });
       } else {
-        setError(data.error || 'Error al enviar solicitud');
+        console.error('❌ API Error:', data);
+        setError(data.message || data.error || 'Error al enviar solicitud');
       }
     } catch (err) {
+      console.error('❌ Network Error:', err);
       setError('Error de red. Inténtalo nuevamente.');
     } finally {
       setLoading(false);
@@ -57,7 +96,7 @@ const QuoteRequestModal = ({ isOpen, onClose, professionalId, professionalName }
   // Create portal to render modal at document body level - completely independent of parent containers
   const modalContent = (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 animate-fade-in p-4">
-      <div className="absolute bg-white rounded-xl shadow-lg w-full max-w-[640px] max-h-[95vh] overflow-hidden border border-gray-200 animate-modal-expand"
+      <div className="absolute bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[70vh] overflow-hidden border-4 border-white/20 animate-modal-expand"
         style={{
           top: '50%',
           left: '50%',
