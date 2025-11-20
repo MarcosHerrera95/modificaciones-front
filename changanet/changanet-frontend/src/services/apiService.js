@@ -335,11 +335,11 @@ export const professionalsAPI = {
 export const quotesAPI = {
   create: (quoteData) => api.post('/api/quotes', quoteData),
   getMyQuotes: () => api.get('/api/quotes/client'), // Para clientes
-  getProfessionalQuotes: () => api.get('/api/quotes/professional'), // Para profesionales
+  getProfessionalQuotes: () => api.get('/api/quotes/professional', { useCache: false }), // Para profesionales - sin caché
   getById: (id) => api.get(`/api/quotes/${id}`),
   respond: (quoteId, action, data = {}) => api.post('/api/quotes/respond', { quoteId, action, ...data }),
   getClientServices: () => api.get('/api/quotes/client/services'),
-  getProfessionalServices: () => api.get('/api/quotes/professional/services')
+  getProfessionalServices: () => api.get('/api/quotes/professional/services', { useCache: false }) // También sin caché
 };
 
 // Mensajes

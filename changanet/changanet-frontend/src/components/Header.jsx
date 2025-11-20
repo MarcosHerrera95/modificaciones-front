@@ -52,14 +52,6 @@ const Header = () => {
             <span className="text-gray-800 font-extrabold">Changánet</span>
           </button>
 
-          <nav className="hidden md:flex space-x-8">
-            <Link
-              to="/profesionales"
-              className="text-gray-700 hover:text-emerald-600 font-medium transition-colors duration-300"
-            >
-              Profesionales
-            </Link>
-          </nav>
 
           <div className="flex items-center space-x-3">
             {/* Menú de accesibilidad */}
@@ -182,13 +174,6 @@ const Header = () => {
         {isMenuOpen && (
           <div className="md:hidden bg-white/95 backdrop-blur-md border-t border-emerald-100/50 shadow-xl animate-slide-up">
             <nav className="container mx-auto px-4 py-6 space-y-4">
-              <Link
-                to="/profesionales"
-                className="block text-gray-700 hover:text-emerald-600 font-medium transition-colors duration-300 py-2"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Profesionales
-              </Link>
             </nav>
           </div>
         )}

@@ -155,10 +155,10 @@ const useProfessionals = () => {
         urlParams.set('radio', radioDistancia);
       }
       
-      // Ordenamiento y paginación
+      // Ordenamiento y paginación - CARGAR TODOS LOS PROFESIONALES
       urlParams.set('sort_by', sortBy);
-      urlParams.set('page', loadMore ? page.toString() : '1');
-      urlParams.set('limit', '20');
+      urlParams.set('page', '1');
+      urlParams.set('limit', '100'); // Cargar máximo permitido por el backend
 
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const url = `${apiBaseUrl}/api/professionals?${urlParams.toString()}`;
