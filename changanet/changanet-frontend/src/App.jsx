@@ -45,6 +45,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const Chat = lazy(() => import('./pages/Chat'));
 const ClientMessages = lazy(() => import('./pages/ClientMessages'));
 const ProfessionalMessages = lazy(() => import('./pages/ProfessionalMessages'));
+import ProfessionalsSimple from './pages/Professionals-Simple';
 import './index.css';
 
 // Inicializar Firebase Messaging si está disponible (solo en producción)
@@ -90,6 +91,7 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Navigate to="/" replace />} />
                     <Route path="/profesionales" element={<Professionals />} />
+                    <Route path="/profesionales-simple" element={<ProfessionalsSimple />} />
                     <Route path="/profesional/:id" element={<ProfessionalDetail />} />
                     <Route path="/mi-cuenta" element={<Dashboard />} />
                     <Route path="/disponibilidad" element={<Availability />} />

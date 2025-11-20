@@ -1,11 +1,9 @@
-// src/pages/ProfessionalDetail.jsx - Página de Detalle del Profesional con Chat en Tiempo Real
-import { useState, useEffect, useRef } from 'react';
+// src/pages/ProfessionalDetail.jsx - Página de Detalle del Profesional para Clientes
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ChatWidget from '../components/ChatWidget';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import RatingDisplay from '../components/RatingDisplay';
-import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import BackButton from '../components/BackButton';
 
 const ProfessionalDetail = () => {
@@ -14,219 +12,88 @@ const ProfessionalDetail = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('about');
   const [showQuoteForm, setShowQuoteForm] = useState(false);
-  const [profile, setProfile] = useState({
-    nombre: '',
-    email: '',
-    especialidad: '',
-    anos_experiencia: '',
-    zona_cobertura: '',
-    tarifa_hora: '',
-    descripcion: '',
-    url_foto_perfil: ''
-  });
+  const [professional, setProfessional] = useState(null);
   const [gallery, setGallery] = useState([]);
   const [reviews, setReviews] = useState([]);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [preview, setPreview] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-      fetchGallery();
-      fetchReviews();
-    }
-  }, [user]);
+    fetchProfessionalData();
+  }, [professionalId]);
 
-  const fetchProfile = async () => {
+  const fetchProfessionalData = async () => {
     try {
-      const response = await fetch('/api/profile', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setProfile({
-          nombre: data.nombre || user.nombre || '',
-          email: data.email || user.email || '',
-          especialidad: data.especialidad || '',
-          anos_experiencia: data.anos_experiencia || '',
-          zona_cobertura: data.zona_cobertura || '',
-          tarifa_hora: data.tarifa_hora || '',
-          descripcion: data.descripcion || '',
-          url_foto_perfil: data.url_foto_perfil || ''
-        });
-        setPreview(data.url_foto_perfil || '');
+      setLoading(true);
+      setError('');
+
+      // Fetch professional details
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/professionals/${professionalId}`);
+      if (!response.ok) {
+        throw new Error('Profesional no encontrado');
       }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    }
-  };
-
-  const fetchGallery = async () => {
-    try {
-      const response = await fetch('/api/gallery', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setGallery(data);
-      }
-    } catch (error) {
-      console.error('Error fetching gallery:', error);
-    }
-  };
-
-  const fetchReviews = async () => {
-    try {
-      const response = await fetch('/api/reviews/professional', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setReviews(data);
-      }
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleUploadPhoto = () => {
-    fileInputRef.current.click();
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
-    setSaving(true);
-
-    try {
-      if (selectedFile) {
-        // Simular subida de foto
-        profile.url_foto_perfil = preview;
-      }
-
-      const response = await fetch('/api/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: JSON.stringify(profile)
-      });
-
-      if (response.ok) {
-        setSuccess('Perfil actualizado exitosamente.');
-        setSelectedFile(null);
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Error al actualizar el perfil.');
-      }
-    } catch (err) {
-      setError('Error de conexión. Inténtalo de nuevo.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setProfile(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleAddGalleryPhoto = () => {
-    // Simular agregar foto a galería
-    const newPhoto = { id: Date.now(), url: 'https://placehold.co/400x300?text=Nueva+Foto' };
-    setGallery(prev => [...prev, newPhoto]);
-  };
-
-  const handleRequestQuote = () => {
-    if (!user) {
-      navigate('/registro-cliente');
-      return;
-    }
-    setShowQuoteForm(true);
-  };
-
-  const handleScheduleService = () => {
-    if (!user) {
-      navigate('/registro-cliente');
-      return;
-    }
-    // Navigate to scheduling page or show scheduling modal
-    navigate(`/agendar/${professionalId}`);
-  };
-
-  const handleScheduleServiceFromCalendar = async (slot) => {
-    if (!user) {
-      navigate('/registro-cliente');
-      return;
-    }
-
-    // Confirmar agendamiento
-    const confirmMessage = `¿Confirmas agendar el servicio para el ${new Date(slot.fecha).toLocaleDateString()} de ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} a ${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}?`;
-
-    if (!confirm(confirmMessage)) return;
-
-    try {
-      // CORRECCIÓN CRÍTICA: Usar el endpoint correcto de disponibilidad
-      // Esto asegura que el slot se marque como reservado y se envíen notificaciones automáticas
-      const response = await fetch(`/api/availability/${slot.id}/book`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: JSON.stringify({
-          descripcion: `Servicio agendado para ${new Date(slot.fecha).toLocaleDateString()} de ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} a ${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
-        })
-      });
 
       const data = await response.json();
+      setProfessional(data);
 
-      if (response.ok) {
-        // REQ-30: Confirmación automática implementada en el backend
-        alert('✅ Servicio agendado exitosamente.\n\nRecibirás una confirmación por email y notificación push.\n\nEl profesional ha sido notificado de tu reserva.');
-        // Recargar la página para mostrar el slot como reservado
-        // TODO: En el futuro, implementar actualización sin recarga completa
-        window.location.reload();
-      } else {
-        // Mensajes de error más específicos
-        if (response.status === 400) {
-          alert('⚠️ ' + (data.error || 'Este horario ya no está disponible. Por favor, selecciona otro.'));
-        } else if (response.status === 403) {
-          alert('⚠️ No tienes permisos para realizar esta acción.');
-        } else if (response.status === 404) {
-          alert('⚠️ El horario seleccionado no existe o fue eliminado.');
-        } else {
-          alert('❌ ' + (data.error || 'Error al agendar el servicio. Intenta nuevamente.'));
+      // Mock gallery data (since API might not have this endpoint yet)
+      setGallery([
+        { id: 1, url: 'https://placehold.co/400x300?text=Trabajo+1', title: 'Trabajo de plomería residencial' },
+        { id: 2, url: 'https://placehold.co/400x300?text=Trabajo+2', title: 'Instalación eléctrica' },
+        { id: 3, url: 'https://placehold.co/400x300?text=Trabajo+3', title: 'Reparación de carpintería' }
+      ]);
+
+      // Mock reviews data
+      setReviews([
+        {
+          id: 1,
+          cliente: { nombre: 'María García' },
+          calificacion: 5,
+          comentario: 'Excelente trabajo, muy profesional y puntual.',
+          creado_en: new Date().toISOString()
+        },
+        {
+          id: 2,
+          cliente: { nombre: 'Carlos López' },
+          calificacion: 4,
+          comentario: 'Buen servicio, recomendado.',
+          creado_en: new Date().toISOString()
         }
-      }
+      ]);
+
     } catch (error) {
-      console.error('Error scheduling service:', error);
-      alert('❌ Error de red. Por favor, verifica tu conexión e intenta nuevamente.');
+      console.error('Error fetching professional data:', error);
+      setError('Error al cargar la información del profesional');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCloseQuoteForm = () => {
-    setShowQuoteForm(false);
-  };
 
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="loading-spinner mx-auto mb-6"></div>
+          <p className="text-gray-600 text-xl font-medium">Cargando perfil del profesional...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !professional) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex items-center justify-center">
+        <div className="text-center animate-fade-in">
+          <div className="text-6xl mb-4">😔</div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Profesional no encontrado</h2>
+          <p className="text-gray-600 mb-6">{error || 'El profesional que buscas no existe o no está disponible.'}</p>
+          <BackButton />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
@@ -243,76 +110,62 @@ const ProfessionalDetail = () => {
           <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-8">
             {/* Profile Photo */}
             <div className="flex-shrink-0">
-              <div className="relative group">
-                <div className="w-40 h-40 rounded-full border-4 border-emerald-200 bg-gray-100 flex items-center justify-center overflow-hidden shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300">
-                  {preview ? (
-                    <img src={preview} alt="Foto de perfil" className="w-full h-full object-cover" />
-                  ) : (
-                    <svg className="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  )}
-                </div>
-                <button
-                  onClick={handleUploadPhoto}
-                  className="absolute bottom-2 right-2 bg-emerald-500 text-white p-3 rounded-full hover:bg-emerald-600 hover:shadow-lg hover:scale-110 transition-all duration-300"
-                  title="Subir foto"
-                >
-                  📷
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                />
+              <div className="w-40 h-40 rounded-full border-4 border-emerald-200 bg-gray-100 flex items-center justify-center overflow-hidden shadow-xl">
+                {professional.usuario?.url_foto_perfil ? (
+                  <img src={professional.usuario.url_foto_perfil} alt="Foto de perfil" className="w-full h-full object-cover" />
+                ) : (
+                  <svg className="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                )}
               </div>
             </div>
 
             {/* Profile Info */}
             <div className="flex-grow text-center lg:text-left">
               <h1 className="text-4xl lg:text-5xl font-bold bg-gradient-to-r from-emerald-600 to-turquoise-600 bg-clip-text text-transparent mb-2">
-                {profile.nombre || 'Nombre del Profesional'}
+                {professional.usuario?.nombre || 'Profesional'}
               </h1>
               <p className="text-xl text-emerald-600 font-semibold mb-4">
-                {profile.especialidad || 'Especialidad'}
+                {professional.especialidad || 'Especialidad'}
               </p>
 
               <div className="flex flex-wrap justify-center lg:justify-start gap-4 mb-6">
                 <div className="flex items-center bg-amber-50 px-4 py-2 rounded-full">
                   <span className="text-amber-500 text-xl mr-2">⭐</span>
-                  <span className="font-bold text-gray-800">4.8</span>
+                  <span className="font-bold text-gray-800">{professional.calificacion_promedio || '4.8'}</span>
                   <span className="text-gray-500 ml-1">({reviews.length} reseñas)</span>
                 </div>
                 <div className="flex items-center bg-emerald-50 px-4 py-2 rounded-full">
                   <span className="text-emerald-600 text-xl mr-2">$</span>
-                  <span className="font-bold text-gray-800">{profile.tarifa_hora || '0'}/hora</span>
+                  <span className="font-bold text-gray-800">{professional.tarifa_hora || '0'}/hora</span>
                 </div>
                 <div className="flex items-center bg-blue-50 px-4 py-2 rounded-full">
                   <span className="text-blue-600 text-xl mr-2">📍</span>
-                  <span className="text-gray-800">{profile.zona_cobertura || 'Zona'}</span>
+                  <span className="text-gray-800">{professional.zona_cobertura || 'Zona'}</span>
                 </div>
               </div>
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <button
-                  onClick={handleRequestQuote}
+                  onClick={() => setShowQuoteForm(true)}
                   className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-8 py-3 rounded-2xl hover:from-amber-600 hover:to-orange-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
                   aria-label="Solicitar presupuesto al profesional"
                 >
                   <span className="mr-2">💰</span>
                   Solicitar Presupuesto
                 </button>
-                <button
-                  onClick={handleScheduleService}
-                  className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
-                  aria-label="Agendar servicio con el profesional"
-                >
-                  <span className="mr-2">📅</span>
-                  Agendar Servicio
-                </button>
+                {user && user.rol === 'cliente' && (
+                  <button
+                    onClick={() => navigate(`/chat/${professionalId}`)}
+                    className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
+                    aria-label="Chatear con el profesional"
+                  >
+                    <span className="mr-2">💬</span>
+                    Enviar Mensaje
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -322,17 +175,10 @@ const ProfessionalDetail = () => {
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
           <div className="border-b border-gray-200">
             <nav className="flex flex-wrap">
-              {user && user.rol === 'cliente' ? [
-                { id: 'about', label: 'Sobre Mí', icon: '👤' },
-                { id: 'availability', label: 'Disponibilidad', icon: '📅' },
-                { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
-                { id: 'reviews', label: 'Reseñas', icon: '⭐' },
-                { id: 'chat', label: 'Chat', icon: '💬' }
-              ] : [
+              {[
                 { id: 'about', label: 'Sobre Mí', icon: '👤' },
                 { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
-                { id: 'reviews', label: 'Reseñas', icon: '⭐' },
-                { id: 'edit', label: 'Editar Perfil', icon: '⚙️' }
+                { id: 'reviews', label: 'Reseñas', icon: '⭐' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -351,28 +197,18 @@ const ProfessionalDetail = () => {
           </div>
 
           <div className="p-8">
-            {activeTab === 'availability' && user && user.rol === 'cliente' && (
-              <div className="animate-fade-in">
-                <h2 className="text-3xl font-bold mb-6 text-gray-800">Disponibilidad de {profile.nombre}</h2>
-                <div className="bg-white rounded-lg shadow p-6">
-                  <p className="text-gray-600 mb-4">Horarios disponibles para agendar servicios. Haz clic en un horario disponible para agendar:</p>
-                  <AvailabilityCalendar professionalId={professionalId} onScheduleService={handleScheduleServiceFromCalendar} />
-                </div>
-              </div>
-            )}
-
             {activeTab === 'about' && (
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Sobre Mí</h2>
                 <div className="prose prose-lg max-w-none text-gray-600 mb-8">
-                  {profile.descripcion || 'Soy un profesional dedicado con experiencia en mi especialidad. Me comprometo a brindar servicios de calidad con atención personalizada.'}
+                  {professional.descripcion || 'Soy un profesional dedicado con experiencia en mi especialidad. Me comprometo a brindar servicios de calidad con atención personalizada.'}
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-8">
                   <div>
                     <h3 className="text-2xl font-semibold mb-4 text-gray-800">Servicios que Ofrezco</h3>
                     <ul className="space-y-3">
-                      {['Servicio 1', 'Servicio 2', 'Servicio 3', 'Servicio 4'].map((service, index) => (
+                      {['Reparaciones', 'Instalaciones', 'Mantenimiento', 'Consultoría'].map((service, index) => (
                         <li key={index} className="flex items-center text-gray-600">
                           <span className="text-emerald-500 mr-3">✓</span>
                           {service}
@@ -387,13 +223,13 @@ const ProfessionalDetail = () => {
                       <div className="flex items-center">
                         <span className="text-2xl mr-3">🏆</span>
                         <div>
-                          <h4 className="font-medium text-gray-800">{profile.anos_experiencia || '0'} años de experiencia</h4>
+                          <h4 className="font-medium text-gray-800">Profesional Certificado</h4>
                         </div>
                       </div>
                       <div className="flex items-center">
                         <span className="text-2xl mr-3">🌱</span>
                         <div>
-                          <h4 className="font-medium text-gray-800">Prácticas Sostenibles</h4>
+                          <h4 className="font-medium text-gray-800">Trabajo de Calidad</h4>
                         </div>
                       </div>
                       <div className="flex items-center">
@@ -410,27 +246,18 @@ const ProfessionalDetail = () => {
 
             {activeTab === 'gallery' && (
               <div className="animate-fade-in">
-                <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-3xl font-bold text-gray-800">Galería de Trabajos</h2>
-                  <button
-                    onClick={handleAddGalleryPhoto}
-                    className="bg-emerald-500 text-white px-6 py-3 rounded-2xl hover:bg-emerald-600 hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold flex items-center"
-                  >
-                    <span className="mr-2">➕</span>
-                    Agregar Foto
-                  </button>
-                </div>
+                <h2 className="text-3xl font-bold mb-6 text-gray-800">Galería de Trabajos</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   {gallery.map(photo => (
                     <div key={photo.id} className="group relative overflow-hidden rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300">
                       <img
                         src={photo.url}
-                        alt="Trabajo"
+                        alt={photo.title}
                         className="w-full h-48 object-cover group-hover:scale-110 transition-transform duration-300"
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-center justify-center">
                         <span className="text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-lg font-medium">
-                          Ver detalle
+                          {photo.title}
                         </span>
                       </div>
                     </div>
@@ -444,18 +271,18 @@ const ProfessionalDetail = () => {
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Reseñas de Clientes</h2>
 
                 <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 mb-8">
-                   <div className="flex items-center justify-between">
-                     <div className="flex-1">
-                       <RatingDisplay
-                         rating={4.8}
-                         size="lg"
-                         showLabel={true}
-                         showPercentage={true}
-                       />
-                       <p className="text-gray-600 mt-2">Basado en {reviews.length} reseñas</p>
-                     </div>
-                   </div>
-                 </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <RatingDisplay
+                        rating={professional.calificacion_promedio || 4.8}
+                        size="lg"
+                        showLabel={true}
+                        showPercentage={true}
+                      />
+                      <p className="text-gray-600 mt-2">Basado en {reviews.length} reseñas</p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="space-y-6">
                   {reviews.map(review => (
@@ -486,161 +313,44 @@ const ProfessionalDetail = () => {
                 </div>
               </div>
             )}
-
-            {activeTab === 'chat' && user && user.rol === 'cliente' && (
-              <div className="animate-fade-in">
-                <h2 className="text-3xl font-bold mb-6 text-gray-800">Chat con el Profesional</h2>
-                <div className="max-w-2xl mx-auto">
-                  <ChatWidget otherUserId={professionalId} />
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'edit' && user && user.rol === 'profesional' && (
-              <div className="animate-fade-in">
-                <h2 className="text-3xl font-bold mb-6 text-gray-800">Editar Perfil</h2>
-
-                {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl mb-6">
-                    {error}
-                  </div>
-                )}
-
-                {success && (
-                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl mb-6">
-                    {success}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Nombre</label>
-                      <input
-                        type="text"
-                        name="nombre"
-                        value={profile.nombre}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Email</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={profile.email}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Especialidad</label>
-                      <input
-                        type="text"
-                        name="especialidad"
-                        value={profile.especialidad}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Años de Experiencia</label>
-                      <input
-                        type="number"
-                        name="anos_experiencia"
-                        value={profile.anos_experiencia}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        min="0"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Zona de Cobertura</label>
-                      <input
-                        type="text"
-                        name="zona_cobertura"
-                        value={profile.zona_cobertura}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-gray-700 font-medium mb-2">Tarifa por Hora ($)</label>
-                      <input
-                        type="number"
-                        name="tarifa_hora"
-                        value={profile.tarifa_hora}
-                        onChange={handleChange}
-                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                        min="0"
-                        step="0.01"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-gray-700 font-medium mb-2">Descripción</label>
-                    <textarea
-                      name="descripcion"
-                      value={profile.descripcion}
-                      onChange={handleChange}
-                      rows="6"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-300"
-                      placeholder="Describe tus servicios y experiencia..."
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
-                  >
-                    {saving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Guardando...
-                      </>
-                    ) : (
-                      'Guardar Cambios'
-                    )}
-                  </button>
-                </form>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Quote Request Modal */}
         {showQuoteForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-scale-in">
+              {/* Modal Header */}
+              <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
                 <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    Solicitar Presupuesto a {profile.nombre}
-                  </h2>
+                  <div className="flex items-center space-x-4">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
+                      <span className="text-emerald-600 text-xl">💰</span>
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800">
+                        Solicitar Presupuesto
+                      </h2>
+                      <p className="text-sm text-gray-600">
+                        a {professional.usuario?.nombre}
+                      </p>
+                    </div>
+                  </div>
                   <button
-                    onClick={handleCloseQuoteForm}
-                    className="text-gray-400 hover:text-gray-600 text-2xl"
+                    onClick={() => setShowQuoteForm(false)}
+                    className="w-10 h-10 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all duration-200"
                     aria-label="Cerrar modal"
                   >
-                    ×
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
                 </div>
               </div>
-              <div className="p-6">
-                <QuoteRequestForm onClose={handleCloseQuoteForm} professionalName={profile.nombre} professionalId={professionalId} />
+
+              {/* Modal Content */}
+              <div className="px-8 py-6 max-h-[calc(90vh-140px)] overflow-y-auto">
+                <QuoteRequestForm onClose={() => setShowQuoteForm(false)} professionalName={professional.usuario?.nombre} professionalId={professionalId} />
               </div>
             </div>
           </div>

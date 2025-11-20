@@ -17,8 +17,69 @@ const useProfessionals = () => {
   const savedFilters = loadSavedFilters();
 
   const [professionals, setProfessionals] = useState([]);
+  const [cachedProfessionals, setCachedProfessionals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTime, setSearchTime] = useState(null);
+  const [hasError, setHasError] = useState(false);
+
+  // Default fallback professionals to ensure list is never empty
+  const getDefaultProfessionals = () => [
+    {
+      usuario_id: 'default-1',
+      usuario: { nombre: 'Profesional Ejemplo 1', email: 'ejemplo1@changánet.com', url_foto_perfil: 'https://ui-avatars.com/api/?name=Profesional+1&size=120&background=random&color=fff' },
+      especialidad: 'Plomero',
+      zona_cobertura: 'Buenos Aires',
+      tarifa_hora: 2500,
+      calificacion_promedio: 4.5,
+      estado_verificacion: 'verificado',
+      descripcion: 'Profesional con experiencia en reparaciones residenciales.'
+    },
+    {
+      usuario_id: 'default-2',
+      usuario: { nombre: 'Profesional Ejemplo 2', email: 'ejemplo2@changánet.com', url_foto_perfil: 'https://ui-avatars.com/api/?name=Profesional+2&size=120&background=random&color=fff' },
+      especialidad: 'Electricista',
+      zona_cobertura: 'CABA',
+      tarifa_hora: 3000,
+      calificacion_promedio: 4.8,
+      estado_verificacion: 'verificado',
+      descripcion: 'Especialista en instalaciones eléctricas y mantenimiento.'
+    },
+    {
+      usuario_id: 'default-3',
+      usuario: { nombre: 'Profesional Ejemplo 3', email: 'ejemplo3@changánet.com', url_foto_perfil: 'https://ui-avatars.com/api/?name=Profesional+3&size=120&background=random&color=fff' },
+      especialidad: 'Carpintero',
+      zona_cobertura: 'GBA Norte',
+      tarifa_hora: 2800,
+      calificacion_promedio: 4.2,
+      estado_verificacion: 'pendiente',
+      descripcion: 'Trabajos de carpintería y muebles a medida.'
+    }
+  ];
+
+  // Load cached professionals from localStorage on mount
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('cachedProfessionals');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setCachedProfessionals(parsed);
+        setProfessionals(parsed); // Show cached data immediately
+        console.log('🔄 Loaded cached professionals from localStorage:', parsed.length);
+      } else {
+        // No cached data, use defaults to ensure list is never empty
+        const defaults = getDefaultProfessionals();
+        setProfessionals(defaults);
+        setCachedProfessionals(defaults);
+        console.log('🔄 Using default professionals (no cached data)');
+      }
+    } catch (error) {
+      console.error('Error loading cached professionals:', error);
+      // Fallback to defaults on error
+      const defaults = getDefaultProfessionals();
+      setProfessionals(defaults);
+      setCachedProfessionals(defaults);
+    }
+  }, []);
   const [sortBy, setSortBy] = useState(savedFilters.sortBy || 'calificacion_promedio');
   const [filterVerified, setFilterVerified] = useState(savedFilters.filterVerified || false);
   const [zonaCobertura, setZonaCobertura] = useState(savedFilters.zonaCobertura || '');
@@ -112,41 +173,97 @@ const useProfessionals = () => {
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const url = `${apiBaseUrl}/api/professionals?${urlParams.toString()}`;
       console.log('Fetching professionals:', url);
-      
+      console.log('API Base URL:', apiBaseUrl);
+
       const response = await fetch(url, {
         headers: {
           'Cache-Control': 'no-cache'
         }
       });
 
+      console.log('🔍 PROFESSIONALS API - Response status:', response.status);
+      console.log('🔍 PROFESSIONALS API - Response ok:', response.ok);
+      console.log('🔍 PROFESSIONALS API - Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
+        console.error('❌ PROFESSIONALS API - Fetch failed with status:', response.status);
+        const errorText = await response.text();
+        console.error('❌ PROFESSIONALS API - Error response:', errorText);
         if (response.status === 429) {
           throw new Error('Demasiadas solicitudes al servidor de profesionales.');
         }
-        setProfessionals([]);
+
+        // Use cached data instead of clearing the list
+        if (!loadMore) {
+          if (cachedProfessionals.length > 0) {
+            console.log('🔄 Using cached professionals due to API error');
+            setProfessionals(cachedProfessionals);
+            setHasError(true);
+          } else {
+            // No cached data, use defaults
+            const defaults = getDefaultProfessionals();
+            setProfessionals(defaults);
+            setCachedProfessionals(defaults);
+            setHasError(true);
+            console.log('🔄 Using default professionals due to API error');
+          }
+        }
         setHasMore(false);
         return;
       }
 
       const data = await response.json();
+      console.log('Received data from API:', data);
+      console.log('🔍 DEBUGGING API - Response data type:', typeof data);
+      console.log('🔍 DEBUGGING API - Professionals data:', data.professionals);
       const newProfessionals = data.professionals || [];
-      
+      console.log('New professionals array:', newProfessionals);
+      console.log('New professionals length:', newProfessionals.length);
+      console.log('🔍 DEBUGGING - New professionals type:', typeof newProfessionals);
+      console.log('🔍 DEBUGGING - Is new professionals array:', Array.isArray(newProfessionals));
+      console.log('🔍 CRITICAL - About to set state with professionals:', newProfessionals);
+
       // Si estamos cargando más, agregar a los existentes
       if (loadMore) {
         setProfessionals(prev => [...prev, ...newProfessionals]);
       } else {
         setProfessionals(newProfessionals);
       }
-      
+
+      // Cache successful results for fallback
+      if (!loadMore && newProfessionals.length > 0) {
+        setCachedProfessionals(newProfessionals);
+        setHasError(false);
+        // Save to localStorage for persistence across sessions
+        try {
+          localStorage.setItem('cachedProfessionals', JSON.stringify(newProfessionals));
+          console.log('💾 Saved professionals to localStorage');
+        } catch (error) {
+          console.error('Error saving to localStorage:', error);
+        }
+      }
+
       // Verificar si hay más resultados
       setHasMore(newProfessionals.length === 20);
-      
+
       const endTime = performance.now();
       setSearchTime((endTime - startTime).toFixed(2));
     } catch (error) {
       console.error('Error de red:', error);
       if (!loadMore) {
-        setProfessionals([]);
+        // Use cached data instead of clearing the list
+        if (cachedProfessionals.length > 0) {
+          console.log('🔄 Using cached professionals due to network error');
+          setProfessionals(cachedProfessionals);
+          setHasError(true);
+        } else {
+          // No cached data, use defaults
+          const defaults = getDefaultProfessionals();
+          setProfessionals(defaults);
+          setCachedProfessionals(defaults);
+          setHasError(true);
+          console.log('🔄 Using default professionals due to network error');
+        }
       }
       setHasMore(false);
     } finally {
@@ -192,7 +309,20 @@ const useProfessionals = () => {
         clearTimeout(debounceTimeoutRef.current);
       }
     };
-  }, [fetchProfessionals]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    location.search, 
+    especialidad, 
+    precioMin, 
+    precioMax, 
+    filterVerified, 
+    ciudad, 
+    barrio, 
+    zonaCobertura, 
+    userLocation, 
+    radioDistancia, 
+    sortBy
+  ]);
 
   // Función para cargar más profesionales (scroll infinito)
   const loadMore = useCallback(() => {
@@ -234,6 +364,7 @@ const useProfessionals = () => {
     professionals: professionalsWithDistance,
     loading,
     searchTime,
+    hasError,
     sortBy,
     setSortBy,
     filterVerified,

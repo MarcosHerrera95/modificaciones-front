@@ -25,18 +25,50 @@ export class AuthProvider extends React.Component {
         console.log('AuthContext - Loaded user from localStorage:', userData);
         console.log('AuthContext - User name:', userData?.nombre || 'NO NAME');
         console.log('AuthContext - User role:', userData?.rol || userData?.role || 'NO ROLE');
-        this.setState({ user: userData });
+
+        // Validar que el usuario existe en el backend
+        this.validateUserToken(userData, token);
       } catch (error) {
         console.error('Error parsing user data from localStorage:', error);
         // Limpiar datos corruptos
         localStorage.removeItem('changanet_token');
         localStorage.removeItem('changanet_user');
+        this.setState({ loading: false });
       }
     } else {
       console.log('AuthContext - No token found in localStorage');
+      this.setState({ loading: false });
     }
-    this.setState({ loading: false });
   }
+
+  // Función para validar que el token y usuario son válidos
+  validateUserToken = async (userData, token) => {
+    try {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const response = await fetch(`${apiBaseUrl}/api/profile`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        // Usuario válido, establecer en estado
+        this.setState({ user: userData, loading: false });
+      } else if (response.status === 401 || response.status === 403) {
+        // Token inválido o usuario no encontrado, limpiar storage
+        console.warn('AuthContext - Token inválido o usuario no encontrado, limpiando localStorage');
+        localStorage.removeItem('changanet_token');
+        localStorage.removeItem('changanet_user');
+        this.setState({ user: null, loading: false });
+      } else {
+        // Otro error, mantener usuario por ahora
+        console.warn('AuthContext - Error validando token, manteniendo usuario:', response.status);
+        this.setState({ user: userData, loading: false });
+      }
+    } catch (error) {
+      console.error('AuthContext - Error validando token:', error);
+      // En caso de error de red, mantener usuario
+      this.setState({ user: userData, loading: false });
+    }
+  };
 
   // Función para obtener datos actualizados del usuario desde el backend
   fetchCurrentUser = async () => {
@@ -90,7 +122,7 @@ export class AuthProvider extends React.Component {
 
   loginWithEmail = async (email, password) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
       console.log('AuthContext - loginWithEmail: Starting fetch to:', `${apiBaseUrl}/api/auth/login`);
       console.log('AuthContext - loginWithEmail: Request body:', { email, password });
 

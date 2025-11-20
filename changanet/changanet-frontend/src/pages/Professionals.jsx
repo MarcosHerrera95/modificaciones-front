@@ -5,14 +5,18 @@ import QuoteRequestForm from '../components/QuoteRequestForm';
 import BackButton from '../components/BackButton';
 import useProfessionals from '../hooks/useProfessionals';
 import useGeolocation from '../hooks/useGeolocation';
+import { useAuth } from '../context/AuthContext';
 
 const Professionals = () => {
   console.log('🚀 Professionals component mounted');
   
+  const { user } = useAuth();
+
   const {
     professionals: filteredProfessionals,
     loading,
     searchTime,
+    hasError,
     sortBy,
     setSortBy,
     filterVerified,
@@ -47,12 +51,18 @@ const Professionals = () => {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [currentProfessional, setCurrentProfessional] = useState(null);
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [selectedProfessionals, setSelectedProfessionals] = useState([]);
+  const [showSelectionMode, setShowSelectionMode] = useState(false);
   
   // Ref para scroll infinito
   const observerRef = useRef();
   const loadMoreRef = useRef(null);
 
   console.log('🎯 Filtered professionals:', filteredProfessionals.length);
+  console.log('🎯 Filtered professionals data:', filteredProfessionals);
+  console.log('🔍 DEBUGGING - Professional type:', typeof filteredProfessionals);
+  console.log('🔍 DEBUGGING - Is array:', Array.isArray(filteredProfessionals));
+  console.log('🔍 DEBUGGING - First professional:', filteredProfessionals[0]);
 
   // Configurar IntersectionObserver para scroll infinito
   useEffect(() => {
@@ -87,6 +97,29 @@ const Professionals = () => {
     }
   }, [radioDistancia, geoLocation]);
 
+  // Handle professional selection
+  const handleSelectProfessional = (professionalId) => {
+    setSelectedProfessionals(prev =>
+      prev.includes(professionalId)
+        ? prev.filter(id => id !== professionalId)
+        : [...prev, professionalId]
+    );
+  };
+
+  const handleHireSelected = () => {
+    if (selectedProfessionals.length === 0) {
+      alert('Selecciona al menos un profesional para contratar.');
+      return;
+    }
+    alert(`Contratando ${selectedProfessionals.length} profesional(es). Funcionalidad en desarrollo.`);
+    // Here you would implement the hiring logic
+  };
+
+  const clearSelection = () => {
+    setSelectedProfessionals([]);
+    setShowSelectionMode(false);
+  };
+
   if (loading && filteredProfessionals.length === 0) {
     console.log('⏳ Still loading...');
     return (
@@ -109,18 +142,82 @@ const Professionals = () => {
 
         {/* Header */}
         <div className="mb-12 text-center animate-fade-in">
-          <h1 className="text-5xl font-black mb-6 text-gradient">
+          <h1 className="text-5xl font-black mb-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
             Profesionales Disponibles
           </h1>
-          <p className="text-gray-600 text-xl font-medium">
+          <p className="text-gray-800 text-xl font-semibold">
             {filteredProfessionals.length} profesionales encontrados para ti
             {searchTime && (
-              <span className="text-sm text-emerald-600 ml-2">
+              <span className="text-sm text-emerald-600 ml-2 font-normal">
                 (búsqueda en {searchTime}ms)
               </span>
             )}
           </p>
+
+          {/* Selection Mode Toggle */}
+          {user && user.rol === 'cliente' && (
+            <div className="mt-6 flex justify-center space-x-4">
+              <button
+                onClick={() => setShowSelectionMode(!showSelectionMode)}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
+                  showSelectionMode
+                    ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                {showSelectionMode ? '✖️ Cancelar selección' : '☑️ Seleccionar para contratar'}
+              </button>
+
+              {showSelectionMode && selectedProfessionals.length > 0 && (
+                <>
+                  <div className="flex items-center bg-blue-100 px-4 py-3 rounded-lg">
+                    <span className="text-blue-800 font-semibold">
+                      {selectedProfessionals.length} profesional(es) seleccionado(s)
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleHireSelected}
+                    className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-600 font-semibold transition-all duration-300 flex items-center space-x-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Contratar Seleccionados</span>
+                  </button>
+                  <button
+                    onClick={clearSelection}
+                    className="bg-gray-500 text-white px-4 py-3 rounded-lg hover:bg-gray-600 font-semibold transition-all duration-300"
+                  >
+                    Limpiar
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* Error Banner - Cached/Default Data */}
+        {hasError && (
+          <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-lg">
+            <div className="flex items-center">
+              <span className="text-2xl mr-3">⚠️</span>
+              <div>
+                <p className="font-semibold text-amber-800">
+                  {filteredProfessionals.some(p => p.usuario_id?.startsWith('default-')) ?
+                    'Mostrando profesionales de ejemplo' :
+                    'Mostrando datos en caché'
+                  }
+                </p>
+                <p className="text-sm text-amber-600">
+                  {filteredProfessionals.some(p => p.usuario_id?.startsWith('default-')) ?
+                    'No hay conexión al servidor. Se muestran profesionales de ejemplo para demostración.' :
+                    'Hay un problema de conexión. Se muestran los últimos profesionales disponibles.'
+                  }
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Location Prompt */}
         {showLocationPrompt && (
@@ -343,12 +440,14 @@ const Professionals = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-              {console.log('🎨 Rendering grid with', filteredProfessionals.length, 'professionals')}
-              {filteredProfessionals.map((professional) => (
-                <ProfessionalCard 
-                  key={professional.usuario_id} 
+              {filteredProfessionals.map((professional, index) => (
+                <ProfessionalCard
+                  key={professional.usuario_id || `prof-${index}`}
                   professional={professional}
                   showDistance={!!geoLocation}
+                  isSelected={selectedProfessionals.includes(professional.usuario_id)}
+                  onSelect={handleSelectProfessional}
+                  showSelection={showSelectionMode}
                 />
               ))}
             </div>

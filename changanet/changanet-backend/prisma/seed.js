@@ -96,9 +96,13 @@ async function main() {
   console.log('🌱 Iniciando seed de datos de prueba...');
 
   try {
-    // Limpiar datos existentes
+    // Limpiar datos existentes en orden correcto (dependencias primero)
     console.log('🧹 Limpiando datos existentes...');
-    await prisma.verification_requests.deleteMany();
+    await prisma.logros_usuario.deleteMany();
+    await prisma.favoritos.deleteMany();
+    await prisma.servicios_recurrrentes.deleteMany();
+    await prisma.pagos.deleteMany();
+    await prisma.cotizacion_respuestas.deleteMany();
     await prisma.cotizaciones.deleteMany();
     await prisma.notificaciones.deleteMany();
     await prisma.disponibilidad.deleteMany();
@@ -106,6 +110,7 @@ async function main() {
     await prisma.resenas.deleteMany();
     await prisma.servicios.deleteMany();
     await prisma.perfiles_profesionales.deleteMany();
+    await prisma.verification_requests.deleteMany();
     await prisma.usuarios.deleteMany();
 
     // Crear hash de contraseña común
