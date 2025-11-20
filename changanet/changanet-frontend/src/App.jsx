@@ -123,6 +123,7 @@ function App() {
                     <Route path="/contacto" element={<ContactPage />} />
                     <Route path="/verificar-identidad" element={<VerifyIdentity />} />
                     <Route path="/chat" element={<Chat />} />
+                    <Route path="/chat/:conversationId" element={<Chat />} />
                     <Route path="/admin/dashboard" element={<AdminDashboard />} />
                   </Routes>
                 </Suspense>

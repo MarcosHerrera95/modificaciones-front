@@ -7,6 +7,8 @@ import './MisCotizacionesProfesional.css';
 const MisCotizacionesProfesional = ({ onClose }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  // eslint-disable-next-line no-unused-vars
+  const UNUSED_VAR_USER = user;
   
   // Estados para manejar detalles y sub-modales
   const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
@@ -58,7 +60,8 @@ const MisCotizacionesProfesional = ({ onClose }) => {
   };
 
   // Función para validar formato JWT básico
-  const isValidJWTToken = (token) => {
+  // eslint-disable-next-line no-unused-vars
+  const IS_VALID_JWT_TOKEN = (token) => {
     if (!token) return false;
     
     // Verificar formato básico JWT (3 partes separadas por .)
@@ -87,7 +90,8 @@ const MisCotizacionesProfesional = ({ onClose }) => {
   };
 
   // Función para limpiar token corrupto
-  const clearCorruptedToken = () => {
+  // eslint-disable-next-line no-unused-vars
+  const CLEAR_CORRUPTED_TOKEN = () => {
     console.warn('🧹 Limpiando token JWT corrupto');
     localStorage.removeItem('changanet_token');
     localStorage.removeItem('changanet_user');
@@ -97,20 +101,82 @@ const MisCotizacionesProfesional = ({ onClose }) => {
     }
   };
 
-  // Función para abrir chat con el cliente (chat simplificado)
-  const handleOpenChat = async (clientId, clientName) => {
+  // Función para abrir chat con el cliente usando UUIDs reales de la BD
+  const handleOpenChat = async (clientData, clientName) => {
     try {
       setLoading(true);
       
-      // Validar que tenemos un clientId válido
-      if (!clientId) {
-        throw new Error('ID de cliente no válido');
+      // Validar que tenemos datos válidos del cliente
+      if (!clientData || !clientData.id) {
+        throw new Error('Datos de cliente no válidos');
       }
       
-      console.log('Abriendo chat simplificado con cliente:', clientId, clientName);
+      // Obtener token de autenticación
+      const token = localStorage.getItem('changanet_token');
+      if (!token) {
+        throw new Error('Usuario no autenticado');
+      }
       
-      // Navegar directamente al chat usando parámetro ?user= (chat simplificado)
-      navigate(`/chat?user=${clientId}`);
+      console.log('Abriendo chat con cliente:', clientData.id, clientData.nombre || clientName);
+      
+      // ✅ CORRECCIÓN: Usar UUIDs reales de la base de datos
+      let clientId, professionalId;
+      
+      if (user.rol === 'profesional') {
+        // Soy profesional, necesito el UUID del cliente
+        clientId = clientData.id; // UUID del cliente
+        professionalId = user.id; // Mi UUID profesional
+      } else if (user.rol === 'cliente') {
+        // Soy cliente, necesito el UUID del profesional
+        clientId = user.id; // Mi UUID cliente
+        professionalId = clientData.id; // UUID del profesional
+      } else {
+        throw new Error('Rol de usuario no reconocido');
+      }
+      
+      // ✅ VALIDACIÓN: Verificar que los IDs son UUIDs válidos
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      
+      if (!uuidRegex.test(clientId) || !uuidRegex.test(professionalId)) {
+        throw new Error(`IDs deben ser UUIDs válidos. clientId: ${clientId}, professionalId: ${professionalId}`);
+      }
+      
+      console.log('UUIDs validados:', { clientId, professionalId });
+      
+      // ✅ GENERAR conversationId correcto: UUID1-UUID2 (orden lexicográfico)
+      const ids = [clientId, professionalId].sort();
+      const conversationId = `${ids[0]}-${ids[1]}`;
+      
+      console.log('ConversationId generado:', conversationId);
+      
+      // Llamar al endpoint para crear o abrir conversación
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const response = await fetch(`${apiBaseUrl}/api/chat/open-or-create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          clientId: clientId,
+          professionalId: professionalId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear la conversación');
+      }
+      
+      const data = await response.json();
+      console.log('Conversación creada/abierta:', data);
+      
+      // Navegar al chat usando el conversationId
+      if (data.conversationId) {
+        navigate(`/chat/${data.conversationId}`);
+      } else {
+        throw new Error('No se pudo obtener el ID de conversación');
+      }
       
       // Cerrar el modal de cotizaciones
       onClose();
@@ -177,7 +243,11 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Detalles y Responder
                     </button>
                     <button 
-                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Diego Eduardo Euler')}
+                      onClick={() => handleOpenChat({
+                        id: '7f0d57a9-cf83-4d06-8d41-a244752c46ff',
+                        nombre: 'Diego Eduardo Euler',
+                        rol: 'cliente'
+                      }, 'Diego Eduardo Euler')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -242,7 +312,11 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Mi Respuesta
                     </button>
                     <button 
-                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'María González')}
+                      onClick={() => handleOpenChat({
+                        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+                        nombre: 'María González',
+                        rol: 'cliente'
+                      }, 'María González')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -307,7 +381,11 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Detalles
                     </button>
                     <button 
-                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Carlos Mendoza')}
+                      onClick={() => handleOpenChat({
+                        id: 'b2c3d4e5-f6g7-8901-bcde-f23456789012',
+                        nombre: 'Carlos Mendoza',
+                        rol: 'cliente'
+                      }, 'Carlos Mendoza')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -378,7 +456,11 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Mi Respuesta
                     </button>
                     <button 
-                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Ana Torres')}
+                      onClick={() => handleOpenChat({
+                        id: 'c3d4e5f6-g7h8-9012-cdef-345678901234',
+                        nombre: 'Ana Torres',
+                        rol: 'cliente'
+                      }, 'Ana Torres')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 

@@ -16,10 +16,20 @@ exports.openOrCreateConversation = async (req, res) => {
   const { clientId, professionalId } = req.body;
 
   try {
-    // Validar parámetros
+    // Validar parámetros - deben ser IDs numéricos
     if (!clientId || !professionalId) {
       return res.status(400).json({ 
         error: 'Se requieren clientId y professionalId' 
+      });
+    }
+
+    // ✅ CORRECCIÓN: Validar que los IDs son UUIDs válidos
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    
+    if (!uuidRegex.test(clientId) || !uuidRegex.test(professionalId)) {
+      return res.status(400).json({ 
+        error: 'clientId y professionalId deben ser UUIDs válidos',
+        received: { clientId: typeof clientId, professionalId: typeof professionalId }
       });
     }
 
@@ -30,13 +40,15 @@ exports.openOrCreateConversation = async (req, res) => {
       });
     }
 
-    // Determinar los dos participantes de la conversación (orden alfabético para strings)
+    // ✅ CORRECCIÓN: Ordenar UUIDs lexicográficamente para consistency
     const participants = [clientId, professionalId].sort();
     const participant1 = participants[0];
     const participant2 = participants[1];
     
-    // Crear conversationId único basado en los participantes
+    // Crear conversationId único basado en los participantes (formato UUID-UUID)
     const conversationId = `${participant1}-${participant2}`;
+    
+    console.log(`🔧 ConversationId generado: ${conversationId} (clientId: ${clientId}, professionalId: ${professionalId})`);
 
     // Verificar si existe al menos un mensaje entre estos usuarios
     const existingMessages = await prisma.mensajes.findFirst({

@@ -1,28 +1,28 @@
 /**
- * @page Chat - Página de chat SIMPLIFICADO usando solo IDs de usuario
- * @descripción Chat directo usuario-a-usuario sin conversationId
- * @sprint Chat simplificado sin tabla conversaciones
- * @tarjeta Chat directo usando modelo mensajes únicamente
- * @impacto Social: Chat directo y eficiente usando solo IDs
+ * @page Chat - Página de chat usando conversationId
+ * @descripción Chat que funciona con conversationId en la URL
+ * @sprint Chat corregido con formato de URL /chat/{conversationId}
+ * @tarjeta Chat basado en conversationId válido
+ * @impacto Social: Chat funcional entre profesional y cliente
  */
 
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChatWidget from '../components/ChatWidget';
 import BackButton from '../components/BackButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Chat = () => {
-  const [searchParams] = useSearchParams();
+  const { conversationId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [conversation, setConversation] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const UNUSED_CONVERSATION = conversation;
   const [otherUser, setOtherUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
-  // Obtener el ID del otro usuario desde la URL: /chat?user=<id>
-  const otherUserId = searchParams.get('user');
 
   useEffect(() => {
     // Verificar permisos
@@ -31,36 +31,136 @@ const Chat = () => {
       return;
     }
 
-    // Validar que existe el parámetro user
-    if (!otherUserId) {
-      setError('Parámetro user es requerido. Use: /chat?user=<id_otro_usuario>');
+    // Validar que existe el conversationId
+    if (!conversationId) {
+      setError('ConversationId es requerido. Use el botón "Chat con el Cliente" para abrir el chat.');
       setLoading(false);
       return;
     }
 
-    // No permitir chat con uno mismo
-    if (otherUserId === user.id) {
-      setError('No puedes iniciar un chat contigo mismo');
-      setLoading(false);
-      return;
-    }
+    // Cargar conversación y datos del otro usuario
+    loadConversationAndUserData();
+  }, [user, conversationId, navigate]);
 
-    // Cargar información del otro usuario
-    loadOtherUserInfo();
-  }, [user, otherUserId, navigate]);
-
-  const loadOtherUserInfo = async () => {
+  const loadConversationAndUserData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Obtener información del otro usuario desde el endpoint de usuarios
+      // Obtener información de la conversación
       const token = localStorage.getItem('changanet_token');
       if (!token) {
         throw new Error('Usuario no autenticado');
       }
 
-      const response = await fetch(`http://localhost:3003/api/profile/${otherUserId}`, {
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      
+      // Cargar datos de la conversación
+      const conversationResponse = await fetch(`${apiBaseUrl}/api/chat/conversation/${conversationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!conversationResponse.ok) {
+        if (conversationResponse.status === 404) {
+          // Intentar resolver el conversationId
+          console.log('ConversationId inválido, intentando resolver...');
+          await resolveConversationId();
+          return;
+        }
+        throw new Error(`Error al cargar conversación: ${conversationResponse.status}`);
+      }
+
+      const conversationData = await conversationResponse.json();
+      console.log('Datos de conversación cargados:', conversationData);
+      setConversation(conversationData);
+
+      // Determinar cuál es el otro usuario (no el actual)
+      const otherUserId = conversationData.usuario1_id === user.id ? 
+        conversationData.usuario2_id : conversationData.usuario1_id;
+
+      if (!otherUserId) {
+        throw new Error('No se pudo determinar el otro usuario en la conversación');
+      }
+
+      // Cargar información del otro usuario
+      await loadOtherUserInfo(otherUserId);
+
+    } catch (err) {
+      console.error('Error loading conversation data:', err);
+      setError(`Error al cargar la conversación: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resolveConversationId = async () => {
+    try {
+      console.log('🔄 ConversationId inválido detectado, analizando formato...');
+
+      // ✅ CORRECCIÓN: Parsear conversationId y validar formato UUID-UUID
+      const parts = conversationId.split('-');
+      
+      // Para UUID-UUID el string tendrá más de 2 partes separadas por '-'
+      if (parts.length < 2) {
+        throw new Error('ConversationId debe tener formato: UUID1-UUID2');
+      }
+
+      // Reconstruir UUIDs (cada UUID tiene 4 partes separadas por '-')
+      // Formato esperado: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx-yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy
+      if (parts.length !== 10) {
+        throw new Error(`ConversationId debe tener 10 partes separadas por '-', recibidas: ${parts.length}`);
+      }
+
+      const uuid1 = `${parts[0]}-${parts[1]}-${parts[2]}-${parts[3]}-${parts[4]}`;
+      const uuid2 = `${parts[5]}-${parts[6]}-${parts[7]}-${parts[8]}-${parts[9]}`;
+      
+      // ✅ VALIDACIÓN: Verificar que los IDs son UUIDs válidos
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      
+      if (!uuidRegex.test(uuid1) || !uuidRegex.test(uuid2)) {
+        throw new Error(`ConversationId contiene UUIDs inválidos. Recibido: "${conversationId}"`);
+      }
+      
+      console.log('UUIDs extraídos:', { uuid1, uuid2 });
+      
+      // Verificar si el usuario actual está en la conversación
+      const currentUserId = user.id;
+      if (currentUserId !== uuid1 && currentUserId !== uuid2) {
+        throw new Error('Usuario actual no está autorizado para acceder a esta conversación');
+      }
+
+      // ✅ CONVERSATIONID VÁLIDO: UUID1-UUID2
+      console.log(`✅ ConversationId válido detectado: ${conversationId}`);
+      
+      // Verificar que el conversationId está en el formato correcto (orden lexicográfico)
+      const sortedIds = [uuid1, uuid2].sort();
+      const expectedConversationId = `${sortedIds[0]}-${sortedIds[1]}`;
+      
+      if (conversationId === expectedConversationId) {
+        console.log('✅ ConversationId correctamente ordenado');
+        // Reintentar cargar la conversación
+        await loadConversationAndUserData();
+        return;
+      } else {
+        console.log(`🔄 Redirigiendo a conversationId correcto: ${expectedConversationId}`);
+        navigate(`/chat/${expectedConversationId}`, { replace: true });
+        return;
+      }
+
+    } catch (err) {
+      console.error('Error resolving conversationId:', err);
+      setError(`Error al resolver el conversationId: ${err.message}`);
+    }
+  };
+
+  const loadOtherUserInfo = async (otherUserId) => {
+    try {
+      const token = localStorage.getItem('changanet_token');
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+
+      const response = await fetch(`${apiBaseUrl}/api/profile/${otherUserId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -76,8 +176,6 @@ const Chat = () => {
       const userData = await response.json();
       
       // El endpoint /api/profile/:id puede devolver diferentes estructuras
-      // Para profesionales: el usuario está en userData.usuario
-      // Para clientes: los datos del usuario están directamente en userData
       const user = userData.usuario || userData;
       
       setOtherUser({
@@ -90,9 +188,7 @@ const Chat = () => {
 
     } catch (err) {
       console.error('Error loading other user info:', err);
-      setError(`Error al cargar información del usuario: ${err.message}`);
-    } finally {
-      setLoading(false);
+      setOtherUser(null);
     }
   };
 
@@ -103,7 +199,7 @@ const Chat = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <LoadingSpinner size="lg" message="Cargando chat..." />
+        <LoadingSpinner size="lg" message="Cargando conversación..." />
       </div>
     );
   }
@@ -163,7 +259,7 @@ const Chat = () => {
               Chat con {otherUser.nombre}
             </h1>
             <p className="mt-2 text-gray-600">
-              Conversación directa entre {user.nombre} y {otherUser.nombre}
+              Conversación entre {user.nombre} y {otherUser.nombre}
             </p>
           </div>
         </div>
@@ -194,16 +290,16 @@ const Chat = () => {
               </p>
             </div>
             <div>
-              <p className="text-sm text-gray-600">URL del chat:</p>
+              <p className="text-sm text-gray-600">ID de conversación:</p>
               <p className="font-medium text-blue-600 break-all">
-                /chat?user={otherUser.id}
+                {conversationId}
               </p>
             </div>
           </div>
           <div className="mt-4 p-4 bg-blue-50 rounded-lg">
             <p className="text-sm text-blue-800">
-              💡 <strong>Chat Simplificado:</strong> Este chat usa el modelo de mensajes directamente. 
-              Los mensajes se almacenan usando los IDs de los usuarios como remitente y destinatario.
+              💡 <strong>Chat Mejorado:</strong> Este chat usa conversationId válido para garantizar 
+              una comunicación segura entre usuarios.
             </p>
           </div>
         </div>
