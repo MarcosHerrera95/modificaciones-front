@@ -72,6 +72,7 @@ const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const messageRoutes = require('./routes/messageRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -270,7 +271,7 @@ app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 // Configura el limitador de tasa usando RateLimiterMemory
 const limiter = new rateLimit.RateLimiterMemory({
-  points: process.env.NODE_ENV === 'production' ? 30 : 500, // Más restrictivo en producción, más permisivo en desarrollo
+  points: process.env.NODE_ENV === 'production' ? 30 : 5000, // Más restrictivo en producción, muy permisivo en desarrollo
   duration: 60, // Ventana de tiempo en segundos (1 minuto)
 });
 
@@ -394,6 +395,9 @@ app.use('/api/search', searchRoutes);
 
 // Rutas de mensajería con autenticación requerida
 app.use('/api/messages', authenticateToken, messageRoutes);
+
+// Rutas de chat con autenticación requerida
+app.use('/api/chat', authenticateToken, chatRoutes);
 
 // Rutas de reseñas con autenticación requerida
 app.use('/api/reviews', authenticateToken, reviewRoutes);

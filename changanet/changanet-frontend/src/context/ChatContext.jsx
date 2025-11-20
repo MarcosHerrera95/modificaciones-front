@@ -1,16 +1,8 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
-
-export const useChat = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error('useChat debe usarse dentro de ChatProvider');
-  }
-  return context;
-};
 
 export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
@@ -21,15 +13,43 @@ export const ChatProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({}); // Estado para usuarios escribiendo
 
   useEffect(() => {
-    // COMPLETELY DISABLE Socket.IO to prevent any connection attempts
+    // Habilitar Socket.IO para funcionalidad de chat en tiempo real
     if (user) {
-      console.log('🔇 Socket.IO completamente deshabilitado');
-      setIsConnected(false);
-      setSocket(null);
-    }
+      console.log('🔄 Inicializando Socket.IO para chat en tiempo real...');
+      
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const newSocket = io(API_BASE_URL, {
+        auth: {
+          token: localStorage.getItem('changanet_token')
+        }
+      });
 
-    // No cleanup needed since we're not creating any connections
-    return () => {};
+      // Manejar conexión
+      newSocket.on('connect', () => {
+        console.log('✅ Socket.IO conectado para chat');
+        setIsConnected(true);
+      });
+
+      // Manejar desconexión
+      newSocket.on('disconnect', () => {
+        console.log('⚠️ Socket.IO desconectado');
+        setIsConnected(false);
+      });
+
+      // Manejar errores de conexión
+      newSocket.on('connect_error', (error) => {
+        console.error('❌ Error de conexión Socket.IO:', error.message);
+        setIsConnected(false);
+      });
+
+      setSocket(newSocket);
+
+      // Cleanup al desmontar
+      return () => {
+        console.log('🧹 Cerrando conexión Socket.IO');
+        newSocket.disconnect();
+      };
+    }
   }, [user]);
 
   const sendMessage = (destinatario_id, contenido, url_imagen = null) => {

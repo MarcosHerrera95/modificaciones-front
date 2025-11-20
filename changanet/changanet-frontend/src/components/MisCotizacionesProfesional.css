@@ -254,6 +254,49 @@
   gap: 10px;
 }
 
+/* Grupo de botones de acción */
+.action-buttons-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Botón de chat */
+.btn-chat {
+  background-color: #009688 !important;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-chat:hover:not(:disabled) {
+  background-color: #007d6b !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 150, 136, 0.3);
+}
+
+.btn-chat:disabled {
+  background-color: #6c757d !important;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Estilos para icono de chat */
+.btn-chat span {
+  font-size: 16px;
+}
+
 /* Botón ver detalles */
 .btn-details {
   background-color: #007bff;
@@ -470,6 +513,10 @@
     align-items: stretch;
   }
   
+  .action-buttons-group {
+    width: 100%;
+  }
+  
   .form-actions {
     flex-direction: column;
   }
@@ -477,7 +524,8 @@
   .btn-details,
   .btn-submit,
   .btn-complete,
-  .btn-cancel {
+  .btn-cancel,
+  .btn-chat {
     width: 100%;
     text-align: center;
   }

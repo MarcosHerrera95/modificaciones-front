@@ -1,11 +1,18 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { API_BASE_URL } from '../config/api';
 import './MisCotizacionesProfesional.css';
 
 const MisCotizacionesProfesional = ({ onClose }) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  
   // Estados para manejar detalles y sub-modales
   const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [tipoSeccion, setTipoSeccion] = useState(''); // 'recibidas' o 'enviadas'
+  const [loading, setLoading] = useState(false);
 
   // Función para abrir el sub-modal con la cotización específica
   const handleOpenDetails = (cotizacion, tipo) => {
@@ -50,6 +57,116 @@ const MisCotizacionesProfesional = ({ onClose }) => {
     handleCloseDetails();
   };
 
+  // Función para validar formato JWT básico
+  const isValidJWTToken = (token) => {
+    if (!token) return false;
+    
+    // Verificar formato básico JWT (3 partes separadas por .)
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      console.log('❌ Token JWT inválido: no tiene 3 partes');
+      return false;
+    }
+    
+    // Verificar que cada parte tenga contenido
+    const [header, payload, signature] = parts;
+    if (!header || !payload || !signature) {
+      console.log('❌ Token JWT inválido: alguna parte está vacía');
+      return false;
+    }
+    
+    try {
+      // Intentar decodificar el payload para verificar que es JSON válido
+      JSON.parse(atob(payload));
+      console.log('✅ Token JWT tiene formato válido');
+      return true;
+    } catch {
+      console.log('❌ Token JWT inválido: payload no es JSON válido');
+      return false;
+    }
+  };
+
+  // Función para limpiar token corrupto
+  const clearCorruptedToken = () => {
+    console.warn('🧹 Limpiando token JWT corrupto');
+    localStorage.removeItem('changanet_token');
+    localStorage.removeItem('changanet_user');
+    // Forzar logout del contexto de auth si está disponible
+    if (typeof window !== 'undefined' && window.dispatchEvent) {
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+    }
+  };
+
+  // Función para abrir chat con el cliente
+  const handleOpenChat = async (clientId, clientName) => {
+    try {
+      setLoading(true);
+      
+      // Validar que tenemos un clientId válido
+      if (!clientId) {
+        throw new Error('ID de cliente no válido');
+      }
+      
+      console.log('Abriendo chat con cliente:', clientId, clientName);
+      
+      // Obtener y validar token de autenticación
+      const token = localStorage.getItem('changanet_token');
+      console.log('🔍 DEBUG - Token en localStorage:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+      console.log('🔍 DEBUG - API_BASE_URL:', API_BASE_URL);
+      
+      if (!token) {
+        throw new Error('Usuario no autenticado');
+      }
+      
+      // Validar formato del token antes de enviar
+      if (!isValidJWTToken(token)) {
+        console.error('❌ Token JWT corrupto detectado');
+        clearCorruptedToken();
+        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+      }
+      
+      // Obtener el ID del profesional actual (del contexto de auth)
+      const professionalId = user?.id;
+      if (!professionalId) {
+        throw new Error('No se pudo obtener el ID del profesional');
+      }
+      
+      // Llamar al endpoint para crear o abrir conversación
+      const response = await fetch(`${API_BASE_URL}/api/chat/open-or-create`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          clientId: clientId,
+          professionalId: professionalId
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al crear la conversación');
+      }
+      
+      const chatData = await response.json();
+      
+      console.log('Conversación obtenida/creada:', chatData);
+      
+      // Navegar al chat usando el conversationId
+      navigate(`/chat/${chatData.conversationId}`);
+      
+      // Cerrar el modal de cotizaciones
+      onClose();
+      
+    } catch (error) {
+      console.error('Error al abrir el chat:', error);
+      alert(`Error al abrir el chat: ${error.message}. Inténtalo de nuevo.`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -88,20 +205,44 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                 </div>
                 <div className="quote-actions">
                   <span className="status-badge pending">PENDIENTE</span>
-                  <button 
-                    onClick={() => handleOpenDetails({
-                      id: 1,
-                      titulo: 'Instalación de Aire Acondicionado',
-                      cliente: { nombre: 'Diego Eduardo Euler', zona: 'QUILMES' },
-                      descripcion: 'Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.',
-                      ubicacion: 'Buenos Aires',
-                      fecha: '2025-01-19',
-                      estado: 'PENDIENTE'
-                    }, 'recibidas')}
-                    className="btn-details"
-                  >
-                    Ver Detalles y Responder
-                  </button>
+                  <div className="action-buttons-group">
+                    <button 
+                      onClick={() => handleOpenDetails({
+                        id: 1,
+                        titulo: 'Instalación de Aire Acondicionado',
+                        cliente: { nombre: 'Diego Eduardo Euler', zona: 'QUILMES' },
+                        descripcion: 'Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.',
+                        ubicacion: 'Buenos Aires',
+                        fecha: '2025-01-19',
+                        estado: 'PENDIENTE'
+                      }, 'recibidas')}
+                      className="btn-details"
+                    >
+                      Ver Detalles y Responder
+                    </button>
+                    <button 
+                      onClick={() => handleOpenChat(123, 'Diego Eduardo Euler')}
+                      disabled={loading}
+                      className="btn-chat"
+                      style={{ 
+                        backgroundColor: '#009688', 
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '4px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginLeft: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>💬</span>
+                      Chat con el Cliente
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -123,26 +264,50 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                 </div>
                 <div className="quote-actions">
                   <span className="status-badge sent">ENVIADA</span>
-                  <button 
-                    onClick={() => handleOpenDetails({
-                      id: 2,
-                      titulo: 'Reparación de Calefón',
-                      cliente: { nombre: 'María González', zona: 'PALERMO' },
-                      descripcion: 'El calefón no enciende. Probablemente sea el piloto.',
-                      ubicacion: 'Buenos Aires',
-                      fecha: '2025-01-18',
-                      estado: 'ENVIADA',
-                      mi_respuesta: {
-                        precio: 15000,
-                        tiempo: 2,
-                        comentarios: 'Disponible este fin de semana. Tengo experiencia con marcas Rheem.',
-                        fecha_respuesta: '2025-01-18'
-                      }
-                    }, 'enviadas')}
-                    className="btn-details"
-                  >
-                    Ver Mi Respuesta
-                  </button>
+                  <div className="action-buttons-group">
+                    <button 
+                      onClick={() => handleOpenDetails({
+                        id: 2,
+                        titulo: 'Reparación de Calefón',
+                        cliente: { nombre: 'María González', zona: 'PALERMO' },
+                        descripcion: 'El calefón no enciende. Probablemente sea el piloto.',
+                        ubicacion: 'Buenos Aires',
+                        fecha: '2025-01-18',
+                        estado: 'ENVIADA',
+                        mi_respuesta: {
+                          precio: 15000,
+                          tiempo: 2,
+                          comentarios: 'Disponible este fin de semana. Tengo experiencia con marcas Rheem.',
+                          fecha_respuesta: '2025-01-18'
+                        }
+                      }, 'enviadas')}
+                      className="btn-details"
+                    >
+                      Ver Mi Respuesta
+                    </button>
+                    <button 
+                      onClick={() => handleOpenChat(124, 'María González')}
+                      disabled={loading}
+                      className="btn-chat"
+                      style={{ 
+                        backgroundColor: '#009688', 
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '4px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginLeft: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>💬</span>
+                      Chat con el Cliente
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -164,26 +329,50 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                 </div>
                 <div className="quote-actions">
                   <span className="status-badge accepted">ACEPTADA</span>
-                  <button 
-                    onClick={() => handleOpenDetails({
-                      id: 3,
-                      titulo: 'Instalación Eléctrica',
-                      cliente: { nombre: 'Carlos Mendoza', zona: 'RECOLETA' },
-                      descripcion: 'Necesito instalar el sistema eléctrico completo para una ampliación.',
-                      ubicacion: 'Buenos Aires',
-                      fecha: '2025-01-17',
-                      estado: 'ACEPTADA',
-                      mi_respuesta: {
-                        precio: 25000,
-                        tiempo: 6,
-                        comentarios: 'Aceptado. Comenzamos mañana a las 8:00 AM.',
-                        fecha_respuesta: '2025-01-17'
-                      }
-                    }, 'enviadas')}
-                    className="btn-details"
-                  >
-                    Ver Detalles
-                  </button>
+                  <div className="action-buttons-group">
+                    <button 
+                      onClick={() => handleOpenDetails({
+                        id: 3,
+                        titulo: 'Instalación Eléctrica',
+                        cliente: { nombre: 'Carlos Mendoza', zona: 'RECOLETA' },
+                        descripcion: 'Necesito instalar el sistema eléctrico completo para una ampliación.',
+                        ubicacion: 'Buenos Aires',
+                        fecha: '2025-01-17',
+                        estado: 'ACEPTADA',
+                        mi_respuesta: {
+                          precio: 25000,
+                          tiempo: 6,
+                          comentarios: 'Aceptado. Comenzamos mañana a las 8:00 AM.',
+                          fecha_respuesta: '2025-01-17'
+                        }
+                      }, 'enviadas')}
+                      className="btn-details"
+                    >
+                      Ver Detalles
+                    </button>
+                    <button 
+                      onClick={() => handleOpenChat(125, 'Carlos Mendoza')}
+                      disabled={loading}
+                      className="btn-chat"
+                      style={{ 
+                        backgroundColor: '#009688', 
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '4px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginLeft: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>💬</span>
+                      Chat con el Cliente
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -211,26 +400,50 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                 </div>
                 <div className="quote-actions">
                   <span className="status-badge recent">RECIENTE</span>
-                  <button 
-                    onClick={() => handleOpenDetails({
-                      id: 4,
-                      titulo: 'Mantenimiento de Pileta',
-                      cliente: { nombre: 'Ana Torres', zona: 'BELGRANO' },
-                      descripcion: 'Necesito limpieza y mantenimiento de pileta para temporada de verano.',
-                      ubicacion: 'Buenos Aires',
-                      fecha: '2025-01-19',
-                      estado: 'RECIENTE',
-                      mi_respuesta: {
-                        precio: 8000,
-                        tiempo: 3,
-                        comentarios: 'Incluyo productos químicos. Trabajo los sábados.',
-                        fecha_respuesta: '2025-01-19'
-                      }
-                    }, 'enviadas')}
-                    className="btn-details"
-                  >
-                    Ver Mi Respuesta
-                  </button>
+                  <div className="action-buttons-group">
+                    <button 
+                      onClick={() => handleOpenDetails({
+                        id: 4,
+                        titulo: 'Mantenimiento de Pileta',
+                        cliente: { nombre: 'Ana Torres', zona: 'BELGRANO' },
+                        descripcion: 'Necesito limpieza y mantenimiento de pileta para temporada de verano.',
+                        ubicacion: 'Buenos Aires',
+                        fecha: '2025-01-19',
+                        estado: 'RECIENTE',
+                        mi_respuesta: {
+                          precio: 8000,
+                          tiempo: 3,
+                          comentarios: 'Incluyo productos químicos. Trabajo los sábados.',
+                          fecha_respuesta: '2025-01-19'
+                        }
+                      }, 'enviadas')}
+                      className="btn-details"
+                    >
+                      Ver Mi Respuesta
+                    </button>
+                    <button 
+                      onClick={() => handleOpenChat(126, 'Ana Torres')}
+                      disabled={loading}
+                      className="btn-chat"
+                      style={{ 
+                        backgroundColor: '#009688', 
+                        color: 'white',
+                        border: 'none',
+                        padding: '8px 16px',
+                        borderRadius: '4px',
+                        cursor: loading ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        marginLeft: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <span>💬</span>
+                      Chat con el Cliente
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

@@ -44,7 +44,7 @@ export class AuthProvider extends React.Component {
   // Función para validar que el token y usuario son válidos
   validateUserToken = async (userData, token) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       const response = await fetch(`${apiBaseUrl}/api/profile`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -122,7 +122,7 @@ export class AuthProvider extends React.Component {
 
   loginWithEmail = async (email, password) => {
     try {
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
       console.log('AuthContext - loginWithEmail: Starting fetch to:', `${apiBaseUrl}/api/auth/login`);
       console.log('AuthContext - loginWithEmail: Request body:', { email, password });
 

@@ -42,12 +42,12 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:3003',
+        target: process.env.VITE_BACKEND_URL || 'http://localhost:3004',
         changeOrigin: true,
         secure: false,
       },
       '/health': {
-        target: process.env.VITE_BACKEND_URL || 'http://localhost:3003',
+        target: process.env.VITE_BACKEND_URL || 'http://localhost:3004',
         changeOrigin: true,
         secure: false,
       },
