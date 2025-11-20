@@ -30,7 +30,7 @@ const ClientMessages = () => {
   }, [user, navigate, loadConversations]);
 
   const handleOpenChat = (professionalId) => {
-    navigate(`/chat/${professionalId}`);
+    navigate(`/chat?user=${professionalId}`);
   };
 
   if (!user || (user.role !== 'cliente' && user.rol !== 'cliente')) {

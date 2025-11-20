@@ -74,8 +74,8 @@ router.get('/resolve-conversation/:conversationId', async (req, res) => {
           ? message.destinatario_id 
           : message.remitente_id;
           
-        // Crear conversationId válido
-        const participants = [currentUserId, otherUserId].sort();
+        // Crear conversationId válido (orden alfabético consistente)
+        const participants = [String(currentUserId), String(otherUserId)].sort();
         const validConversationId = `${participants[0]}-${participants[1]}`;
         
         return res.status(200).json({

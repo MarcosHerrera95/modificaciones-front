@@ -290,7 +290,7 @@ const ClientReviews = () => {
                     </button>
 
                     <button
-                      onClick={() => navigate(`/chat/${review.servicio?.profesional?.id}`)}
+                      onClick={() => navigate(`/chat?user=${review.servicio?.profesional?.id}`)}
                       className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
                     >
                       Contactar de Nuevo

@@ -1,8 +1,16 @@
-import { createContext, useState, useEffect } from 'react';
+import { createContext, useState, useEffect, useContext } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
 const ChatContext = createContext();
+
+export const useChat = () => {
+  const context = useContext(ChatContext);
+  if (!context) {
+    throw new Error('useChat debe usarse dentro de ChatProvider');
+  }
+  return context;
+};
 
 export const ChatProvider = ({ children }) => {
   const { user } = useAuth();
@@ -52,14 +60,47 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user]);
 
-  const sendMessage = (destinatario_id, contenido, url_imagen = null) => {
-    if (socket && isConnected && user) {
-      socket.emit('sendMessage', {
-        remitente_id: user.id,
-        destinatario_id,
-        contenido,
-        url_imagen
+  const sendMessage = async (destinatario_id, contenido, url_imagen = null) => {
+    try {
+      // Usar el endpoint REST del chat simplificado
+      const token = localStorage.getItem('changanet_token');
+      if (!token) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      const response = await fetch('/api/chat/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          destinatario_id,
+          contenido,
+          url_imagen
+        })
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          // Agregar el mensaje localmente
+          setMessages(prev => ({
+            ...prev,
+            [destinatario_id]: [
+              ...(prev[destinatario_id] || []),
+              data.data
+            ]
+          }));
+        }
+        return true;
+      } else {
+        console.error('Error enviando mensaje:', response.status);
+        return false;
+      }
+    } catch (error) {
+      console.error('Error al enviar mensaje:', error);
+      return false;
     }
   };
 
@@ -99,18 +140,21 @@ export const ChatProvider = ({ children }) => {
 
   const loadMessageHistory = async (otherUserId) => {
     try {
-      const response = await fetch(`/api/messages?with=${otherUserId}`, {
+      const response = await fetch(`/api/chat/messages/${otherUserId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
         }
       });
 
       if (response.ok) {
-        const history = await response.json();
-        setMessages(prev => ({
-          ...prev,
-          [otherUserId]: history
-        }));
+        const data = await response.json();
+        // El backend devuelve la estructura: { success: true, messages: [...] }
+        if (data.success && data.messages) {
+          setMessages(prev => ({
+            ...prev,
+            [otherUserId]: data.messages
+          }));
+        }
       }
     } catch (error) {
       console.error('Error al cargar historial de mensajes:', error);

@@ -184,8 +184,8 @@ const QuoteRequestModal = ({ isOpen, onClose, professionalId, professionalName }
                   type="button"
                   onClick={() => {
                     onClose();
-                    // Navigate to chat with professional
-                    window.location.href = `/chat/${professionalId}`;
+                    // Navigate to chat with professional using parameter ?user= (chat simplificado)
+                    window.location.href = `/chat?user=${professionalId}`;
                   }}
                   className="flex-1 bg-blue-500 text-white hover:bg-blue-600 font-medium transition-all duration-200 flex items-center justify-center text-xs px-1.5 py-1 rounded-lg min-h-[24px] shadow-sm"
                 >

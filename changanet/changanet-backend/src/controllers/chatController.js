@@ -42,8 +42,14 @@ exports.openOrCreateConversation = async (req, res) => {
     const existingMessages = await prisma.mensajes.findFirst({
       where: {
         OR: [
-          { remitente_id: clientId, destinatario_id: professionalId },
-          { remitente_id: professionalId, destinatario_id: clientId }
+          { 
+            remitente_id: String(clientId), 
+            destinatario_id: String(professionalId) 
+          },
+          { 
+            remitente_id: String(professionalId), 
+            destinatario_id: String(clientId) 
+          }
         ]
       },
       orderBy: { creado_en: 'desc' }
@@ -89,8 +95,14 @@ exports.openOrCreateConversation = async (req, res) => {
     const recentMessages = await prisma.mensajes.findMany({
       where: {
         OR: [
-          { remitente_id: clientId, destinatario_id: professionalId },
-          { remitente_id: professionalId, destinatario_id: clientId }
+          { 
+            remitente_id: String(clientId), 
+            destinatario_id: String(professionalId) 
+          },
+          { 
+            remitente_id: String(professionalId), 
+            destinatario_id: String(clientId) 
+          }
         ],
         creado_en: {
           gte: thirtyDaysAgo
@@ -188,12 +200,53 @@ exports.getConversation = async (req, res) => {
     // Parsear y validar el conversationId
     const parsedId = parseConversationId(conversationId);
     
+    // ✅ MEJORA: Si es formato UUID, intentar resolución automática
+    if (!parsedId.isValid && parsedId.format === 'uuid') {
+      console.log('🔄 Detectado UUID, intentando resolución automática...');
+      
+      try {
+        // Buscar mensajes relacionados con este UUID
+        const relatedMessages = await prisma.mensajes.findMany({
+          where: {
+            OR: [
+              { remitente_id: conversationId },
+              { destinatario_id: conversationId }
+            ]
+          },
+          take: 5,
+          orderBy: { creado_en: 'desc' }
+        });
+        
+        if (relatedMessages.length > 0) {
+          // Encontrar el otro usuario en la conversación
+          const message = relatedMessages[0];
+          const otherUserId = message.remitente_id === conversationId 
+            ? message.destinatario_id 
+            : message.remitente_id;
+            
+          // Crear conversationId válido (orden alfabético consistente)
+          const participants = [String(currentUserId), String(otherUserId)].sort();
+          const validConversationId = `${participants[0]}-${participants[1]}`;
+          
+          console.log(`✅ UUID resuelto automáticamente a: ${validConversationId}`);
+          return res.status(200).json({
+            status: 'resolved',
+            originalConversationId: conversationId,
+            resolvedConversationId: validConversationId,
+            message: 'Conversación encontrada y resuelta automáticamente',
+            redirect: `/chat/${validConversationId}`
+          });
+        }
+      } catch (resolveError) {
+        console.error('Error en resolución automática:', resolveError);
+      }
+    }
+    
     if (!parsedId.isValid) {
-      return res.status(400).json({ 
-        error: parsedId.error || 'Formato de conversationId inválido',
+      return res.status(404).json({ 
+        error: 'Conversación no encontrada',
         received: conversationId,
-        expectedFormat: 'userId1-userId2',
-        examples: ['123-456', 'abc-def', 'user1-user2']
+        message: 'No existe una conversación válida con este ID. Usa el botón "Chat" desde una cotización para crear una nueva conversación.'
       });
     }
     
@@ -242,8 +295,14 @@ exports.getConversation = async (req, res) => {
     const lastMessage = await prisma.mensajes.findFirst({
       where: {
         OR: [
-          { remitente_id: participant1, destinatario_id: participant2 },
-          { remitente_id: participant2, destinatario_id: participant1 }
+          { 
+            remitente_id: String(participant1), 
+            destinatario_id: String(participant2) 
+          },
+          { 
+            remitente_id: String(participant2), 
+            destinatario_id: String(participant1) 
+          }
         ]
       },
       orderBy: { creado_en: 'desc' },
@@ -298,8 +357,8 @@ exports.getUserConversations = async (req, res) => {
       by: ['remitente_id', 'destinatario_id'],
       where: {
         OR: [
-          { remitente_id: userId },
-          { destinatario_id: userId }
+          { remitente_id: String(userId) },
+          { destinatario_id: String(userId) }
         ]
       },
       _count: {
@@ -337,16 +396,23 @@ exports.getUserConversations = async (req, res) => {
         const lastMessage = await prisma.mensajes.findFirst({
           where: {
             OR: [
-              { remitente_id: userId, destinatario_id: otherUserId },
-              { remitente_id: otherUserId, destinatario_id: userId }
+              { 
+                remitente_id: String(userId), 
+                destinatario_id: String(otherUserId) 
+              },
+              { 
+                remitente_id: String(otherUserId), 
+                destinatario_id: String(userId) 
+              }
             ]
           },
           orderBy: { creado_en: 'desc' }
         });
 
-        // Determinar los participantes para el conversationId
-        const participant1 = Math.min(userId, otherUserId);
-        const participant2 = Math.max(userId, otherUserId);
+        // Determinar los participantes para el conversationId (orden alfabético)
+        const participants = [String(userId), String(otherUserId)].sort();
+        const participant1 = participants[0];
+        const participant2 = participants[1];
         const conversationId = `${participant1}-${participant2}`;
 
         return {

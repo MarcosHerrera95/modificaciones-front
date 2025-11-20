@@ -97,7 +97,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
     }
   };
 
-  // Función para abrir chat con el cliente
+  // Función para abrir chat con el cliente (chat simplificado)
   const handleOpenChat = async (clientId, clientName) => {
     try {
       setLoading(true);
@@ -107,54 +107,10 @@ const MisCotizacionesProfesional = ({ onClose }) => {
         throw new Error('ID de cliente no válido');
       }
       
-      console.log('Abriendo chat con cliente:', clientId, clientName);
+      console.log('Abriendo chat simplificado con cliente:', clientId, clientName);
       
-      // Obtener y validar token de autenticación
-      const token = localStorage.getItem('changanet_token');
-      console.log('🔍 DEBUG - Token en localStorage:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
-      console.log('🔍 DEBUG - API_BASE_URL:', API_BASE_URL);
-      
-      if (!token) {
-        throw new Error('Usuario no autenticado');
-      }
-      
-      // Validar formato del token antes de enviar
-      if (!isValidJWTToken(token)) {
-        console.error('❌ Token JWT corrupto detectado');
-        clearCorruptedToken();
-        throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
-      }
-      
-      // Obtener el ID del profesional actual (del contexto de auth)
-      const professionalId = user?.id;
-      if (!professionalId) {
-        throw new Error('No se pudo obtener el ID del profesional');
-      }
-      
-      // Llamar al endpoint para crear o abrir conversación
-      const response = await fetch(`${API_BASE_URL}/api/chat/open-or-create`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          clientId: clientId,
-          professionalId: professionalId
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Error al crear la conversación');
-      }
-      
-      const chatData = await response.json();
-      
-      console.log('Conversación obtenida/creada:', chatData);
-      
-      // Navegar al chat usando el conversationId
-      navigate(`/chat/${chatData.conversationId}`);
+      // Navegar directamente al chat usando parámetro ?user= (chat simplificado)
+      navigate(`/chat?user=${clientId}`);
       
       // Cerrar el modal de cotizaciones
       onClose();
@@ -221,7 +177,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Detalles y Responder
                     </button>
                     <button 
-                      onClick={() => handleOpenChat(123, 'Diego Eduardo Euler')}
+                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Diego Eduardo Euler')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -286,7 +242,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Mi Respuesta
                     </button>
                     <button 
-                      onClick={() => handleOpenChat(124, 'María González')}
+                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'María González')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -351,7 +307,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Detalles
                     </button>
                     <button 
-                      onClick={() => handleOpenChat(125, 'Carlos Mendoza')}
+                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Carlos Mendoza')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 
@@ -422,7 +378,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                       Ver Mi Respuesta
                     </button>
                     <button 
-                      onClick={() => handleOpenChat(126, 'Ana Torres')}
+                      onClick={() => handleOpenChat('7f0d57a9-cf83-4d06-8d41-a244752c46ff', 'Ana Torres')}
                       disabled={loading}
                       className="btn-chat"
                       style={{ 

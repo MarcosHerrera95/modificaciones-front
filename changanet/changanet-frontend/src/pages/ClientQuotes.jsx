@@ -377,7 +377,7 @@ const ClientQuotes = () => {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    navigate(`/chat/${offer.profesional.id}`);
+                                    navigate(`/chat?user=${offer.profesional.id}`);
                                   }}
                                   className="flex-1 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
                                 >
@@ -574,7 +574,7 @@ const ClientQuotes = () => {
                             )}
 
                             <button
-                              onClick={() => navigate(`/chat/${offer.profesional.id}`)}
+                              onClick={() => navigate(`/chat?user=${offer.profesional.id}`)}
                               className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm"
                             >
                               💬 Contactar Profesional
@@ -723,7 +723,7 @@ const ClientQuotes = () => {
                                   )}
 
                                   <button
-                                    onClick={() => navigate(`/chat/${offer.profesional.id}`)}
+                                    onClick={() => navigate(`/chat?user=${offer.profesional.id}`)}
                                     className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm"
                                   >
                                     💬 Contactar Profesional

@@ -9,8 +9,8 @@ const NotificationCenter = ({ isOpen, onClose }) => {
     // Navegar según el tipo de notificación
     switch (notification.tipo) {
       case 'mensaje':
-        // Navegar al chat
-        window.location.href = `/chat/${notification.datos?.senderId}`;
+        // Navegar al chat usando parámetro ?user= (chat simplificado)
+        window.location.href = `/chat?user=${notification.datos?.senderId}`;
         break;
       case 'cotizacion':
         // Las cotizaciones se gestionan a través del modal en el dashboard del cliente

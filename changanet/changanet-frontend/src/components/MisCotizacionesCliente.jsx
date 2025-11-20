@@ -457,8 +457,8 @@ const MisCotizacionesCliente = ({ onClose }) => {
   // Función para iniciar chat con profesional
   const handleStartChat = async (professionalId, professionalName) => {
     try {
-      // Redirigir al chat (esto debería implementarse según el sistema de routing)
-      window.location.href = `/chat/${professionalId}`;
+      // Redirigir al chat usando parámetro ?user= (chat simplificado)
+      window.location.href = `/chat?user=${professionalId}`;
       handleClose();
     } catch (error) {
       console.error('Error iniciando chat:', error);

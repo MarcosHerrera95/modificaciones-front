@@ -158,7 +158,7 @@ const ProfessionalDetail = () => {
                 </button>
                 {user && user.rol === 'cliente' && (
                   <button
-                    onClick={() => navigate(`/chat/${professionalId}`)}
+                    onClick={() => navigate(`/chat?user=${professionalId}`)}
                     className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-8 py-3 rounded-2xl hover:from-emerald-600 hover:to-teal-600 hover:shadow-xl hover:scale-105 transition-all duration-300 font-semibold flex items-center justify-center min-h-[44px] touch-manipulation"
                     aria-label="Chatear con el profesional"
                   >

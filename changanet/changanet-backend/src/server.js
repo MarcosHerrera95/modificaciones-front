@@ -73,6 +73,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const messageRoutes = require('./routes/messageRoutes');
 const chatRoutes = require('./routes/chatRoutes');
+const simpleChatRoutes = require('./routes/simpleChatRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -398,6 +399,9 @@ app.use('/api/messages', authenticateToken, messageRoutes);
 
 // Rutas de chat con autenticación requerida
 app.use('/api/chat', authenticateToken, chatRoutes);
+
+// Rutas de chat simplificado (solo modelo mensajes) - REEMPLAZA al chat anterior
+app.use('/api/chat', authenticateToken, simpleChatRoutes);
 
 // Rutas de reseñas con autenticación requerida
 app.use('/api/reviews', authenticateToken, reviewRoutes);
