@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import RatingDisplay from '../RatingDisplay';
 import VerifiedBadge from '../VerifiedBadge';
+import ProfilePicture from '../ProfilePicture';
 
 const ProfessionalDetailModal = ({ isOpen, onClose, professional }) => {
   const [gallery, setGallery] = useState([]);
@@ -54,8 +55,6 @@ const ProfessionalDetailModal = ({ isOpen, onClose, professional }) => {
 
   const nombreProfesional = professional.usuario?.nombre || 'Profesional';
   const fotoPerfilOriginal = professional.usuario?.url_foto_perfil;
-  const fotoPerfilFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreProfesional)}&size=120&background=random&color=fff&format=png`;
-  const fotoPerfil = fotoPerfilOriginal || fotoPerfilFallback;
 
   // Get animation class - simplified to just expand in center
   const getAnimationClass = () => {
@@ -80,10 +79,10 @@ const ProfessionalDetailModal = ({ isOpen, onClose, professional }) => {
         <div className="px-8 py-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-4">
-              <img
-                src={fotoPerfil}
-                alt={`Foto de ${nombreProfesional}`}
-                className="w-12 h-12 rounded-full border-2 border-emerald-200 object-cover"
+              <ProfilePicture 
+                size="w-12 h-12"
+                profileImageUrl={fotoPerfilOriginal}
+                className="border-2 border-emerald-200"
               />
               <div>
                 <h2 className="text-2xl font-bold text-gray-800">

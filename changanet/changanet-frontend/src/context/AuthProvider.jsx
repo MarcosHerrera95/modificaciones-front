@@ -77,18 +77,23 @@ export class AuthProvider extends React.Component {
       if (!token) return;
 
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      console.log("🟡 fetchCurrentUser: Making request to /api/auth/me");
       const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('AuthContext - Fetched current user:', data.user);
+        console.log('🟡 AuthContext - Fetched current user:', data.user);
+        console.log('🟡 fetchCurrentUser - url_foto_perfil from server:', data.user?.url_foto_perfil);
         this.setState({ user: data.user });
         localStorage.setItem('changanet_user', JSON.stringify(data.user));
+        console.log('🟡 Updated localStorage with user data including photo');
+      } else {
+        console.log('🟡 fetchCurrentUser failed with status:', response.status);
       }
-    } catch (error) {
-      console.error('Error fetching current user:', error);
+    } catch (err) {
+      console.error('Error fetching current user:', err);
     }
   };
 
@@ -113,9 +118,13 @@ export class AuthProvider extends React.Component {
 
   // Método para manejar login con Google (puede ser usado por el GoogleLoginButton)
   loginWithGoogle = async (userData, token) => {
+    console.log("🟡 loginWithGoogle called with:", userData);
+    console.log("🟡 userData.url_foto_perfil:", userData.url_foto_perfil);
+    
     // El login con Google funciona igual que el login regular
     this.login(userData, token);
 
+    console.log("🟡 After this.login, fetching current user data...");
     // Después del login, obtener datos actualizados del usuario
     this.fetchCurrentUser();
   };

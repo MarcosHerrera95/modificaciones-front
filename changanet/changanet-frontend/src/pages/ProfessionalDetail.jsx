@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import QuoteRequestForm from '../components/QuoteRequestForm';
 import RatingDisplay from '../components/RatingDisplay';
 import BackButton from '../components/BackButton';
+import ProfilePicture from '../components/ProfilePicture';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -110,15 +111,11 @@ const ProfessionalDetail = () => {
           <div className="relative flex flex-col lg:flex-row items-center lg:items-start gap-8">
             {/* Profile Photo */}
             <div className="flex-shrink-0">
-              <div className="w-40 h-40 rounded-full border-4 border-emerald-200 bg-gray-100 flex items-center justify-center overflow-hidden shadow-xl">
-                {professional.usuario?.url_foto_perfil ? (
-                  <img src={professional.usuario.url_foto_perfil} alt="Foto de perfil" className="w-full h-full object-cover" />
-                ) : (
-                  <svg className="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                )}
-              </div>
+              <ProfilePicture 
+                size="w-40 h-40"
+                profileImageUrl={professional.usuario?.url_foto_perfil}
+                className="border-4 border-emerald-200 shadow-xl"
+              />
             </div>
 
             {/* Profile Info */}

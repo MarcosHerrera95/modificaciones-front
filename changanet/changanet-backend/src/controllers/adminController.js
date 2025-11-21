@@ -28,7 +28,7 @@ exports.getPendingVerifications = async (req, res) => {
         }
       },
       orderBy: {
-        fecha_solicitud: 'asc'
+        creado_en: 'asc'
       }
     });
 

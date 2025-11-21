@@ -20,7 +20,6 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
   const [distance, setDistance] = useState('Calculando...');
   const [loading, setLoading] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
-  const [imageError, setImageError] = useState(false);
   const distanceCalculatedRef = useRef(false);
 
   // Si ya viene la distancia calculada desde el hook, usarla
@@ -159,7 +158,6 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
   const nombreProfesional = professional.usuario?.nombre || 'Profesional';
   const fotoPerfilOriginal = professional.usuario?.url_foto_perfil;
   const fotoPerfilFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(nombreProfesional)}&size=120&background=random&color=fff&format=png`;
-  const fotoPerfil = fotoPerfilOriginal || fotoPerfilFallback;
 
   return (
     <div className={`professional-card card-glow p-6 rounded-2xl overflow-hidden group hover-lift relative bg-white border border-gray-100 shadow-sm hover:shadow-lg transition-all duration-300 ${isSelected ? 'ring-2 ring-emerald-400 bg-emerald-50/30' : ''}`}>
@@ -214,12 +212,16 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
       <div className="flex gap-4">
         {/* Profile Image */}
         <div className="flex-shrink-0">
-          <img
-            src={imageError ? fotoPerfilFallback : fotoPerfil}
-            alt={`Foto de perfil de ${nombreProfesional}`}
-            onError={() => setImageError(true)}
-            className="w-16 h-16 rounded-xl object-cover border-2 border-gray-100"
-          />
+          <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-gray-100">
+            <img
+              src={fotoPerfilOriginal || fotoPerfilFallback}
+              alt={`Foto de perfil de ${nombreProfesional}`}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.src = fotoPerfilFallback;
+              }}
+            />
+          </div>
         </div>
 
         {/* Content */}

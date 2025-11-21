@@ -52,11 +52,63 @@ exports.getProfessionals = async (req, res) => {
       };
     }
 
-    // Filtro por especialidad (REQ-11)
+    // Filtro por especialidad (REQ-11) - mejorado para ser más flexible
     if (especialidad) {
-      perfilWhere.especialidad = {
-        contains: especialidad
-      };
+      // Búsqueda flexible que incluya variaciones comunes
+      const especialidadLower = especialidad.toLowerCase().trim();
+      
+      // Mapeo de especialidades flexibles
+      
+      if (especialidadLower.includes('cerraj')) {
+        // Buscar tanto 'Cerrajería' (con í) como 'Cerrajero'
+        perfilWhere.especialidad = {
+          in: ['Cerrajería', 'cerrajería', 'Cerrajero', 'cerrajero', 'CERRAJERÍA', 'CERRAJERO']
+        };
+      } else if (especialidadLower.includes('plom')) {
+        perfilWhere.especialidad = {
+          in: ['Plomero', 'plomero', 'PLOMERO', 'Plomería', 'plomería', 'PLOMERÍA']
+        };
+      } else if (especialidadLower.includes('electr')) {
+        perfilWhere.especialidad = {
+          in: ['Electricista', 'electricista', 'ELECTRICISTA', 'Electricidad', 'electricidad', 'ELECTRICIDAD']
+        };
+      } else if (especialidadLower.includes('pint')) {
+        perfilWhere.especialidad = {
+          in: ['Pintor', 'pintor', 'PINTOR', 'Pintura', 'pintura', 'PINTURA']
+        };
+      } else if (especialidadLower.includes('albañil')) {
+        perfilWhere.especialidad = {
+          in: ['Albañil', 'albañil', 'ALBAÑIL', 'Albañilería', 'albañilería', 'ALBAÑILERÍA']
+        };
+      } else if (especialidadLower.includes('gas')) {
+        perfilWhere.especialidad = {
+          in: ['Gasista', 'gasista', 'GASISTA', 'Gasfiter', 'gasfiter', 'GASFITER']
+        };
+      } else if (especialidadLower.includes('carpint')) {
+        perfilWhere.especialidad = {
+          in: ['Carpintero', 'carpintero', 'CARPINTERO', 'Carpintería', 'carpintería', 'CARPINTERÍA']
+        };
+      } else if (especialidadLower.includes('herr')) {
+        perfilWhere.especialidad = {
+          in: ['Herrero', 'herrero', 'HERRERO', 'Herrería', 'herrería', 'HERRERÍA']
+        };
+      } else if (especialidadLower.includes('mecan')) {
+        perfilWhere.especialidad = {
+          in: ['Mecánico', 'mecánico', 'MECÁNICO', 'Mecánica', 'mecánica', 'MECÁNICA']
+        };
+      } else if (especialidadLower.includes('jardin')) {
+        perfilWhere.especialidad = {
+          in: ['Jardín', 'jardín', 'JARDÍN', 'Jardinería', 'jardinería', 'JARDINERÍA']
+        };
+      } else {
+        // Búsqueda genérica - buscar coincidencias parciales
+        perfilWhere.especialidad = {
+          contains: especialidadLower
+        };
+      }
+      
+      console.log('🔍 DEBUGGING - Especialidad buscada:', especialidadLower);
+      console.log('🔍 DEBUGGING - Filtro aplicado:', perfilWhere.especialidad);
     }
 
     // Filtro por rango de precio (REQ-13)
@@ -68,7 +120,10 @@ exports.getProfessionals = async (req, res) => {
 
     // Aplicar filtros de perfil_profesional si existen
     if (Object.keys(perfilWhere).length > 0) {
-      where.perfil_profesional.is = perfilWhere;
+      where.perfil_profesional = {
+        ...where.perfil_profesional,
+        is: perfilWhere
+      };
     }
 
     // Configurar ordenamiento (REQ-14)
@@ -93,6 +148,18 @@ exports.getProfessionals = async (req, res) => {
     }
 
     const skip = (pageNum - 1) * limitNum;
+
+    // Solo obtener especialidades disponibles para logging cuando se busca especialidad
+    let allSpecialties = [];
+    if (especialidad) {
+      allSpecialties = await prisma.perfiles_profesionales.findMany({
+        select: {
+          especialidad: true
+        },
+        distinct: ['especialidad']
+      });
+      console.log('📋 Especialidades disponibles:', allSpecialties.map(s => s.especialidad).join(', '));
+    }
 
     // Buscar profesionales usando Prisma con include (REQ-15)
     const professionals = await prisma.usuarios.findMany({

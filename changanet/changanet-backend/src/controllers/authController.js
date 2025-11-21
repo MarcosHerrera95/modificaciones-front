@@ -558,7 +558,8 @@ exports.getCurrentUser = async (req, res) => {
         nombre: user.nombre,
         email: user.email,
         rol: user.rol,
-        esta_verificado: user.esta_verificado
+        esta_verificado: user.esta_verificado,
+        url_foto_perfil: user.url_foto_perfil // Incluir foto de perfil
       }
     });
   } catch (error) {
@@ -788,10 +789,16 @@ exports.verifyEmail = async (req, res) => {
  */
 exports.googleLogin = async (req, res) => {
   try {
-    console.log('Google OAuth request received:', req.body);
+    console.log('🟡 Google OAuth request received:', req.body);
     const { uid, email, nombre, foto, rol } = req.body;
 
-    console.log('Google OAuth attempt:', { email, uid, nombre, rol });
+    console.log('🟡 Google OAuth attempt:', { 
+      email, 
+      uid, 
+      nombre, 
+      rol,
+      foto: foto || 'NO PHOTO PROVIDED' // 🔍 DEBUG PHOTO
+    });
 
     // Validar campos requeridos
     if (!uid || !email || !nombre) {
@@ -813,18 +820,49 @@ exports.googleLogin = async (req, res) => {
       where: { email }
     });
 
+    console.log('🟡 EXISTING USER CHECK:');
+    console.log('🟡 User found:', user ? 'YES' : 'NO');
     if (user) {
+      console.log('🟡 Current user data BEFORE update:', {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        google_id: user.google_id,
+        url_foto_perfil: user.url_foto_perfil,
+        rol: user.rol
+      });
+    }
+
+    if (user) {
+      console.log('🟡 EXISTING USER SCENARIO:');
+      console.log('🟡 Current google_id:', user.google_id);
+      console.log('🟡 Incoming foto from Google:', foto);
+      console.log('🟡 Current photo in DB:', user.url_foto_perfil);
+      
       // Usuario existe, actualizar información si es necesario
       if (!user.google_id) {
+        console.log('🟡 User has no Google ID - FIRST TIME GOOGLE LOGIN');
+        console.log('🟡 Will update with Google data');
+        
         user = await prisma.usuarios.update({
           where: { id: user.id },
           data: {
             google_id: uid,
             nombre: nombre, // Actualizar nombre si cambió
-            url_foto_perfil: foto || user.url_foto_perfil,
+            url_foto_perfil: foto || user.url_foto_perfil, // 🔍 CRÍTICO: siempre usar foto de Google si está disponible
             esta_verificado: true, // Los usuarios de Google están verificados
           }
         });
+        
+        console.log('🟡 AFTER FIRST GOOGLE LOGIN - USER DATA:', {
+          id: user.id,
+          nombre: user.nombre,
+          email: user.email,
+          google_id: user.google_id,
+          url_foto_perfil: user.url_foto_perfil,
+          photoSource: user.url_foto_perfil?.includes('googleusercontent') ? 'GOOGLE' : 'OTHER'
+        });
+        
         logger.info('Google OAuth: existing user updated', {
           service: 'auth',
           userId: user.id,
@@ -833,6 +871,43 @@ exports.googleLogin = async (req, res) => {
         });
         console.log('Google OAuth: existing user updated:', user.email);
       } else {
+        console.log('🟡 User already has Google ID - CHECK IF PHOTO NEEDS UPDATE');
+        
+        // 🔍 NUEVA LÓGICA: Actualizar foto de Google siempre que sea diferente
+        const shouldUpdatePhoto = foto && foto !== user.url_foto_perfil;
+        
+        if (shouldUpdatePhoto) {
+          console.log('🟡 PHOTO UPDATE NEEDED - Google photo different from current');
+          console.log('🟡 Current DB photo:', user.url_foto_perfil);
+          console.log('🟡 New Google photo:', foto);
+          
+          user = await prisma.usuarios.update({
+            where: { id: user.id },
+            data: {
+              url_foto_perfil: foto, // 🔍 ACTUALIZAR SIEMPRE LA FOTO DE GOOGLE
+              nombre: nombre, // Actualizar nombre si cambió
+            }
+          });
+          
+          console.log('🟡 AFTER PHOTO UPDATE - USER DATA:', {
+            id: user.id,
+            nombre: user.nombre,
+            email: user.email,
+            google_id: user.google_id,
+            url_foto_perfil: user.url_foto_perfil,
+            photoSource: user.url_foto_perfil?.includes('googleusercontent') ? 'GOOGLE' : 'OTHER'
+          });
+          
+        } else {
+          console.log('🟡 NO PHOTO UPDATE NEEDED');
+          if (!foto) {
+            console.log('🟡 No Google photo provided in this login');
+          } else {
+            console.log('🟡 Google photo same as current DB photo');
+          }
+          console.log('🟡 Current photo stays as:', user.url_foto_perfil);
+        }
+        
         logger.info('Google OAuth: existing user login', {
           service: 'auth',
           userId: user.id,
@@ -856,11 +931,17 @@ exports.googleLogin = async (req, res) => {
           nombre,
           email,
           google_id: uid,
-          url_foto_perfil: foto,
+          url_foto_perfil: foto, // 🔍 GUARDANDO FOTO DE GOOGLE
           rol: userRole,
           esta_verificado: true, // Los usuarios de Google están verificados automáticamente
           hash_contrasena: null, // No tienen contraseña local
         }
+      });
+
+      console.log('🟡 Google OAuth: new user created with photo:', {
+        email: user.email,
+        url_foto_perfil: user.url_foto_perfil,
+        photoWasSaved: !!user.url_foto_perfil
       });
 
       logger.info('Google OAuth: new user registered', {
@@ -890,7 +971,8 @@ exports.googleLogin = async (req, res) => {
         nombre: user.nombre,
         email: user.email,
         rol: user.rol,
-        esta_verificado: user.esta_verificado
+        esta_verificado: user.esta_verificado,
+        url_foto_perfil: user.url_foto_perfil // Incluir foto de perfil en la respuesta
       }
     });
   } catch (error) {

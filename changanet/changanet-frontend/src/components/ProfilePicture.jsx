@@ -1,88 +1,54 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import ImageUpload from './ImageUpload';
-import { uploadProfilePicture, getFileURL } from '../services/storageService';
-
-const ProfilePicture = ({ userId, size = 'w-24 h-24', editable = false, className = '' }) => {
-  const { user } = useAuth();
-  const [profileImageUrl, setProfileImageUrl] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const loadProfilePicture = async () => {
-      if (!userId) return;
-
-      try {
-        // INTEGRACIÓN CON FIREBASE: Obtener URL de la foto de perfil
-        const result = await getFileURL(`profile-pictures/${userId}/profile.jpg`);
-        if (result.success) {
-          setProfileImageUrl(result.url);
-        }
-      } catch (error) {
-        console.error('Error al cargar foto de perfil:', error);
-      }
-    };
-
-    loadProfilePicture();
-  }, [userId]);
-
-  const handleImageSelect = async (file) => {
-    if (!user || !editable) return;
-
-    setLoading(true);
-    setError('');
-
-    try {
-      // INTEGRACIÓN CON FIREBASE: Subir foto de perfil a Storage
-      const result = await uploadProfilePicture(user.uid, file);
-      if (result.success) {
-        setProfileImageUrl(result.url);
-      } else {
-        setError(result.error);
-      }
-    } catch (err) {
-      setError('Error al subir la imagen');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleImageRemove = () => {
-    setProfileImageUrl(null);
-    setError('');
-  };
-
-  if (editable && user?.uid === userId) {
-    return (
-      <div className={`relative ${className}`}>
-        <ImageUpload
-          onImageSelect={handleImageSelect}
-          onImageRemove={handleImageRemove}
-          placeholder="Seleccionar foto de perfil"
-          showPreview={true}
-          className="w-full"
-          disabled={loading}
-        />
-        {loading && (
-          <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-emerald-500"></div>
-          </div>
-        )}
-        {error && (
-          <div className="text-red-600 text-sm mt-2">{error}</div>
-        )}
-      </div>
-    );
-  }
+const ProfilePicture = ({ 
+  size = 'w-24 h-24', 
+  className = '', 
+  profileImageUrl, 
+  user = null,
+  showDefaultAvatar = true 
+}) => {
+  // 🔍 DEBUG: Verificar props recibidas
+  console.log("🟡 ProfilePicture received:", { user, profileImageUrl });
+  console.log("🟡 user?.url_foto_perfil:", user?.url_foto_perfil);
+  console.log("🟡 profileImageUrl:", profileImageUrl);
+  
+  // Si se pasa un objeto user, priorizar url_foto_perfil sobre profileImageUrl
+  const imageUrl = user?.url_foto_perfil || profileImageUrl;
+  
+  // Fallback a avatar generado si no hay imagen pero hay nombre de usuario
+  const fallbackAvatarUrl = user?.nombre 
+    ? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.nombre)}&size=120&background=random&color=fff&format=png`
+    : null;
+    
+  console.log("🟡 ProfilePicture will use imageUrl:", imageUrl);
 
   return (
     <div className={`relative ${size} rounded-full overflow-hidden bg-gray-200 flex items-center justify-center ${className}`}>
-      {profileImageUrl ? (
+      {imageUrl ? (
         <img
-          src={profileImageUrl}
-          alt="Foto de perfil"
+          src={imageUrl}
+          alt={`Foto de perfil de ${user?.nombre || 'usuario'}`}
           className="w-full h-full object-cover"
+          onError={(e) => {
+            console.log('ProfilePicture: Error cargando imagen:', imageUrl);
+            // Intentar con avatar generado si falla la imagen original
+            if (fallbackAvatarUrl && e.target.src !== fallbackAvatarUrl) {
+              e.target.src = fallbackAvatarUrl;
+            } else {
+              // Fallback final a icono
+              e.target.style.display = 'none';
+              e.target.parentElement.innerHTML = '<div class="text-gray-400 text-2xl">👤</div>';
+            }
+          }}
+        />
+      ) : fallbackAvatarUrl && showDefaultAvatar ? (
+        <img
+          src={fallbackAvatarUrl}
+          alt={`Avatar de ${user?.nombre || 'usuario'}`}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            // Fallback final a icono
+            e.target.style.display = 'none';
+            e.target.parentElement.innerHTML = '<div class="text-gray-400 text-2xl">👤</div>';
+          }}
         />
       ) : (
         <div className="text-gray-400 text-2xl">👤</div>

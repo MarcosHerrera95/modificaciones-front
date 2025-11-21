@@ -22,43 +22,204 @@ export const ChatProvider = ({ children }) => {
 
   useEffect(() => {
     // Habilitar Socket.IO para funcionalidad de chat en tiempo real
-    if (user) {
+    let newSocket = null;
+    let isMounted = true; // Flag para prevenir actualizaciones en componentes desmontados
+    
+    const initializeSocket = async () => {
+      if (!user) {
+        console.log('❌ No hay usuario autenticado, no inicializando Socket.IO');
+        return;
+      }
+
       console.log('🔄 Inicializando Socket.IO para chat en tiempo real...');
       
       const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
-      const newSocket = io(API_BASE_URL, {
+      const token = localStorage.getItem('changanet_token');
+      
+      // Validar token antes de conectar
+      if (!token) {
+        console.warn('⚠️ No hay token de autenticación, conexión limitada');
+      } else {
+        console.log('🔑 Token encontrado, preparando autenticación');
+      }
+
+      // Configuración mejorada de Socket.IO con opciones de reconexión robustas
+      const socketConfig = {
         auth: {
-          token: localStorage.getItem('changanet_token')
-        }
-      });
-
-      // Manejar conexión
-      newSocket.on('connect', () => {
-        console.log('✅ Socket.IO conectado para chat');
-        setIsConnected(true);
-      });
-
-      // Manejar desconexión
-      newSocket.on('disconnect', () => {
-        console.log('⚠️ Socket.IO desconectado');
-        setIsConnected(false);
-      });
-
-      // Manejar errores de conexión
-      newSocket.on('connect_error', (error) => {
-        console.error('❌ Error de conexión Socket.IO:', error.message);
-        setIsConnected(false);
-      });
-
-      setSocket(newSocket);
-
-      // Cleanup al desmontar
-      return () => {
-        console.log('🧹 Cerrando conexión Socket.IO');
-        newSocket.disconnect();
+          token: token
+        },
+        // Configuraciones de reconexión mejoradas
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        // Timeout para handshake inicial
+        timeout: 20000,
+        // Configuraciones de transporte específicas
+        transports: ['polling', 'websocket'], // Orden cambiado - polling primero para mayor compatibilidad
+        // Configuración de CORS
+        withCredentials: true,
+        // Auto-conexión después del handshake
+        autoConnect: true,
+        // Configuraciones de debug
+        debug: false // Deshabilitado para producción
       };
-    }
-  }, [user]);
+
+      console.log('🔧 Configuración Socket.IO:', {
+        url: API_BASE_URL,
+        reconnection: socketConfig.reconnection,
+        timeout: socketConfig.timeout,
+        transports: socketConfig.transports,
+        hasToken: !!token
+      });
+
+      try {
+        newSocket = io(API_BASE_URL, socketConfig);
+
+        // Verificar estado inicial del socket
+        if (!isMounted) {
+          console.log('🧹 Componente desmontado, cancelando inicialización del socket');
+          if (newSocket) {
+            newSocket.disconnect();
+          }
+          return;
+        }
+
+        // Manejar conexión exitosa
+        newSocket.on('connect', () => {
+          if (!isMounted) return;
+          
+          console.log('✅ Socket.IO conectado exitosamente');
+          console.log('🔗 ID de conexión:', newSocket.id);
+          setIsConnected(true);
+          
+          // Unirse a la sala del usuario para recibir mensajes privados
+          newSocket.emit('join', user.id);
+        });
+
+        // Manejar intento de reconexión
+        newSocket.on('reconnect_attempt', (attemptNumber) => {
+          if (!isMounted) return;
+          console.log(`🔄 Intento de reconexión ${attemptNumber}...`);
+        });
+
+        // Manejar reconexión exitosa
+        newSocket.on('reconnect', (attemptNumber) => {
+          if (!isMounted) return;
+          console.log(`✅ Reconectado exitosamente después de ${attemptNumber} intentos`);
+          setIsConnected(true);
+          
+          // Re-unirse a la sala del usuario después de reconectar
+          newSocket.emit('join', user.id);
+        });
+
+        // Manejar falla de reconexión
+        newSocket.on('reconnect_failed', () => {
+          if (!isMounted) return;
+          console.error('❌ Falló la reconexión después de todos los intentos');
+          setIsConnected(false);
+        });
+
+        // Manejar desconexión
+        newSocket.on('disconnect', (reason) => {
+          if (!isMounted) return;
+          console.log('⚠️ Socket.IO desconectado:', reason);
+          setIsConnected(false);
+          
+          // No intentar reconectar manualmente, dejar que Socket.IO maneje la reconexión
+          if (reason === 'io server disconnect') {
+            console.log('🔄 El servidor desconectó el socket - Socket.IO manejará la reconexión');
+          } else if (reason === 'transport close') {
+            console.log('📡 Conexión de transporte cerrada - puede ser temporal');
+          } else if (reason === 'ping timeout') {
+            console.log('⏱️ Timeout de ping - la conexión está lenta');
+          }
+        });
+
+        // Manejar errores de conexión
+        newSocket.on('connect_error', (error) => {
+          if (!isMounted) return;
+          
+          console.error('❌ Error de conexión Socket.IO:', {
+            message: error.message,
+            description: error.description,
+            context: error.context,
+            type: error.type
+          });
+          
+          // Log específico según el tipo de error
+          if (error.type === 'UnauthorizedError') {
+            console.warn('🔐 Error de autenticación - token puede ser inválido o expirado');
+            // Limpiar token inválido
+            localStorage.removeItem('changanet_token');
+          } else if (error.type === 'TransportError') {
+            console.warn('📡 Error de transporte - puede ser un problema de red');
+          } else if (error.type === 'ParseError') {
+            console.warn('📄 Error de parsing - posible problema con el servidor');
+          }
+          
+          setIsConnected(false);
+        });
+
+        // Manejar eventos de typing (usando setTypingUsers para evitar el warning)
+        newSocket.on('userTyping', ({ from, isTyping }) => {
+          if (!isMounted) return;
+          
+          setTypingUsers(prev => {
+            const newTypingUsers = { ...prev };
+            if (isTyping) {
+              newTypingUsers[from] = true;
+            } else {
+              delete newTypingUsers[from];
+            }
+            return newTypingUsers;
+          });
+        });
+
+        // Manejar errores generales del socket
+        newSocket.on('error', (error) => {
+          if (!isMounted) return;
+          console.error('❌ Error general del Socket.IO:', error);
+        });
+
+        // Verificar si el componente sigue montado antes de setear el socket
+        if (isMounted) {
+          setSocket(newSocket);
+        }
+
+      } catch (error) {
+        console.error('❌ Error creando socket:', error);
+        if (isMounted) {
+          setIsConnected(false);
+        }
+      }
+    };
+
+    // Ejecutar inicialización
+    initializeSocket();
+
+    // Cleanup mejorado
+    return () => {
+      console.log('🧹 Cerrando conexión Socket.IO - cleanup');
+      isMounted = false; // Marcar como desmontado
+      
+      if (newSocket) {
+        try {
+          // Remover todos los listeners primero
+          newSocket.removeAllListeners();
+          
+          // Solo desconectar si el socket existe y está conectado
+          if (newSocket.connected) {
+            newSocket.disconnect();
+          } else {
+            console.log('ℹ️ Socket ya estaba desconectado');
+          }
+        } catch (error) {
+          console.warn('⚠️ Error durante cleanup del socket:', error.message);
+        }
+      }
+    };
+  }, [user]); // Solo dependencia en user para evitar dependencia circular
 
   const sendMessage = async (destinatario_id, contenido, url_imagen = null) => {
     try {

@@ -6,10 +6,12 @@
 
 import React, { useState } from 'react';
 import { getAuth, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { useAuth } from '../context/AuthContext';
 
 const GoogleLoginButton = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { loginWithGoogle } = useAuth();
   // Usar el proxy de Vite para evitar problemas de CORS
   const apiUrl = '/api/auth/google-login';
   console.log('GoogleLoginButton: Using API URL:', apiUrl);
@@ -32,21 +34,33 @@ const GoogleLoginButton = () => {
          throw new Error("No se pudo obtener el ID Token de Firebase.");
       }
 
+      // 🔍 DEBUG: Verificar datos de Google
+      console.log("🟡 Google OAuth Data:");
+      console.log("  - user.uid:", user.uid);
+      console.log("  - user.email:", user.email);
+      console.log("  - user.displayName:", user.displayName);
+      console.log("  - user.photoURL:", user.photoURL); // ← CRÍTICO
+      console.log("  - credential:", credential);
+
       console.log("Frontend: ID Token obtenido, enviando datos del usuario a backend");
 
       // Paso 2: Enviar datos del usuario al backend para crear/actualizar usuario y obtener token de sesión
+      const requestBody = {
+        uid: user.uid,
+        email: user.email,
+        nombre: user.displayName || 'Usuario Google',
+        foto: user.photoURL, // ← CRÍTICO: Foto de Google
+        rol: 'cliente' // Rol por defecto para nuevos usuarios de Google
+      };
+      
+      console.log("🟡 Request al backend:", requestBody);
+      
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          nombre: user.displayName || 'Usuario Google',
-          foto: user.photoURL,
-          rol: 'cliente' // Rol por defecto para nuevos usuarios de Google
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -56,13 +70,17 @@ const GoogleLoginButton = () => {
 
       const data = await response.json();
       console.log("Frontend: Respuesta del backend:", data);
+      console.log("🟡 Backend user data:", data.user);
+      console.log("🟡 url_foto_perfil from backend:", data.user?.url_foto_perfil); // ← CRÍTICO
 
       // Suponiendo que el backend devuelve { token: '...', user: {...} }
       if (data.token && data.user) {
-        // Almacenar token de sesión en localStorage con la clave correcta
-        localStorage.setItem('changanet_token', data.token);
-        localStorage.setItem('changanet_user', JSON.stringify(data.user));
-        console.log('Login exitoso, token de sesión almacenado.');
+        console.log('GoogleLoginButton: Login exitoso, llamando a loginWithGoogle del contexto');
+        console.log("🟡 Calling loginWithGoogle with:", data.user);
+        
+        // Usar el método del contexto para manejar el login correctamente
+        await loginWithGoogle(data.user, data.token);
+        
         // Redirigir al dashboard correspondiente según el rol
         const dashboardPath = data.user.rol === 'admin' ? '/admin/dashboard' : '/mi-cuenta';
         window.location.href = dashboardPath;

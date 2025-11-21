@@ -23,6 +23,8 @@ const Chat = () => {
   const [otherUser, setOtherUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isLoadingConversation, setIsLoadingConversation] = useState(false); // Control de solicitudes múltiples
+  const [rateLimitHit, setRateLimitHit] = useState(false); // Control de rate limiting
 
   useEffect(() => {
     // Verificar permisos
@@ -38,12 +40,30 @@ const Chat = () => {
       return;
     }
 
-    // Cargar conversación y datos del otro usuario
-    loadConversationAndUserData();
-  }, [user, conversationId, navigate]);
+    // Si ya hay una solicitud en curso o se alcanzó el rate limit, no proceder
+    if (isLoadingConversation || rateLimitHit) {
+      console.log(`⚠️ ${isLoadingConversation ? 'Solicitud en curso' : 'Rate limit alcanzado'}, omitiendo...`);
+      return;
+    }
 
-  const loadConversationAndUserData = async () => {
+    // Cargar conversación y datos del otro usuario con debounce
+    const loadWithDebounce = setTimeout(() => {
+      loadConversationAndUserData();
+    }, 100); // Debounce de 100ms para evitar llamadas múltiples
+
+    return () => clearTimeout(loadWithDebounce);
+  }, [user, conversationId, navigate, isLoadingConversation, rateLimitHit]);
+
+  const loadConversationAndUserData = async (currentConversationId = conversationId) => {
+    // Control de solicitudes múltiples
+    if (isLoadingConversation) {
+      console.log('⚠️ Ya hay una solicitud en curso, omitiendo...');
+      return;
+    }
+
     try {
+      setIsLoadingConversation(true);
+      setRateLimitHit(false);
       setLoading(true);
       setError('');
 
@@ -53,17 +73,28 @@ const Chat = () => {
         throw new Error('Usuario no autenticado');
       }
 
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      
+      console.log(`🔄 Cargando conversación: ${currentConversationId}`);
       
       // Cargar datos de la conversación
-      const conversationResponse = await fetch(`${apiBaseUrl}/api/chat/conversation/${conversationId}`, {
+      const conversationResponse = await fetch(`${apiBaseUrl}/api/chat/conversation/${currentConversationId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
       if (!conversationResponse.ok) {
-        if (conversationResponse.status === 404) {
+        if (conversationResponse.status === 429) {
+          // Rate limit alcanzado
+          console.warn('🚫 Rate limit alcanzado, esperando antes de reintentar...');
+          setRateLimitHit(true);
+          // Esperar 5 segundos antes de permitir otra solicitud
+          setTimeout(() => {
+            setRateLimitHit(false);
+          }, 5000);
+          throw new Error('Demasiadas solicitudes. Intenta nuevamente en unos segundos.');
+        } else if (conversationResponse.status === 404) {
           // Intentar resolver el conversationId
           console.log('ConversationId inválido, intentando resolver...');
           await resolveConversationId();
@@ -73,7 +104,7 @@ const Chat = () => {
       }
 
       const conversationData = await conversationResponse.json();
-      console.log('Datos de conversación cargados:', conversationData);
+      console.log('✅ Datos de conversación cargados:', conversationData);
       setConversation(conversationData);
 
       // Determinar cuál es el otro usuario (no el actual)
@@ -91,6 +122,7 @@ const Chat = () => {
       console.error('Error loading conversation data:', err);
       setError(`Error al cargar la conversación: ${err.message}`);
     } finally {
+      setIsLoadingConversation(false);
       setLoading(false);
     }
   };
@@ -140,8 +172,15 @@ const Chat = () => {
       
       if (conversationId === expectedConversationId) {
         console.log('✅ ConversationId correctamente ordenado');
-        // Reintentar cargar la conversación
-        await loadConversationAndUserData();
+        
+        // ⚠️ NO recursión infinita: Si ya estamos cargando, no proceder
+        if (isLoadingConversation || rateLimitHit) {
+          console.log('⚠️ Ya hay carga en curso o rate limit activo, omitiendo carga adicional');
+          return;
+        }
+        
+        // Cargar la conversación directamente sin recursión infinita
+        await loadConversationAndUserData(conversationId);
         return;
       } else {
         console.log(`🔄 Redirigiendo a conversationId correcto: ${expectedConversationId}`);
@@ -152,13 +191,15 @@ const Chat = () => {
     } catch (err) {
       console.error('Error resolving conversationId:', err);
       setError(`Error al resolver el conversationId: ${err.message}`);
+      setIsLoadingConversation(false);
+      setLoading(false);
     }
   };
 
   const loadOtherUserInfo = async (otherUserId) => {
     try {
       const token = localStorage.getItem('changanet_token');
-      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
 
       const response = await fetch(`${apiBaseUrl}/api/profile/${otherUserId}`, {
         headers: {

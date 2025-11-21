@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import BackButton from '../components/BackButton';
 import EditProfileButton from '../components/EditProfileButton';
+import ProfilePicture from '../components/ProfilePicture';
 import ClientOnboardingWizard from '../components/ClientOnboardingWizard';
 import MisCotizacionesCliente from '../components/MisCotizacionesCliente';
 import '../styles/onboarding.css';
@@ -387,10 +388,19 @@ const ClientDashboard = () => {
 
         {/* Header */}
         <div className="mb-8" id="client-dashboard-header">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard de Cliente</h1>
-          <p className="mt-2 text-gray-600">
-            ¡Hola, {user.nombre || user.name || 'Usuario'}! Gestiona tus servicios y encuentra los mejores profesionales.
-          </p>
+          <div className="flex items-center space-x-4 mb-4">
+            <ProfilePicture 
+              user={user}
+              size="w-16 h-16"
+              className="border-4 border-emerald-200 shadow-lg"
+            />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard de Cliente</h1>
+              <p className="mt-1 text-gray-600">
+                ¡Hola, {user.nombre || user.name || 'Usuario'}! Gestiona tus servicios y encuentra los mejores profesionales.
+              </p>
+            </div>
+          </div>
           {/* Botón para testing - remover en producción */}
           <button
             onClick={handleStartOnboarding}
