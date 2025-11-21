@@ -86,10 +86,10 @@ const ClientSignupPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 to-teal-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto bg-white rounded-3xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">👤</span>
           </div>
           <h2 className="text-3xl font-bold text-gray-900">Únete como Cliente</h2>
@@ -106,8 +106,8 @@ const ClientSignupPage = () => {
         )}
 
         {success && (
-          <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-2xl flex items-center">
-            <span className="text-emerald-500 mr-3">✅</span>
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 p-4 rounded-2xl flex items-center">
+            <span className="text-green-500 mr-3">✅</span>
             <span className="text-sm">{success}</span>
           </div>
         )}
@@ -128,7 +128,7 @@ const ClientSignupPage = () => {
                 required
                 value={formData.name}
                 onChange={handleInputChange}
-                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
                 placeholder="Tu nombre completo"
               />
             </div>
@@ -149,7 +149,7 @@ const ClientSignupPage = () => {
                 required
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
                 placeholder="tu@email.com"
               />
             </div>
@@ -169,7 +169,7 @@ const ClientSignupPage = () => {
                 type="tel"
                 value={formData.telefono}
                 onChange={handleInputChange}
-                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
                 placeholder="+54 11 1234-5678"
               />
             </div>
@@ -190,7 +190,7 @@ const ClientSignupPage = () => {
                 required
                 value={formData.password}
                 onChange={handleInputChange}
-                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
+                className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
                 placeholder="Mínimo 6 caracteres"
                 minLength="6"
               />
@@ -200,7 +200,7 @@ const ClientSignupPage = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-h-[44px] touch-manipulation"
+            className="w-full bg-primary text-white py-4 rounded-2xl hover:bg-primary-hover transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center min-h-[44px] touch-manipulation"
           >
             {loading ? (
               <>
@@ -238,30 +238,30 @@ const ClientSignupPage = () => {
           </p>
           <button
             onClick={() => navigate('/')}
-            className="text-emerald-600 font-semibold hover:text-emerald-700 transition-colors duration-200 underline underline-offset-2"
+            className="text-primary font-semibold hover:text-primary-hover transition-colors duration-200 underline underline-offset-2"
           >
             Inicia sesión aquí
           </button>
         </div>
 
         {/* Benefits */}
-        <div className="mt-8 bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6">
+        <div className="mt-8 bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6">
           <h3 className="font-semibold text-gray-800 mb-3 text-center">Beneficios para Clientes</h3>
           <div className="space-y-2 text-sm text-gray-600">
             <div className="flex items-center">
-              <span className="text-emerald-500 mr-2">✓</span>
+              <span className="text-success mr-2">✓</span>
               Acceso a miles de profesionales verificados
             </div>
             <div className="flex items-center">
-              <span className="text-emerald-500 mr-2">✓</span>
+              <span className="text-success mr-2">✓</span>
               Solicitudes de presupuesto gratuitas
             </div>
             <div className="flex items-center">
-              <span className="text-emerald-500 mr-2">✓</span>
+              <span className="text-success mr-2">✓</span>
               Pagos seguros con custodia
             </div>
             <div className="flex items-center">
-              <span className="text-emerald-500 mr-2">✓</span>
+              <span className="text-success mr-2">✓</span>
               Sistema de reseñas y calificaciones
             </div>
           </div>

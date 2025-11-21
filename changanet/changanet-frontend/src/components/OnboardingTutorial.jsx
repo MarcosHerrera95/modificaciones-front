@@ -184,7 +184,7 @@ const OnboardingTutorial = ({ onComplete }) => {
           left: -4px;
           right: -4px;
           bottom: -4px;
-          background: linear-gradient(45deg, #10B981, #34D399, #6EE7B7);
+          background: linear-gradient(45deg, #E30613, #DC3545, #C9050F);
           border-radius: 12px;
           z-index: -1;
           animation: pulse 2s infinite;
@@ -196,7 +196,7 @@ const OnboardingTutorial = ({ onComplete }) => {
           top: -40px;
           left: 50%;
           transform: translateX(-50%);
-          background: #10B981;
+          background: #E30613;
           color: white;
           padding: 8px 12px;
           border-radius: 8px;
@@ -213,7 +213,7 @@ const OnboardingTutorial = ({ onComplete }) => {
           left: 50%;
           transform: translateX(-50%);
           border: 6px solid transparent;
-          border-top-color: #10B981;
+          border-top-color: #E30613;
         }
 
         @keyframes pulse {

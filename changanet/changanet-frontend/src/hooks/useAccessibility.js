@@ -187,7 +187,7 @@ export function useAccessibility() {
     focusableElements.forEach((element, index) => {
       // Agregar indicadores visuales de foco
       element.addEventListener('focus', () => {
-        element.style.outline = '2px solid #007bff';
+        element.style.outline = '3px solid #E30613';
         element.style.outlineOffset = '2px';
       });
 

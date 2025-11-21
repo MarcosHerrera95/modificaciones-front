@@ -22,9 +22,9 @@ const Hero = () => {
       <div className="relative container mx-auto px-4 py-20 md:py-32 text-center z-10">
         {/* Hero icon */}
         <div className="mb-10 flex justify-center animate-fade-in">
-          <div className="w-20 h-20 bg-[#10B981] rounded-full flex items-center justify-center shadow-2xl animate-glow border border-white/30">
+          <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center shadow-2xl animate-glow border border-white/30">
             <svg className="w-20 h-20" fill="none" stroke="white" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="40" fill="#10B981"/>
+              <circle cx="40" cy="40" r="40" fill="#E30613"/>
               <path d="M25 40L32.5 47.5L40 40L47.5 47.5L55 40" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"/>
               <path d="M15 35L25 40" stroke="white" strokeWidth="4" strokeLinecap="round"/>
               <path d="M65 35L55 40" stroke="white" strokeWidth="4" strokeLinecap="round"/>

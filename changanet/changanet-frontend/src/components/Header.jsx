@@ -42,7 +42,7 @@ const Header = () => {
             aria-label="Ir a Inicio"
             type="button"
           >
-            <div className="w-8 h-8 bg-[#10B981] rounded-xl flex items-center justify-center transition-all duration-300">
+            <div className="w-8 h-8 bg-primary rounded-xl flex items-center justify-center transition-all duration-300">
               <svg className="w-6 h-6" fill="none" stroke="white" viewBox="0 0 32 32">
                 <path d="M12 16L14 18L16 16L18 18L20 16" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 <path d="M10 14L12 16" stroke="white" strokeWidth="2" strokeLinecap="round"/>

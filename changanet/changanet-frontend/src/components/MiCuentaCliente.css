@@ -2,18 +2,18 @@
 
 /* Contenedor principal */
 .mi-cuenta-cliente-container {
-  background-color: #F9FAFB; /* bg-gray-50 */
+  background-color: var(--gray-50);
   padding: 20px;
   max-width: 800px;
   margin: 0 auto;
-  font-family: Arial, sans-serif;
+  font-family: 'Inter', sans-serif;
 }
 
 /* Tarjeta blanca para el contenido */
 .mi-cuenta-card {
-  background-color: #FFFFFF;
+  background-color: var(--bg-primary);
   border-radius: 10px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-lg);
   padding: 20px;
 }
 
@@ -23,13 +23,13 @@
 }
 
 .saludo h3 {
-  color: #009688; /* Verde institucional */
+  color: var(--primary);
   margin: 0;
   font-size: 24px;
 }
 
 .saludo p {
-  color: #6B7280; /* text-gray-500 */
+  color: var(--text-secondary);
   margin: 5px 0;
   font-size: 16px;
 }
@@ -44,25 +44,25 @@
 
 /* Tarjeta de estadística */
 .stat-card {
-  background-color: #FFFFFF;
+  background-color: var(--bg-primary);
   border-radius: 8px;
   padding: 15px;
   text-align: center;
   min-width: 100px;
   margin: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .stat-card span {
   font-size: 24px;
   font-weight: bold;
-  color: #009688; /* Verde */
+  color: var(--primary);
   display: block;
 }
 
 .stat-card p {
   margin: 5px 0 0;
-  color: #6B7280; /* text-gray-500 */
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -87,32 +87,32 @@
 
 /* Enfoque para accesibilidad */
 .accion-btn:focus {
-  outline: 2px solid #009688;
+  outline: var(--focus-outline);
   outline-offset: 2px;
 }
 
 /* Botón buscar profesionales - rojo como en dashboards */
 .buscar-profesionales {
-  background-color: #E30613;
-  color: #FFFFFF;
+  background-color: var(--primary);
+  color: var(--text-white);
 }
 
 .buscar-profesionales:hover {
-  background-color: #C9050F;
+  background-color: var(--primary-hover);
 }
 
 /* Botones mi perfil y mis cotizaciones */
 .mi-perfil,
 .mis-cotizaciones {
-  background-color: #FFFFFF;
-  color: #374151; /* text-gray-700 */
-  border: 1px solid #D1D5DB; /* border-gray-300 */
+  background-color: var(--bg-primary);
+  color: var(--text-main);
+  border: 1px solid var(--border-medium);
 }
 
 .mi-perfil:hover,
 .mis-cotizaciones:hover {
-  background-color: #F9FAFB; /* bg-gray-50 */
-  border-color: #9CA3AF; /* border-gray-400 */
+  background-color: var(--gray-50);
+  border-color: var(--border-dark);
 }
 
 /* Texto pequeño en botones */

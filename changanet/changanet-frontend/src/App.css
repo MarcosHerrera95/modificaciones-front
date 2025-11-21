@@ -21,9 +21,9 @@
   }
 }
 
-/* Focus indicators for keyboard navigation */
+/* Focus indicators for keyboard navigation - ACTUALIZADO CON PALETA OFICIAL */
 *:focus {
-  outline: 3px solid #10B981;
+  outline: var(--focus-outline);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -40,9 +40,9 @@ input, textarea, select {
   line-height: 1.5;
 }
 
-/* Better focus indicators for WCAG compliance */
+/* Better focus indicators for WCAG compliance - ACTUALIZADO */
 *:focus-visible {
-  outline: 3px solid #10B981;
+  outline: var(--focus-outline);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -50,7 +50,7 @@ input, textarea, select {
 /* High contrast focus for better visibility */
 @media (prefers-contrast: high) {
   *:focus-visible {
-    outline: 3px solid #ffffff;
+    outline: 3px solid var(--text-white);
     outline-offset: 2px;
   }
 }
@@ -73,13 +73,13 @@ input, textarea, select {
   position: static; /* Ensure live regions are not clipped */
 }
 
-/* Improve color contrast for text */
+/* Improve color contrast for text - ACTUALIZADO CON TOKENS */
 .text-gray-600 {
-  color: #374151; /* Ensure sufficient contrast */
+  color: var(--text-secondary);
 }
 
 .text-gray-500 {
-  color: #6B7280; /* Ensure sufficient contrast */
+  color: var(--text-tertiary);
 }
 
 /* Loading states for better UX */
@@ -89,33 +89,28 @@ input, textarea, select {
 }
 
 .shimmer {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background: linear-gradient(90deg, var(--gray-50) 25%, var(--gray-100) 50%, var(--gray-50) 75%);
   background-size: 200px 100%;
   animation: shimmer 1.5s infinite;
-}
-
-/* Improve contrast for better accessibility */
-.text-gray-600 {
-  color: #374151;
 }
 
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .text-gray-300 {
-    color: #ffffff;
+    color: var(--text-white);
   }
   .bg-gray-800 {
-    background-color: #000000;
+    background-color: var(--gray-800);
   }
 }
 
-/* Skip link for screen readers */
+/* Skip link for screen readers - ACTUALIZADO */
 .skip-link {
   position: absolute;
   top: -40px;
   left: 6px;
-  background: #10B981;
-  color: white;
+  background: var(--primary);
+  color: var(--text-white);
   padding: 8px;
   text-decoration: none;
   z-index: 100;
@@ -131,11 +126,13 @@ input, textarea, select {
   will-change: filter;
   transition: filter 300ms;
 }
+
 .logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
+  filter: drop-shadow(0 0 2em rgba(227, 6, 19, 0.4));
 }
+
 .logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+  filter: drop-shadow(0 0 2em rgba(227, 6, 19, 0.4));
 }
 
 @keyframes logo-spin {
@@ -158,5 +155,5 @@ input, textarea, select {
 }
 
 .read-the-docs {
-  color: #888;
+  color: var(--text-tertiary);
 }

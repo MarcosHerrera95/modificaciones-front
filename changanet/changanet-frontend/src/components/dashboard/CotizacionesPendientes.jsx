@@ -10,7 +10,7 @@ const styles = {
     margin: '20px 0',
   },
   title: {
-    color: '#009688',
+    color: '#E30613',
     marginBottom: '20px',
     fontSize: '24px',
   },
@@ -37,7 +37,7 @@ const styles = {
     width: '40px',
     height: '40px',
     borderRadius: '50%',
-    backgroundColor: '#009688',
+    backgroundColor: '#E30613',
     color: '#fff',
     display: 'flex',
     alignItems: 'center',
@@ -53,11 +53,11 @@ const styles = {
     color: '#333',
   },
   estado: {
-    color: '#ff9800',
+    color: '#FFC107',
     fontSize: '14px',
   },
   button: {
-    backgroundColor: '#009688',
+    backgroundColor: '#E30613',
     color: '#fff',
     border: 'none',
     padding: '8px 16px',
@@ -97,7 +97,7 @@ const styles = {
     transform: 'scale(1)',
   },
   modalTitle: {
-    color: '#009688',
+    color: '#E30613',
     marginBottom: '20px',
     fontSize: '20px',
   },
@@ -141,7 +141,7 @@ const styles = {
     resize: 'vertical',
   },
   submitButton: {
-    backgroundColor: '#009688',
+    backgroundColor: '#E30613',
     color: '#fff',
     border: 'none',
     padding: '10px 20px',

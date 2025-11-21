@@ -2,6 +2,9 @@
 /* Importar fuente moderna */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
+/* Importar tokens de color oficiales */
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -29,8 +32,8 @@
 }
 
 @keyframes glow {
-  0%, 100% { box-shadow: 0 0 20px rgba(227, 6, 19, 0.3); }
-  50% { box-shadow: 0 0 30px rgba(227, 6, 19, 0.6); }
+  0%, 100% { box-shadow: var(--shadow-glow); }
+  50% { box-shadow: var(--shadow-glow-hover); }
 }
 
 @keyframes pulse-slow {
@@ -126,25 +129,25 @@
 
 /* Gradientes institucionales Changánet */
 .gradient-primary {
-  background: linear-gradient(135deg, #E30613 0%, #DC3545 50%, #343A40 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--error) 50%, var(--text-main) 100%);
 }
 
 .gradient-secondary {
-  background: linear-gradient(135deg, #343A40 0%, #6C757D 100%);
+  background: linear-gradient(135deg, var(--text-main) 0%, var(--text-secondary) 100%);
 }
 
 .gradient-accent {
-  background: linear-gradient(135deg, #28A745 0%, #20C997 100%);
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-light) 100%);
 }
 
 /* Sombras avanzadas con colores institucionales */
 @layer utilities {
   .shadow-glow {
-    box-shadow: 0 0 20px rgba(227, 6, 19, 0.3), 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-glow), var(--shadow-md);
   }
 
   .shadow-glow-hover:hover {
-    box-shadow: 0 0 30px rgba(227, 6, 19, 0.5), 0 10px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--shadow-glow-hover), var(--shadow-lg);
   }
 }
 
@@ -168,6 +171,10 @@
   left: 100%;
 }
 
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+}
+
 .btn-secondary {
   @apply border-2 border-primary text-primary px-6 py-3 rounded-xl font-semibold hover:bg-primary hover:text-white transition-all duration-300 transform hover:scale-105 backdrop-blur-sm;
 }
@@ -187,13 +194,13 @@
 }
 
 .input-field:focus {
-  box-shadow: 0 0 0 3px rgba(227, 6, 19, 0.1);
+  box-shadow: var(--focus-ring);
 }
 
 /* Loading spinner moderno con colores institucionales */
 .loading-spinner {
-  border: 3px solid rgba(227, 6, 19, 0.1);
-  border-top: 3px solid #E30613;
+  border: 3px solid var(--primary-light);
+  border-top: 3px solid var(--primary);
   border-radius: 50%;
   width: 24px;
   height: 24px;
@@ -237,12 +244,12 @@
 
 .hover-lift:hover {
   transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-xl);
 }
 
 /* Gradientes de texto con colores institucionales */
 .text-gradient {
-  background: linear-gradient(135deg, #E30613, #DC3545, #343A40);
+  background: linear-gradient(135deg, var(--primary), var(--error), var(--text-main));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -250,21 +257,21 @@
 
 /* Override Google Places Autocomplete styles */
 .pac-container {
-  background-color: #fff !important;
-  border: 1px solid #ddd !important;
+  background-color: var(--bg-primary) !important;
+  border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: var(--shadow-md) !important;
   font-family: 'Inter', sans-serif !important;
 }
 
 .pac-item {
   padding: 8px 12px !important;
-  color: #333 !important;
+  color: var(--text-main) !important;
   cursor: pointer !important;
 }
 
 .pac-item:hover {
-  background-color: #f8f9fa !important;
+  background-color: var(--bg-secondary) !important;
 }
 
 .pac-item-query {
@@ -273,20 +280,20 @@
 
 .pac-matched {
   font-weight: 600 !important;
-  color: #E30613 !important;
+  color: var(--primary) !important;
 }
 
 /* Force white background on search inputs */
 .search-input {
-  background-color: #fff !important;
-  color: #333 !important;
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
 }
 
 /* Style Google Places Autocomplete Element */
 gmp-place-autocomplete {
-  background-color: #fff !important;
-  color: #333 !important;
-  border: 1px solid #ddd !important;
+  background-color: var(--bg-primary) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-light) !important;
   border-radius: 8px !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: var(--shadow-md) !important;
 }

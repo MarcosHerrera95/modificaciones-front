@@ -75,9 +75,9 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
           <div className="lg:col-span-2">
             <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-[#10B981] rounded-full flex items-center justify-center mr-3">
+              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center mr-3">
                 <svg className="w-8 h-8" fill="none" stroke="white" viewBox="0 0 40 40">
-                  <circle cx="20" cy="20" r="20" fill="#10B981" />
+                  <circle cx="20" cy="20" r="20" fill="#E30613" />
                   <path d="M12 20L15 23L20 20L25 23L28 20" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M8 17L12 20" stroke="white" strokeWidth="2" strokeLinecap="round" />
                   <path d="M32 17L28 20" stroke="white" strokeWidth="2" strokeLinecap="round" />
