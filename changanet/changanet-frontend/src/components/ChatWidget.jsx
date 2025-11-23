@@ -24,6 +24,8 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState(null);
+  const [lastMessageTime, setLastMessageTime] = useState(null); // Para rate limiting
+  const [fileError, setFileError] = useState(''); // Para errores de validación
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -66,6 +68,37 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
     }
   }, [newMessage]);
 
+  // Función para validar archivos de imagen (MEJORA PROPUESTA)
+  const validateImageFile = (file) => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+    
+    // Validar tamaño
+    if (file.size > maxSize) {
+      throw new Error('La imagen no puede exceder 5MB de tamaño');
+    }
+    
+    // Validar tipo
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Solo se permiten archivos JPEG, PNG, WebP y GIF');
+    }
+    
+    return true;
+  };
+
+  // Función para validar rate limiting (MEJORA PROPUESTA)
+  const validateRateLimit = () => {
+    const now = Date.now();
+    const minInterval = 6000; // 6 segundos mínimo entre mensajes
+    
+    if (lastMessageTime && (now - lastMessageTime) < minInterval) {
+      const remainingTime = Math.ceil((minInterval - (now - lastMessageTime)) / 1000);
+      throw new Error(`Espera ${remainingTime} segundos antes de enviar otro mensaje`);
+    }
+    
+    return true;
+  };
+
   // Marcar mensajes como leídos cuando se abre el chat
   useEffect(() => {
     if (otherUserId && unreadCount > 0) {
@@ -74,39 +107,60 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
   }, [otherUserId, unreadCount, markAsRead]);
 
   const handleSendMessage = async () => {
+    // Validaciones previas
     if (!newMessage.trim() && !selectedImage) return;
 
-    let imageUrl = null;
+    try {
+      // Validar rate limiting
+      validateRateLimit();
+      
+      // Limpiar errores previos
+      setFileError('');
+      
+      let imageUrl = null;
 
-    // Subir imagen si hay una seleccionada
-    if (selectedImage) {
-      setUploadingImage(true);
-      try {
-        // Crear nombre único para la imagen del chat
-        const fileName = `chat-${user.id}-${otherUserId}-${Date.now()}.${selectedImage.name.split('.').pop()}`;
-        const result = await uploadChatImage(user.id, otherUserId, selectedImage, fileName);
-        if (result.success) {
-          imageUrl = result.url;
-        } else {
-          console.error('Error uploading image:', result.error);
-          alert('Error al subir la imagen. Inténtalo de nuevo.');
+      // Subir imagen si hay una seleccionada
+      if (selectedImage) {
+        setUploadingImage(true);
+        
+        // Validar archivo de imagen
+        validateImageFile(selectedImage);
+        
+        try {
+          // Crear nombre único para la imagen del chat
+          const fileName = `chat-${user.id}-${otherUserId}-${Date.now()}.${selectedImage.name.split('.').pop()}`;
+          const result = await uploadChatImage(user.id, otherUserId, selectedImage, fileName);
+          if (result.success) {
+            imageUrl = result.url;
+          } else {
+            console.error('Error uploading image:', result.error);
+            setFileError('Error al subir la imagen. Inténtalo de nuevo.');
+            setUploadingImage(false);
+            return;
+          }
+        } catch (error) {
+          console.error('Error uploading image:', error);
+          setFileError('Error al subir la imagen. Inténtalo de nuevo.');
           setUploadingImage(false);
           return;
         }
-      } catch (error) {
-        console.error('Error uploading image:', error);
-        alert('Error al subir la imagen. Inténtalo de nuevo.');
         setUploadingImage(false);
-        return;
       }
-      setUploadingImage(false);
-    }
 
-    // Enviar mensaje con o sin imagen
-    const messageContent = newMessage.trim() || (imageUrl ? '📷 Imagen' : '');
-    if (sendMessage(messageContent, imageUrl, servicioId)) {
-      setNewMessage('');
-      setSelectedImage(null);
+      // Enviar mensaje con o sin imagen
+      const messageContent = newMessage.trim() || (imageUrl ? '📷 Imagen' : '');
+      
+      if (sendMessage(messageContent, imageUrl, servicioId)) {
+        // Actualizar timestamp del último mensaje para rate limiting
+        setLastMessageTime(Date.now());
+        setNewMessage('');
+        setSelectedImage(null);
+        setFileError(''); // Limpiar errores en caso de éxito
+      }
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setFileError(error.message || 'Error al enviar el mensaje');
     }
   };
 
@@ -223,15 +277,33 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
                   className="w-10 h-10 object-cover rounded"
                 />
                 <span className="text-sm text-gray-600">{selectedImage.name}</span>
+                <span className="text-xs text-gray-500">
+                  ({(selectedImage.size / 1024 / 1024).toFixed(2)} MB)
+                </span>
               </div>
               <button
-                onClick={() => setSelectedImage(null)}
+                onClick={() => {
+                  setSelectedImage(null);
+                  setFileError('');
+                }}
                 className="text-red-500 hover:text-red-700"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Mostrar errores de validación */}
+        {fileError && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-red-600">{fileError}</span>
             </div>
           </div>
         )}
@@ -243,18 +315,32 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
             ref={fileInputRef}
             onChange={(e) => {
               const file = e.target.files[0];
-              if (file && file.type.startsWith('image/')) {
-                setSelectedImage(file);
-              } else if (file) {
-                alert('Por favor selecciona solo archivos de imagen (JPG, PNG)');
+              if (file) {
+                try {
+                  // Limpiar errores previos
+                  setFileError('');
+                  
+                  // Validar archivo usando la nueva función
+                  validateImageFile(file);
+                  
+                  // Si pasa la validación, seleccionar archivo
+                  if (file.type.startsWith('image/')) {
+                    setSelectedImage(file);
+                  } else {
+                    setFileError('Por favor selecciona solo archivos de imagen (JPG, PNG, WebP, GIF)');
+                  }
+                } catch (validationError) {
+                  console.error('Error de validación de archivo:', validationError);
+                  setFileError(validationError.message);
+                }
               }
             }}
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/webp,image/gif"
             className="hidden"
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploadingImage}
+            disabled={uploadingImage || !isConnected}
             className="bg-gray-100 text-gray-600 p-3 rounded-full hover:bg-gray-200 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center"
             aria-label="Adjuntar imagen"
           >
@@ -278,7 +364,7 @@ const ChatWidget = ({ otherUserId, servicioId }) => {
           />
           <button
             onClick={handleSendMessage}
-            disabled={(!newMessage.trim() && !selectedImage) || !isConnected || uploadingImage}
+            disabled={(!newMessage.trim() && !selectedImage) || !isConnected || uploadingImage || !!fileError}
             className="bg-emerald-500 text-white p-3 rounded-full hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center shadow-sm hover:shadow-md"
             aria-label="Enviar mensaje"
           >

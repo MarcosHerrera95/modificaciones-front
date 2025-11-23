@@ -2,9 +2,11 @@
  * Controlador de Chat SIMPLIFICADO - Solo modelo mensajes
  * Chat directo usuario-a-usuario sin conversationId
  * Basado en parámetros de URL: /chat?user=<id_otro_usuario>
+ * ACTUALIZADO con sistema de notificaciones (REQ-19)
  */
 
 const { PrismaClient } = require('@prisma/client');
+const { saveMessage, notifyNewMessage } = require('../services/chatService');
 const prisma = new PrismaClient();
 
 /**
@@ -145,8 +147,35 @@ exports.sendMessage = async (req, res) => {
 
     console.log(`✅ Mensaje creado con ID: ${newMessage.id}`);
 
-    // TODO: Aquí se podría agregar lógica para emitir vía Socket.IO
-    // req.io.to(destinatario_id).emit('new_message', newMessage);
+    // 🚀 REQUERIMIENTO REQ-19: Enviar notificaciones push y email
+    try {
+      const notificationResult = await notifyNewMessage(
+        destinatario_id,
+        currentUserId,
+        newMessage.contenido
+      );
+      
+      console.log(`🔔 Notificaciones enviadas para mensaje ${newMessage.id}:`, {
+        success: notificationResult.overall?.success,
+        push: notificationResult.push?.success,
+        email: notificationResult.email?.success
+      });
+      
+    } catch (notificationError) {
+      console.warn(`⚠️ Error enviando notificaciones (no crítico):`, notificationError.message);
+      // No fallar la operación principal por errores de notificación
+    }
+
+    // Emitir mensaje vía Socket.IO si está disponible en el request
+    if (req.io) {
+      try {
+        req.io.to(destinatario_id).emit('receiveMessage', newMessage);
+        req.io.to(currentUserId).emit('messageSent', newMessage);
+        console.log(`📡 Mensaje emitido vía Socket.IO para usuarios ${currentUserId} y ${destinatario_id}`);
+      } catch (socketError) {
+        console.warn(`⚠️ Error emitiendo mensaje vía Socket.IO:`, socketError.message);
+      }
+    }
 
     res.status(201).json({
       success: true,

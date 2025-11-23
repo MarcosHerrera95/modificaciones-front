@@ -73,6 +73,11 @@ model usuarios {
   cotizacion_respuestas cotizacion_respuestas[] @relation("CotizacionRespuestaProfesional")
   verification_request verification_requests?
   pagos_como_cliente pagos[] @relation("PagoCliente")
+
+  // Relaciones para cuentas bancarias y retiros (REQ-44)
+  cuentas_bancarias cuentas_bancarias[]
+  retiros retiros[]
+
   pagos_como_profesional pagos[] @relation("PagoProfesional")
 
   // Relaciones para servicios recurrentes
@@ -444,4 +449,54 @@ model logros_usuario {
   @@unique([usuario_id, logro_id]) // Un usuario solo puede obtener un logro una vez
   @@index([usuario_id])
   @@index([logro_id])
+}
+
+// MODELO: cuentas_bancarias
+// FUNCIÓN: Almacena cuentas bancarias de profesionales para retiros
+// RELACIÓN PRD: REQ-44 (Retiro de fondos a cuenta bancaria)
+// SPRINT: Sprint 3 – Servicios y Transacciones
+// IMPACTO: Permite a profesionales retirar sus ganancias de forma segura
+model cuentas_bancarias {
+  id             String   @id @default(uuid())
+  profesional_id String
+  profesional    usuarios @relation(fields: [profesional_id], references: [id])
+  cvu            String   // Clave Virtual Uniforme (22 dígitos)
+  alias          String   // Alias bancario
+  banco          String?  // Nombre del banco
+  titular        String?  // Nombre del titular de la cuenta
+  es_principal   Boolean  @default(false) // Cuenta principal para retiros
+  verificada     Boolean  @default(false) // Cuenta verificada por el sistema
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime?
+  
+  // Relación con retiros
+  retiros retiros[]
+  
+  @@index([profesional_id])
+  @@index([verificada])
+}
+
+// MODELO: retiros
+// FUNCIÓN: Historial de retiros de fondos de profesionales
+// RELACIÓN PRD: REQ-44 (Retiro de fondos a cuenta bancaria)
+// SPRINT: Sprint 3 – Servicios y Transacciones
+// IMPACTO: Trazabilidad completa de retiros para auditoría y transparencia
+model retiros {
+  id              String   @id @default(uuid())
+  profesional_id  String
+  profesional     usuarios @relation(fields: [profesional_id], references: [id])
+  monto           Float    // Monto a retirar
+  cuenta_id       String
+  cuenta          cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
+  estado          String   @default("procesando") // "procesando", "completado", "fallido", "cancelado"
+  fecha_solicitud DateTime @default(now())
+  fecha_procesado DateTime? // Fecha en que se procesó el retiro
+  fecha_acreditado DateTime? // Fecha estimada de acreditación
+  referencia      String?  // Referencia bancaria o ID de transacción
+  notas           String?  // Notas adicionales o motivo de fallo
+  creado_en       DateTime @default(now())
+  
+  @@index([profesional_id])
+  @@index([estado])
+  @@index([fecha_solicitud])
 }

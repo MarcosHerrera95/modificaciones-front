@@ -49,7 +49,7 @@ const GoogleLoginButton = () => {
         uid: user.uid,
         email: user.email,
         nombre: user.displayName || 'Usuario Google',
-        foto: user.photoURL, // ← CRÍTICO: Foto de Google
+        photo: user.photoURL, // ✅ CORREGIDO: usar photoURL directamente
         rol: 'cliente' // Rol por defecto para nuevos usuarios de Google
       };
       
