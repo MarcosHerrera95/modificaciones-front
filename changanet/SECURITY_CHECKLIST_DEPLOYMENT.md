@@ -1,213 +1,143 @@
-# Checklist de Seguridad y Guía de Despliegue - Módulo de Autenticación
+# CHECKLIST DE DESPLIEGUE Y SEGURIDAD - AUTENTICACIÓN CHANGANET
 
-## Checklist de Seguridad
+## Variables de Entorno Requeridas
 
-### ✅ Contraseñas
-- [x] Contraseñas hasheadas con bcrypt (cost ≥ 12)
-- [x] Validación de fortaleza de contraseña (mínimo 10 caracteres)
-- [x] Prevención de contraseñas comunes
-- [x] Validación de caracteres especiales, números y mayúsculas
+### Base de Datos
+- [ ] `DATABASE_URL`: URL completa de PostgreSQL con credenciales
+- [ ] `NODE_ENV`: `production` para entorno de producción
 
-### ✅ Tokens JWT
-- [x] Access tokens con expiración corta (15 minutos)
-- [x] Refresh tokens revocables y almacenados hashed en DB
-- [x] Refresh tokens con expiración larga (30 días)
-- [x] Endpoint de refresh token seguro
-- [x] Logout que revoca todos los refresh tokens del usuario
+### JWT y Autenticación
+- [ ] `JWT_SECRET`: Clave secreta para JWT (mínimo 32 caracteres, generado aleatoriamente)
+- [ ] `JWT_REFRESH_SECRET`: Clave secreta para refresh tokens (diferente de JWT_SECRET)
 
-### ✅ Rate Limiting
-- [x] Rate limiting en endpoints sensibles (registro/login/forgot)
-- [x] Límites apropiados: 5 login, 3 registro/forgot por IP por tiempo
-- [x] Bloqueo temporal por abuso
+### Email Service (SendGrid)
+- [ ] `SENDGRID_API_KEY`: API Key de SendGrid para envío de emails
+- [ ] `FROM_EMAIL`: Email verificado en SendGrid (ej: noreply@changanet.com.ar)
 
-### ✅ Lockout de Cuenta
-- [x] Bloqueo automático tras 5 intentos fallidos de login
-- [x] Bloqueo por 15 minutos
-- [x] Reset de contador en login exitoso
-- [x] Verificación de expiración de bloqueo
+### OAuth Google
+- [ ] `GOOGLE_CLIENT_ID`: Client ID de Google OAuth
+- [ ] `GOOGLE_CLIENT_SECRET`: Client Secret de Google OAuth
+- [ ] `GOOGLE_CALLBACK_URL`: URL de callback (https://api.changanet.com/auth/google/callback)
 
-### ✅ Validación y Sanitización
-- [x] Validación de formato de email (RFC compliant)
-- [x] Sanitización de inputs
-- [x] Validación de roles permitidos
-- [x] Prevención de SQL injection (ORM Prisma)
+### OAuth Facebook
+- [ ] `FACEBOOK_APP_ID`: App ID de Facebook
+- [ ] `FACEBOOK_APP_SECRET`: App Secret de Facebook
+- [ ] `FACEBOOK_CALLBACK_URL`: URL de callback (https://api.changanet.com/auth/facebook/callback)
 
-### ✅ Almacenamiento Seguro
-- [x] Tokens sensibles almacenados hashed (no en texto plano)
-- [x] Información PII manejada conforme a estándares
-- [x] Logs de seguridad estructurados
+### Frontend
+- [ ] `VITE_BACKEND_URL`: URL del backend (https://api.changanet.com)
+- [ ] `VITE_FRONTEND_URL`: URL del frontend (https://changanet.com.ar)
 
-### ✅ Autenticación OAuth
-- [x] Google OAuth implementado con Passport.js
-- [x] Facebook OAuth implementado con Passport.js
-- [x] Vinculación automática de cuentas sociales
-- [x] Usuarios OAuth marcados como verificados automáticamente
+## Configuración de Seguridad
 
-### ✅ Verificación de Email
-- [x] Envío de emails de verificación con tokens expirantes
-- [x] Opción de reenviar email de verificación
-- [x] Endpoint seguro para verificación
-- [x] Prevención de abuso en reenvío
+### HTTPS Obligatorio
+- [ ] Certificado SSL/TLS válido instalado
+- [ ] Redirección automática HTTP → HTTPS
+- [ ] Headers de seguridad configurados:
+  - `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `X-XSS-Protection: 1; mode=block`
 
-### ✅ Recuperación de Contraseña
-- [x] Endpoint forgot-password con respuesta genérica
-- [x] Tokens de reset expirantes (1 hora)
-- [x] Validación de fortaleza en nueva contraseña
-- [x] Endpoint seguro para reset
+### CORS Configurado
+- [ ] Solo dominios permitidos: `https://changanet.com.ar`
+- [ ] Métodos permitidos: `GET, POST, PUT, DELETE, OPTIONS`
+- [ ] Headers permitidos: `Content-Type, Authorization`
 
-### ✅ HTTPS y CORS
-- [x] Configuración HTTPS requerida en producción
-- [x] CORS restringido a dominios permitidos
-- [x] Headers de seguridad apropiados
+### Rate Limiting Verificado
+- [ ] Login: 5 intentos/15min, bloqueo 30min
+- [ ] Registro: 3 intentos/hora, bloqueo 1hora
+- [ ] Forgot Password: 3 intentos/hora, bloqueo 1hora
+- [ ] Google/Facebook Login: 5 intentos/15min
 
-### ✅ Logs de Seguridad
-- [x] Logging de intentos fallidos de login
-- [x] Logging de acciones críticas (registro, verificación, reset)
-- [x] Logging de accesos OAuth
-- [x] Información de IP en logs
+### Base de Datos
+- [ ] Conexión SSL habilitada
+- [ ] Credenciales de solo lectura para queries no autenticadas
+- [ ] Backup automático configurado
+- [ ] Logs de queries sensibles habilitados
 
-## Guía de Despliegue
+## Checklist de Despliegue
 
-### Variables de Entorno Requeridas
+### Pre-Despliegue
+- [ ] Tests unitarios pasan: `npm test`
+- [ ] Tests de integración pasan: `npm run test:integration`
+- [ ] Linter sin errores: `npm run lint`
+- [ ] Build de producción exitoso: `npm run build`
+- [ ] Variables de entorno configuradas en servidor
+- [ ] Base de datos migrada: `npx prisma migrate deploy`
 
-```bash
-# Base de datos
-DATABASE_URL="file:./dev.db"
+### Despliegue Backend
+- [ ] Servidor Node.js configurado (PM2/Ecosystem)
+- [ ] Puerto correcto configurado (3004 para desarrollo, 443 para producción)
+- [ ] Logs configurados y monitoreados
+- [ ] Health checks funcionando: `GET /health`
+- [ ] Métricas de aplicación habilitadas
 
-# JWT
-JWT_SECRET="tu-jwt-secret-super-seguro"
-JWT_REFRESH_SECRET="tu-refresh-secret-diferente"
+### Despliegue Frontend
+- [ ] Build optimizado generado
+- [ ] Assets servidos con cache headers apropiados
+- [ ] Service Worker registrado (si aplica)
+- [ ] PWA manifest configurado
 
-# OAuth Google
-GOOGLE_CLIENT_ID="tu-google-client-id"
-GOOGLE_CLIENT_SECRET="tu-google-client-secret"
-GOOGLE_CALLBACK_URL="https://tu-dominio.com/api/auth/google/callback"
+### Post-Despliegue
+- [ ] Endpoint `/auth/me` responde correctamente
+- [ ] Registro de usuario funciona
+- [ ] Login con email funciona
+- [ ] Login con Google funciona
+- [ ] Verificación de email funciona
+- [ ] Recuperación de contraseña funciona
+- [ ] Emails se envían correctamente
 
-# OAuth Facebook
-FACEBOOK_APP_ID="tu-facebook-app-id"
-FACEBOOK_APP_SECRET="tu-facebook-app-secret"
-FACEBOOK_CALLBACK_URL="https://tu-dominio.com/api/auth/facebook/callback"
+## Monitoreo y Alertas
 
-# Email (SendGrid)
-SENDGRID_API_KEY="tu-sendgrid-api-key"
-FROM_EMAIL="noreply@tu-dominio.com"
+### Métricas a Monitorear
+- [ ] Tasa de error de autenticación (< 2%)
+- [ ] Tiempo de respuesta de login (< 500ms P95)
+- [ ] Tasa de conversión de registro (> 60%)
+- [ ] Emails enviados vs entregados
+- [ ] Uso de OAuth vs registro tradicional
 
-# Frontend
-FRONTEND_URL="https://tu-dominio.com"
-```
+### Alertas Configuradas
+- [ ] Error rate > 5% en endpoints de auth
+- [ ] Fallos en envío de emails
+- [ ] Ataques de fuerza bruta detectados
+- [ ] Base de datos sin conexión
+- [ ] Certificado SSL próximo a expirar
 
-### Configuración de Producción
-
-1. **HTTPS Obligatorio**: Configurar SSL/TLS con certificado válido
-2. **Variables de Entorno**: Nunca commitear secrets al repositorio
-3. **Rate Limiting**: Configurar límites apropiados para tu carga esperada
-4. **Logs**: Configurar rotación y monitoreo de logs de seguridad
-5. **Backups**: Programar backups regulares de la base de datos
-6. **Monitoreo**: Implementar alertas para intentos de login fallidos masivos
-
-### Configuración de OAuth
-
-#### Google OAuth:
-1. Crear proyecto en Google Cloud Console
-2. Habilitar Google+ API
-3. Crear credenciales OAuth 2.0
-4. Configurar URLs autorizadas:
-   - Redirect URI: `https://tu-dominio.com/api/auth/google/callback`
-
-#### Facebook OAuth:
-1. Crear app en Facebook Developers
-2. Configurar Facebook Login
-3. Agregar dominio a App Domains
-4. Configurar Valid OAuth Redirect URIs:
-   - Redirect URI: `https://tu-dominio.com/api/auth/facebook/callback`
-
-### Configuración de Email
-
-#### SendGrid:
-1. Crear cuenta en SendGrid
-2. Verificar dominio o email remitente
-3. Generar API Key
-4. Configurar templates de email (opcional pero recomendado)
-
-### Pruebas de Seguridad
-
-Antes del despliegue, ejecutar:
-
-```bash
-# Tests unitarios
-npm test -- --testPathPattern=authController
-
-# Tests de integración
-npm run test:integration
-
-# Tests de seguridad manuales
-- Intentar login con credenciales inválidas
-- Verificar rate limiting
-- Probar recuperación de contraseña
-- Verificar OAuth flows
-- Probar verificación de email
-```
-
-### Monitoreo Post-Despliegue
-
-1. **Logs de Seguridad**: Monitorear intentos fallidos de login
-2. **Alertas**: Configurar alertas para actividad sospechosa
-3. **Auditoría**: Revisar logs regularmente
-4. **Updates**: Mantener dependencias actualizadas
-
-## Endpoints Implementados
+## Checklist de Seguridad Final
 
 ### Autenticación
-- `POST /api/auth/register` - Registro de usuario
-- `POST /api/auth/login` - Login con email/contraseña
-- `POST /api/auth/refresh` - Refresh de access token
-- `POST /api/auth/logout` - Logout y revocación de tokens
-- `GET /api/auth/verify-email` - Verificación de email
-- `POST /api/auth/resend-verification` - Reenviar verificación
-- `POST /api/auth/forgot-password` - Solicitar reset de contraseña
-- `POST /api/auth/reset-password` - Reset de contraseña
+- [ ] Passwords hasheados con bcrypt (cost ≥ 12)
+- [ ] JWT tokens con expiración corta (15min)
+- [ ] Refresh tokens revocables y hashed en DB
+- [ ] Lockout automático después de 5 intentos fallidos
+- [ ] Rate limiting en todos los endpoints sensibles
 
-### OAuth
-- `GET /api/auth/google` - Iniciar OAuth Google
-- `GET /api/auth/google/callback` - Callback OAuth Google
-- `POST /api/auth/google-login` - Login con Google desde frontend
-- `GET /api/auth/facebook` - Iniciar OAuth Facebook
-- `GET /api/auth/facebook/callback` - Callback OAuth Facebook
-- `POST /api/auth/facebook-login` - Login con Facebook desde frontend
+### Autorización
+- [ ] Middleware de autenticación en rutas protegidas
+- [ ] Validación de roles de usuario
+- [ ] CORS restrictivo configurado
+- [ ] Headers de seguridad implementados
 
-### Usuario
-- `GET /api/auth/me` - Obtener datos del usuario actual
+### Datos Sensibles
+- [ ] PII encriptado en tránsito y reposo
+- [ ] Logs no contienen información sensible
+- [ ] Backup encriptado
+- [ ] Eliminación segura de datos temporales
 
-## Modelo de Base de Datos
+### Cumplimiento Legal
+- [ ] Aviso de privacidad implementado
+- [ ] Términos y condiciones disponibles
+- [ ] Consentimiento para tratamiento de datos
+- [ ] Procedimiento de eliminación de cuenta implementado
 
-### usuarios
-- id: UUID (PK)
-- email: String (único)
-- hash_contrasena: String (nullable para OAuth)
-- nombre: String
-- rol: String (cliente/profesional/admin)
-- esta_verificado: Boolean
-- bloqueado: Boolean
-- bloqueado_hasta: DateTime
-- failed_login_attempts: Int
-- token_verificacion: String (único, nullable)
-- token_expiracion: DateTime
-- google_id: String (único, nullable)
-- facebook_id: String (único, nullable)
-- url_foto_perfil: String
+---
 
-### refresh_tokens
-- id: UUID (PK)
-- user_id: UUID (FK)
-- token_hash: String (único)
-- issued_at: DateTime
-- expires_at: DateTime
-- revoked: Boolean
+**Fecha de Creación:** 24 de noviembre de 2025
+**Responsable:** Equipo de Desarrollo Changánet
+**Próxima Revisión:** Mensual
 
-## Próximos Pasos
-
-1. Implementar 2FA (autenticación de dos factores)
-2. Agregar bloqueo por IP además de por usuario
-3. Implementar detección de anomalías
-4. Agregar auditoría completa de accesos
-5. Implementar gestión de sesiones activas
+**Notas:**
+- Este checklist debe completarse antes de cada despliegue
+- Mantener confidencial las claves secretas
+- Revisar logs regularmente por actividades sospechosas

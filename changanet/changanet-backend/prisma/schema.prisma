@@ -121,27 +121,44 @@ model perfiles_profesionales {
   usuario_id       String   @id @default(uuid()) // PK y FK que enlaza con usuarios.id
   usuario          usuarios @relation(fields: [usuario_id], references: [id])
 
+  // REQ-07: Especialidades múltiples (mejorado)
   especialidad     String   // Especialidad principal (para compatibilidad)
-  especialidades   String?  // JSON array de especialidades múltiples - REQ-07 mejorado
-  anos_experiencia Int?
+  especialidades   String?  // JSON array de especialidades múltiples
+  anos_experiencia Int?     // REQ-08: Años de experiencia
+
+  // REQ-09: Zona de cobertura geográfica (mejorado)
   zona_cobertura   String
   latitud          Float?   // Coordenadas GPS para cálculo de distancia real
   longitud         Float?   // Coordenadas GPS para cálculo de distancia real
+  coverage_zone_id String?  // FK a tabla coverage_zones
+  coverage_zone    coverage_zones? @relation(fields: [coverage_zone_id], references: [id])
 
-  // Sistema de tarifas flexible - REQ-10 mejorado
+  // REQ-10: Sistema de tarifas flexible (mejorado)
   tipo_tarifa      String   @default("hora") // "hora", "servicio", "convenio"
   tarifa_hora      Float?
   tarifa_servicio  Float?
   tarifa_convenio  String?  // Descripción para "a convenir"
 
-  descripcion      String?
+  // REQ-06: Fotos de perfil y portada (mejorado)
   url_foto_perfil  String?
-  url_foto_portada String?   // Foto de portada adicional - REQ-06 mejorado
-  esta_disponible  Boolean  @default(true) // Disponibilidad general del profesional
+  url_foto_portada String?
+
+  // Campos adicionales para funcionalidad completa
+  descripcion      String?
+  esta_disponible  Boolean  @default(true)
   calificacion_promedio Float?
   estado_verificacion String @default("pendiente")
   verificado_en    DateTime?
   url_documento_verificacion String?
+
+  // Campos de analytics y mejora de UX
+  profile_completion_score Int @default(0) // Porcentaje de completitud del perfil
+  profile_views_count      Int @default(0) // Número de visualizaciones del perfil
+  last_profile_update      DateTime? // Última actualización del perfil
+
+  // Relaciones mejoradas
+  professional_specialties professional_specialties[]
+  specialties specialties[] @relation("SpecialtyProfessionals")
 
   @@index([especialidad])
   @@index([zona_cobertura])
@@ -150,6 +167,69 @@ model perfiles_profesionales {
   @@index([especialidad, zona_cobertura, calificacion_promedio])
   @@index([tipo_tarifa])
   @@index([esta_disponible])
+  @@index([coverage_zone_id])
+  @@index([profile_completion_score])
+  @@index([last_profile_update])
+}
+
+// MODELO: specialties (NUEVO)
+// FUNCIÓN: Catálogo de especialidades disponibles para profesionales.
+// RELACIÓN PRD: REQ-07 - Selector de especialidades múltiples.
+model specialties {
+  id          String @id @default(uuid())
+  name        String @unique // Nombre de la especialidad
+  category    String // Categoría: "Construcción", "Automotriz", "Tecnología", etc.
+  description String? // Descripción detallada de la especialidad
+  is_active   Boolean @default(true) // Si la especialidad está activa
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relación con profesionales
+  professional_specialties professional_specialties[]
+  professionals perfiles_profesionales[] @relation("SpecialtyProfessionals")
+
+  @@index([category])
+  @@index([is_active])
+}
+
+// MODELO: coverage_zones (NUEVO)
+// FUNCIÓN: Zonas geográficas de cobertura para profesionales.
+// RELACIÓN PRD: REQ-09 - Selector de zona de cobertura geográfica.
+model coverage_zones {
+  id          String @id @default(uuid())
+  name        String // Nombre de la zona
+  state       String // Provincia/Estado
+  city        String // Ciudad
+  latitude    Float? // Coordenada de latitud del centro de la zona
+  longitude   Float? // Coordenada de longitud del centro de la zona
+  radius_km   Float @default(5.0) // Radio de cobertura en kilómetros
+  is_active   Boolean @default(true) // Si la zona está activa
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relación con profesionales
+  professionals perfiles_profesionales[]
+
+  @@index([city, state])
+  @@index([is_active])
+  @@index([latitude, longitude])
+}
+
+// MODELO: professional_specialties (NUEVO)
+// FUNCIÓN: Relación many-to-many entre profesionales y especialidades.
+// RELACIÓN PRD: REQ-07 - Permite que un profesional tenga múltiples especialidades.
+model professional_specialties {
+  professional_id String // FK a perfiles_profesionales.usuario_id
+  professional    perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
+  specialty_id    String // FK a specialties.id
+  specialty       specialties @relation(fields: [specialty_id], references: [id], onDelete: Cascade)
+  is_primary     Boolean @default(false) // Si es la especialidad principal
+  created_at     DateTime @default(now())
+
+  @@id([professional_id, specialty_id])
+  @@index([professional_id])
+  @@index([specialty_id])
+  @@index([is_primary])
 }
 
 // MODELO: servicios
