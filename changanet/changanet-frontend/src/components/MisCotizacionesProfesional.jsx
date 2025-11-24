@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE_URL } from '../config/api';
@@ -9,12 +9,27 @@ const MisCotizacionesProfesional = ({ onClose }) => {
   const { user } = useAuth();
   // eslint-disable-next-line no-unused-vars
   const UNUSED_VAR_USER = user;
+
+  // ✅ CORRECCIÓN: useEffect para cargar datos al montar el componente
+  useEffect(() => {
+    if (user && user.rol === 'profesional') {
+      loadCotizacionesReales();
+    }
+  }, [user]);
+
+  // eslint-disable-next-line no-unused-vars
+  const [error, setError] = useState('');
   
   // Estados para manejar detalles y sub-modales
   const [cotizacionSeleccionada, setCotizacionSeleccionada] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [tipoSeccion, setTipoSeccion] = useState(''); // 'recibidas' o 'enviadas'
   const [loading, setLoading] = useState(false);
+  
+  // ✅ CORRECCIÓN: Estados para datos reales desde API
+  const [cotizacionesRecibidas, setCotizacionesRecibidas] = useState([]);
+  const [cotizacionesEnviadas, setCotizacionesEnviadas] = useState([]);
+  const [datosCargados, setDatosCargados] = useState(false);
 
   // Función para abrir el sub-modal con la cotización específica
   const handleOpenDetails = (cotizacion, tipo) => {
@@ -31,7 +46,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
   };
 
   // Función para procesar la aceptación de la cotización (enviar respuesta)
-  const handleEnviarRespuesta = (e) => {
+  const handleEnviarRespuesta = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const precio = formData.get('precio');
@@ -47,8 +62,52 @@ const MisCotizacionesProfesional = ({ onClose }) => {
       }
     });
 
-    alert(`¡Respuesta enviada! Precio: $${precio}, Tiempo: ${tiempo} horas`);
-    handleCloseDetails();
+    // ✅ CORRECCIÓN CRÍTICA: Integración real con API backend
+    try {
+      setLoading(true);
+      
+      const token = sessionStorage.getItem('changanet_token');
+      if (!token) {
+        throw new Error('Token de autenticación no encontrado');
+      }
+
+      // Validar que el precio es un número válido
+      const precioNumero = parseFloat(precio);
+      if (isNaN(precioNumero) || precioNumero <= 0) {
+        throw new Error('El precio debe ser un número válido mayor a 0');
+      }
+
+      const response = await fetch('/api/quotes/respond', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          quoteId: cotizacionSeleccionada.id,
+          action: 'accept',
+          precio: precioNumero,
+          comentario: comentarios || `Tiempo estimado: ${tiempo} horas`
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Respuesta enviada exitosamente:', data);
+        alert(`¡Respuesta enviada exitosamente! Precio: ${precio}, Tiempo: ${tiempo} horas`);
+        handleCloseDetails();
+        // TODO: Recargar la lista de cotizaciones desde la API
+        // loadCotizaciones(); // Función que debería implementar para recargar datos
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al enviar la respuesta');
+      }
+    } catch (error) {
+      console.error('❌ Error al enviar respuesta:', error);
+      alert(`Error al enviar respuesta: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Función para simular la finalización de un trabajo
@@ -86,6 +145,84 @@ const MisCotizacionesProfesional = ({ onClose }) => {
     } catch {
       console.log('❌ Token JWT inválido: payload no es JSON válido');
       return false;
+    }
+  };
+
+  // ✅ CORRECCIÓN: Función para cargar cotizaciones reales desde API
+  const loadCotizacionesReales = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      const token = sessionStorage.getItem('changanet_token');
+      if (!token) {
+        throw new Error('Token de autenticación no encontrado');
+      }
+
+      // Cargar cotizaciones recibidas por el profesional
+      const response = await fetch('/api/quotes/professional', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Cotizaciones cargadas:', data);
+        setCotizacionesRecibidas(data);
+        setDatosCargados(true);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al cargar cotizaciones');
+      }
+    } catch (error) {
+      console.error('❌ Error cargando cotizaciones:', error);
+      setError(error.message);
+      // Fallback a datos mock si falla la carga
+      setCotizacionesRecibidas([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ CORRECCIÓN: Función para rechazar cotización
+  const handleRechazarCotizacion = async (cotizacionId) => {
+    try {
+      setLoading(true);
+      
+      const token = sessionStorage.getItem('changanet_token');
+      if (!token) {
+        throw new Error('Token de autenticación no encontrado');
+      }
+
+      const response = await fetch('/api/quotes/respond', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          quoteId: cotizacionId,
+          action: 'reject',
+          comentario: 'No disponible en este momento'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Cotización rechazada exitosamente:', data);
+        alert('✅ Cotización rechazada exitosamente');
+        // Recargar datos
+        loadCotizacionesReales();
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al rechazar la cotización');
+      }
+    } catch (error) {
+      console.error('❌ Error rechazando cotización:', error);
+      alert(`Error al rechazar cotización: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -313,7 +450,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
                     </button>
                     <button 
                       onClick={() => handleOpenChat({
-                        id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+                        id: '550e8400-e29b-41d4-a716-446655440000',
                         nombre: 'María González',
                         rol: 'cliente'
                       }, 'María González')}

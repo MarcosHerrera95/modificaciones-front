@@ -1,6 +1,16 @@
 import { useState } from 'react';
 
-const PayButton = ({ amount, description, professionalId, onSuccess, onError }) => {
+/**
+ * Componente de botón de pago con custodia segura
+ * REQ-41: Integración con pasarelas de pago (Mercado Pago)
+ * REQ-42: Custodia de fondos hasta aprobación del servicio
+ * @param {number} amount - Monto a pagar
+ * @param {string} description - Descripción del servicio
+ * @param {string} serviceId - ID del servicio a pagar
+ * @param {function} onSuccess - Callback en caso de éxito
+ * @param {function} onError - Callback en caso de error
+ */
+const PayButton = ({ amount, description, serviceId, onSuccess, onError }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -9,31 +19,56 @@ const PayButton = ({ amount, description, professionalId, onSuccess, onError }) 
     setError('');
 
     try {
-      // Simulate payment processing
-      const response = await fetch('/api/payments/create', {
+      // Obtener token de autenticación
+      const token = sessionStorage.getItem('changanet_token') || localStorage.getItem('changanet_token');
+      
+      if (!token) {
+        setError('Debes iniciar sesión para realizar un pago');
+        if (onError) onError('No autenticado');
+        return;
+      }
+
+      // Validar que se proporcione serviceId
+      if (!serviceId) {
+        setError('Se requiere un servicio para procesar el pago');
+        if (onError) onError('serviceId requerido');
+        return;
+      }
+
+      // REQ-41: Crear preferencia de pago con Mercado Pago
+      const response = await fetch('/api/payments/create-preference', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
+          serviceId,
           amount,
-          description,
-          professionalId
+          description
         })
       });
 
       const data = await response.json();
 
-      if (response.ok) {
-        // Redirect to payment gateway or show success
-        alert(`Pago procesado exitosamente. Monto: $${amount}. Tu dinero está seguro en custodia.`);
-        if (onSuccess) onSuccess(data);
+      if (response.ok && data.success) {
+        // Redirigir a Mercado Pago si hay init_point
+        if (data.data.init_point) {
+          window.location.href = data.data.init_point;
+        } else if (data.data.sandbox_init_point) {
+          // Modo sandbox para desarrollo
+          window.location.href = data.data.sandbox_init_point;
+        } else {
+          // Modo simulado - mostrar éxito
+          alert(`Pago procesado exitosamente. Monto: ${amount}. Tu dinero está seguro en custodia.`);
+          if (onSuccess) onSuccess(data);
+        }
       } else {
         setError(data.error || 'Error al procesar el pago');
         if (onError) onError(data.error);
       }
     } catch (err) {
+      console.error('Error en pago:', err);
       setError('Error de conexión. Inténtalo de nuevo.');
       if (onError) onError(err.message);
     } finally {

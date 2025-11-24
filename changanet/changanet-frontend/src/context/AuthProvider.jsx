@@ -45,7 +45,7 @@ export class AuthProvider extends React.Component {
   validateUserToken = async (userData, token) => {
     try {
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
-      const response = await fetch(`${apiBaseUrl}/api/profile`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

@@ -788,8 +788,6 @@ exports.resetPassword = async (req, res) => {
     if (!passwordValidation.isValid) {
       logger.warn('Password reset failed: weak password', {
         service: 'auth',
-        userId: user.id,
-        email: user.email,
         passwordScore: passwordValidation.score,
         warnings: passwordValidation.warnings,
         ip: req.ip
@@ -807,8 +805,6 @@ exports.resetPassword = async (req, res) => {
     // Log de contraseña aceptable para auditoría
     logger.info('Password reset validation passed', {
       service: 'auth',
-      userId: user.id,
-      email: user.email,
       passwordScore: passwordValidation.score,
       ip: req.ip
     });
