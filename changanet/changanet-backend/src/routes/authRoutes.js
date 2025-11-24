@@ -9,7 +9,7 @@ const passport = require('../config/passport');
 const { authenticateToken } = require('../middleware/authenticate');
 const { RateLimiterMemory } = require('rate-limiter-flexible');
 // Importar los controladores que contienen la lógica de negocio para registro y login.
-const { register, login, googleCallback, googleLogin, registerProfessional, getCurrentUser, verifyEmail, forgotPassword, resetPassword } = require('../controllers/authController');
+const { register, login, googleCallback, googleLogin, facebookCallback, facebookLogin, registerProfessional, getCurrentUser, verifyEmail, resendVerificationEmail, forgotPassword, resetPassword, refreshToken, logout } = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -38,6 +38,11 @@ const forgotPasswordLimiter = new RateLimiterMemory({
 // Middleware para rate limiting con manejo de errores
 const rateLimitMiddleware = (limiter) => {
   return async (req, res, next) => {
+    // Deshabilitar rate limiting en modo test
+    if (process.env.NODE_ENV === 'test') {
+      return next();
+    }
+
     try {
       await limiter.consume(req.ip);
       next();
@@ -66,8 +71,14 @@ router.post('/forgot-password', rateLimitMiddleware(forgotPasswordLimiter), forg
 router.post('/reset-password', rateLimitMiddleware(loginLimiter), resetPassword);
 // GET /verify-email - REQ-03: Verificar email mediante token
 router.get('/verify-email', verifyEmail);
+// POST /resend-verification - Reenviar email de verificación
+router.post('/resend-verification', resendVerificationEmail);
 // GET /me - Obtener datos del usuario autenticado
 router.get('/me', authenticateToken, getCurrentUser);
+// POST /refresh - Refresh token para obtener nuevo access token
+router.post('/refresh', refreshToken);
+// POST /logout - Logout que revoca refresh tokens
+router.post('/logout', authenticateToken, logout);
 
 // Rutas OAuth de Google
 router.get('/google', passport.authenticate('google', {
@@ -80,5 +91,14 @@ router.get('/google/callback', passport.authenticate('google', { failureRedirect
 
 // Nueva ruta para login con Google desde frontend (con rate limiting)
 router.post('/google-login', rateLimitMiddleware(loginLimiter), googleLogin);
+
+// Rutas OAuth de Facebook
+router.get('/facebook', passport.authenticate('facebook', {
+  scope: ['email']
+}));
+router.get('/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/login' }), facebookCallback);
+
+// Nueva ruta para login con Facebook desde frontend (con rate limiting)
+router.post('/facebook-login', rateLimitMiddleware(loginLimiter), facebookLogin);
 
 module.exports = router;

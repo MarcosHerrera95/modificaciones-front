@@ -97,7 +97,7 @@ export class AuthProvider extends React.Component {
     }
   };
 
-  login = (userData, token) => {
+  login = (userData, token, refreshToken = null) => {
     console.log('Login called with userData:', userData);
     console.log('User role:', userData.rol || userData.role);
     console.log('User name:', userData.nombre || userData.name);
@@ -109,6 +109,9 @@ export class AuthProvider extends React.Component {
     };
 
     localStorage.setItem('changanet_token', token);
+    if (refreshToken) {
+      localStorage.setItem('changanet_refresh_token', refreshToken);
+    }
     localStorage.setItem('changanet_user', JSON.stringify(userWithName));
     this.setState({ user: userWithName });
 
@@ -161,10 +164,10 @@ export class AuthProvider extends React.Component {
       console.log('AuthContext - loginWithEmail: Success response data:', data);
 
       if (data.token && data.user) {
-        this.login(data.user, data.token);
+        this.login(data.user, data.token, data.refreshToken);
       }
 
-      return { success: true, user: data.user, token: data.token, message: data.message };
+      return { success: true, user: data.user, token: data.token, refreshToken: data.refreshToken, message: data.message };
     } catch (error) {
       console.error('AuthContext - loginWithEmail: Fetch error:', error);
       console.error('AuthContext - loginWithEmail: Error type:', error.constructor.name);
@@ -208,7 +211,7 @@ export class AuthProvider extends React.Component {
 
       // Si el registro es exitoso, hacer login automático
       if (data.token && data.user) {
-        this.login(data.user, data.token);
+        this.login(data.user, data.token, data.refreshToken);
 
         // Registrar métrica de registro en frontend (solo si Sentry está disponible)
         try {
@@ -241,8 +244,60 @@ export class AuthProvider extends React.Component {
     }
   };
 
-  logout = () => {
+  // Método para refrescar tokens automáticamente
+  refreshToken = async () => {
+    try {
+      const refreshToken = localStorage.getItem('changanet_refresh_token');
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      const response = await fetch(`${apiBaseUrl}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh token');
+      }
+
+      const data = await response.json();
+      if (data.token && data.refreshToken) {
+        // Actualizar tokens en localStorage
+        localStorage.setItem('changanet_token', data.token);
+        localStorage.setItem('changanet_refresh_token', data.refreshToken);
+        return { success: true, token: data.token };
+      } else {
+        throw new Error('Invalid refresh response');
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      // Si falla el refresh, hacer logout
+      this.logout();
+      return { success: false, error: error.message };
+    }
+  };
+
+  logout = async () => {
+    try {
+      const token = localStorage.getItem('changanet_token');
+      if (token) {
+        // Llamar al endpoint de logout en el backend para revocar tokens
+        const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+        await fetch(`${apiBaseUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+    } catch (error) {
+      console.warn('Error calling logout endpoint:', error);
+    }
+
+    // Limpiar localStorage
     localStorage.removeItem('changanet_token');
+    localStorage.removeItem('changanet_refresh_token');
     localStorage.removeItem('changanet_user');
     this.setState({ user: null });
   };
@@ -250,7 +305,7 @@ export class AuthProvider extends React.Component {
   render() {
     const { user, loading } = this.state;
     return (
-      <AuthContext.Provider value={{ user, login: this.login, logout: this.logout, signup: this.signup, loginWithEmail: this.loginWithEmail, loginWithGoogle: this.loginWithGoogle, fetchCurrentUser: this.fetchCurrentUser, loading }}>
+      <AuthContext.Provider value={{ user, login: this.login, logout: this.logout, signup: this.signup, loginWithEmail: this.loginWithEmail, loginWithGoogle: this.loginWithGoogle, refreshToken: this.refreshToken, fetchCurrentUser: this.fetchCurrentUser, loading }}>
         {this.props.children}
       </AuthContext.Provider>
     );

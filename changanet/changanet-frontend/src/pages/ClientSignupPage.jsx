@@ -191,8 +191,8 @@ const ClientSignupPage = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 className="w-full pl-12 pr-4 py-4 border-2 border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-200 text-gray-700 placeholder-gray-400"
-                placeholder="Mínimo 6 caracteres"
-                minLength="6"
+                placeholder="Mínimo 10 caracteres"
+                minLength="10"
               />
             </div>
           </div>

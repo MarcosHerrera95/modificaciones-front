@@ -37,12 +37,8 @@ function validatePasswordStrength(password) {
   }
 
   // Validación básica de longitud
-  if (password.length < 8) {
-    feedback.warnings.push('La contraseña debe tener al menos 8 caracteres');
-  }
-
-  if (password.length < 6) {
-    feedback.suggestions.push('Usa al menos 8 caracteres para mayor seguridad');
+  if (password.length < 10) {
+    feedback.warnings.push('La contraseña debe tener al menos 10 caracteres');
     return feedback;
   }
 
@@ -99,7 +95,7 @@ function validatePasswordStrength(password) {
   let score = 0;
 
   // Longitud (máximo 25 puntos)
-  if (password.length >= 8) score += 5;
+  if (password.length >= 10) score += 5;
   if (password.length >= 12) score += 10;
   if (password.length >= 16) score += 10;
 
@@ -119,7 +115,7 @@ function validatePasswordStrength(password) {
   // Generar sugerencias basadas en la puntuación
   if (score < 30) {
     feedback.suggestions.push('Usa una combinación de letras, números y símbolos');
-    feedback.suggestions.push('Aumenta la longitud de la contraseña');
+    feedback.suggestions.push('Aumenta la longitud de la contraseña a 12+ caracteres');
   } else if (score < 60) {
     feedback.suggestions.push('Considera usar una passphrase más larga');
     if (!hasSpecialChars) {
@@ -211,8 +207,8 @@ exports.register = async (req, res) => {
       return res.status(409).json({ error: 'El email ya está registrado.' });
     }
 
-    // Hashear la contraseña usando bcrypt con factor de costo 10 (seguridad)
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hashear la contraseña usando bcrypt con factor de costo 12 (seguridad >=12)
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Generar token único de verificación usando crypto (REQ-03: token para verificación)
     const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -253,12 +249,26 @@ exports.register = async (req, res) => {
       // No fallar el registro por error en email - continúa el proceso
     }
 
-    // Generar token JWT para autenticación inmediata (REQ-01: acceso después de registro)
+    // Generar tokens JWT para autenticación inmediata (REQ-01: acceso después de registro)
     const token = jwt.sign(
       { userId: user.id, role: user.rol }, // Payload con ID y rol del usuario
       process.env.JWT_SECRET, // Clave secreta desde variables de entorno
-      { expiresIn: '7d', algorithm: 'HS256' } // Expira en 7 días, algoritmo HS256
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
     );
+
+    // Generar refresh token
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Almacenar refresh token hashed en DB
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        expires_at: refreshExpiresAt
+      }
+    });
 
     // Registrar registro exitoso para auditoría
     logger.info('User registered successfully', {
@@ -269,10 +279,11 @@ exports.register = async (req, res) => {
       ip: req.ip
     });
 
-    // Responder con éxito, token JWT y datos del usuario
+    // Responder con éxito, tokens JWT y datos del usuario
     res.status(201).json({
       message: 'Usuario registrado exitosamente. Revisa tu email para verificar la cuenta.',
-      token, // Token para autenticación inmediata
+      token, // Access token para autenticación inmediata
+      refreshToken, // Refresh token
       user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol }, // Datos públicos del usuario
       requiresVerification: true // Indica que necesita verificar email
     });
@@ -365,19 +376,78 @@ exports.login = async (req, res) => {
       return res.status(500).json({ error: 'Error interno del servidor.' });
     }
 
+    // Verificar si el usuario está bloqueado por intentos fallidos
+    if (user.bloqueado && user.bloqueado_hasta && user.bloqueado_hasta > new Date()) {
+      const remainingTime = Math.ceil((user.bloqueado_hasta - new Date()) / 1000);
+      logger.warn('Login failed: user blocked', {
+        service: 'auth',
+        userId: user.id,
+        email,
+        remainingTime,
+        ip: req.ip
+      });
+      return res.status(429).json({
+        error: 'Cuenta bloqueada temporalmente por múltiples intentos fallidos.',
+        retryAfter: remainingTime
+      });
+    } else if (user.bloqueado && (!user.bloqueado_hasta || user.bloqueado_hasta <= new Date())) {
+      // El bloqueo ha expirado, resetear
+      await prisma.usuarios.update({
+        where: { id: user.id },
+        data: {
+          bloqueado: false,
+          bloqueado_hasta: null,
+          failed_login_attempts: 0
+        }
+      });
+      user.bloqueado = false; // Actualizar la instancia local
+    }
+
     // Comparar contraseña proporcionada con hash almacenado usando bcrypt
     try {
       const isValidPassword = await bcrypt.compare(password, hashString);
       if (!isValidPassword) {
-        // Contraseña incorrecta - registrar intento fallido para seguridad
+        // Contraseña incorrecta - implementar lockout después de 5 intentos
+        const failedAttempts = (user.failed_login_attempts || 0) + 1;
+        const isBlocked = failedAttempts >= 5;
+
+        await prisma.usuarios.update({
+          where: { id: user.id },
+          data: {
+            failed_login_attempts: failedAttempts,
+            bloqueado: isBlocked,
+            bloqueado_hasta: isBlocked ? new Date(Date.now() + 15 * 60 * 1000) : null // 15 minutos
+          }
+        });
+
         logger.warn('Login failed: invalid password', {
           service: 'auth',
           userId: user.id,
           email,
+          failedAttempts,
+          isBlocked,
           ip: req.ip
         });
+
+        if (isBlocked) {
+          return res.status(429).json({
+            error: 'Cuenta bloqueada por múltiples intentos fallidos. Inténtalo de nuevo en 15 minutos.',
+            retryAfter: 900
+          });
+        }
+
         // Responder genéricamente para no revelar información
         return res.status(401).json({ error: 'Credenciales inválidas.' });
+      } else {
+        // Login exitoso - resetear contador de intentos fallidos
+        await prisma.usuarios.update({
+          where: { id: user.id },
+          data: {
+            failed_login_attempts: 0,
+            bloqueado: false,
+            bloqueado_hasta: null
+          }
+        });
       }
     } catch (bcryptError) {
       // Error en bcrypt - probablemente hash corrupto
@@ -391,12 +461,26 @@ exports.login = async (req, res) => {
       return res.status(500).json({ error: 'Error interno del servidor.' });
     }
 
-    // Credenciales válidas - generar token JWT para sesión
+    // Credenciales válidas - generar tokens JWT para sesión
     const token = jwt.sign(
       { userId: user.id, role: user.rol }, // Incluir ID y rol del usuario
       process.env.JWT_SECRET, // Clave secreta desde variables de entorno
-      { expiresIn: '7d', algorithm: 'HS256' } // 7 días de validez
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
     );
+
+    // Generar refresh token
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Almacenar refresh token hashed en DB
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        expires_at: refreshExpiresAt
+      }
+    });
 
     // Registrar login exitoso para auditoría
     logger.info('User login successful', {
@@ -407,10 +491,11 @@ exports.login = async (req, res) => {
       ip: req.ip
     });
 
-    // Responder con token y datos básicos del usuario
+    // Responder con tokens y datos básicos del usuario
     res.status(200).json({
       message: 'Login exitoso.',
-      token, // Token JWT para autenticación en futuras requests
+      token, // Access token JWT (corto)
+      refreshToken, // Refresh token (largo)
       user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } // Datos públicos del usuario
     });
   } catch (error) {
@@ -457,6 +542,36 @@ exports.googleCallback = (req, res) => {
 };
 
 /**
+ * Callback de Facebook OAuth
+ */
+exports.facebookCallback = (req, res) => {
+  try {
+    // El token ya fue generado en la estrategia de Passport
+    const { token, user, refreshToken } = req.user;
+
+    if (!token || !user) {
+      console.error('Facebook callback: Missing token or user data');
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=auth_failed`);
+    }
+
+    // Codificar datos del usuario para pasar por URL
+    const userData = encodeURIComponent(JSON.stringify({
+      id: user.id,
+      nombre: user.nombre,
+      email: user.email,
+      rol: user.rol,
+      esta_verificado: user.esta_verificado
+    }));
+
+    console.log('Facebook callback: Redirecting to frontend with token and user data');
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/callback?token=${token}&refreshToken=${refreshToken}&user=${userData}`);
+  } catch (error) {
+    console.error('Error in Facebook callback:', error);
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/?error=auth_error`);
+  }
+};
+
+/**
  * Registro de profesional
  */
 exports.registerProfessional = async (req, res) => {
@@ -473,7 +588,7 @@ exports.registerProfessional = async (req, res) => {
     // Nota: Esta validación se aplica al crear el perfil, pero el usuario aún no existe
 
     // Hash de la contraseña
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     // Generar token de verificación de email
     const verificationToken = crypto.randomBytes(32).toString('hex');
@@ -524,16 +639,31 @@ exports.registerProfessional = async (req, res) => {
       // No fallar el registro por error en email
     }
 
-    // Generar token JWT con expiresIn: '7d' según requisitos
+    // Generar tokens JWT con expiresIn según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '7d', algorithm: 'HS256' }
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
     );
+
+    // Generar refresh token
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Almacenar refresh token hashed en DB
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        expires_at: refreshExpiresAt
+      }
+    });
 
     res.status(201).json({
       message: 'Profesional registrado exitosamente. Revisa tu email para verificar la cuenta.',
       token,
+      refreshToken,
       user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol },
       profile,
       requiresVerification: true
@@ -698,7 +828,7 @@ exports.resetPassword = async (req, res) => {
     }
 
     // Hash de la nueva contraseña
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     // Actualizar contraseña y limpiar tokens
     await prisma.usuarios.update({
@@ -723,6 +853,67 @@ exports.resetPassword = async (req, res) => {
       error: error.message
     });
     res.status(500).json({ error: 'Error al restablecer contraseña' });
+  }
+};
+
+/**
+ * Reenviar email de verificación
+ * REQ-03: Permite reenviar email de verificación si el usuario no lo recibió
+ */
+exports.resendVerificationEmail = async (req, res) => {
+  const { email } = req.body;
+
+  try {
+    if (!email) {
+      return res.status(400).json({ error: 'Email requerido' });
+    }
+
+    // Buscar usuario por email
+    const user = await prisma.usuarios.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (user.esta_verificado) {
+      return res.status(400).json({ error: 'El email ya está verificado' });
+    }
+
+    // Generar nuevo token de verificación
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
+
+    // Actualizar usuario con nuevo token
+    await prisma.usuarios.update({
+      where: { id: user.id },
+      data: {
+        token_verificacion: verificationToken,
+        token_expiracion: tokenExpiration
+      }
+    });
+
+    // Enviar email de verificación
+    try {
+      const { sendVerificationEmail } = require('../services/emailService');
+      await sendVerificationEmail(user.email, verificationToken);
+      logger.info('Verification email resent', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email
+      });
+    } catch (emailError) {
+      logger.warn('Failed to resend verification email', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        error: emailError.message
+      });
+      return res.status(500).json({ error: 'Error al enviar email de verificación' });
+    }
+
+    res.status(200).json({ message: 'Email de verificación reenviado exitosamente' });
+  } catch (error) {
+    logger.error('Resend verification email error', { error: error.message });
+    res.status(500).json({ error: 'Error al reenviar email de verificación' });
   }
 };
 
@@ -954,18 +1145,33 @@ exports.googleLogin = async (req, res) => {
       console.log('Google OAuth: new user created:', user.email);
     }
 
-    // Generar token JWT con expiresIn: '7d' según requisitos
+    // Generar tokens JWT con expiresIn según requisitos
     const token = jwt.sign(
       { userId: user.id, role: user.rol },
       process.env.JWT_SECRET,
-      { expiresIn: '7d', algorithm: 'HS256' }
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
     );
+
+    // Generar refresh token
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Almacenar refresh token hashed en DB
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        expires_at: refreshExpiresAt
+      }
+    });
 
     console.log('Google OAuth: successful login for:', user.email);
 
     res.status(200).json({
       message: 'Login exitoso con Google',
       token,
+      refreshToken,
       user: {
         id: user.id,
         nombre: user.nombre,
@@ -990,14 +1196,351 @@ exports.googleLogin = async (req, res) => {
   }
 };
 
+/**
+ * Endpoint para login con Facebook desde el frontend
+ * REQ-02: Permite registro/login social con Facebook
+ * Crea usuario si no existe, actualiza información y genera token JWT
+ */
+exports.facebookLogin = async (req, res) => {
+  try {
+    console.log('🟡 Facebook OAuth request received:', req.body);
+    const { uid, email, nombre, foto, rol } = req.body;
+
+    console.log('🟡 Facebook OAuth attempt:', {
+      email,
+      uid,
+      nombre,
+      rol,
+      foto: foto || 'NO PHOTO PROVIDED'
+    });
+
+    // Validar campos requeridos
+    if (!uid || !email || !nombre) {
+      console.error('Facebook OAuth validation failed: missing required fields', { uid, email, nombre });
+      return res.status(400).json({
+        error: 'Campos requeridos faltantes: uid, email, nombre son obligatorios'
+      });
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      console.error('Facebook OAuth validation failed: invalid email format', { email });
+      return res.status(400).json({ error: 'Formato de email inválido' });
+    }
+
+    // Buscar usuario existente por email
+    let user = await prisma.usuarios.findUnique({
+      where: { email }
+    });
+
+    console.log('🟡 EXISTING USER CHECK:');
+    console.log('🟡 User found:', user ? 'YES' : 'NO');
+    if (user) {
+      console.log('🟡 Current user data BEFORE update:', {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        facebook_id: user.facebook_id,
+        url_foto_perfil: user.url_foto_perfil,
+        rol: user.rol
+      });
+    }
+
+    if (user) {
+      console.log('🟡 EXISTING USER SCENARIO:');
+      console.log('🟡 Current facebook_id:', user.facebook_id);
+      console.log('🟡 Incoming foto from Facebook:', foto);
+      console.log('🟡 Current photo in DB:', user.url_foto_perfil);
+
+      // Usuario existe, actualizar información si es necesario
+      if (!user.facebook_id) {
+        console.log('🟡 User has no Facebook ID - FIRST TIME FACEBOOK LOGIN');
+        console.log('🟡 Will update with Facebook data');
+
+        user = await prisma.usuarios.update({
+          where: { id: user.id },
+          data: {
+            facebook_id: uid,
+            nombre: nombre, // Actualizar nombre si cambió
+            url_foto_perfil: foto || user.url_foto_perfil, // Usar foto de Facebook si está disponible
+            esta_verificado: true, // Los usuarios de Facebook están verificados
+          }
+        });
+
+        console.log('🟡 AFTER FIRST FACEBOOK LOGIN - USER DATA:', {
+          id: user.id,
+          nombre: user.nombre,
+          email: user.email,
+          facebook_id: user.facebook_id,
+          url_foto_perfil: user.url_foto_perfil,
+          photoSource: user.url_foto_perfil?.includes('facebook') ? 'FACEBOOK' : 'OTHER'
+        });
+
+        logger.info('Facebook OAuth: existing user updated', {
+          service: 'auth',
+          userId: user.id,
+          email: user.email,
+          ip: req.ip
+        });
+        console.log('Facebook OAuth: existing user updated:', user.email);
+      } else {
+        console.log('🟡 User already has Facebook ID - CHECK IF PHOTO NEEDS UPDATE');
+
+        // Actualizar foto de Facebook siempre que sea diferente
+        const shouldUpdatePhoto = foto && foto !== user.url_foto_perfil;
+
+        if (shouldUpdatePhoto) {
+          console.log('🟡 PHOTO UPDATE NEEDED - Facebook photo different from current');
+          console.log('🟡 Current DB photo:', user.url_foto_perfil);
+          console.log('🟡 New Facebook photo:', foto);
+
+          user = await prisma.usuarios.update({
+            where: { id: user.id },
+            data: {
+              url_foto_perfil: foto, // Actualizar foto de Facebook
+              nombre: nombre, // Actualizar nombre si cambió
+            }
+          });
+
+          console.log('🟡 AFTER PHOTO UPDATE - USER DATA:', {
+            id: user.id,
+            nombre: user.nombre,
+            email: user.email,
+            facebook_id: user.facebook_id,
+            url_foto_perfil: user.url_foto_perfil,
+            photoSource: user.url_foto_perfil?.includes('facebook') ? 'FACEBOOK' : 'OTHER'
+          });
+
+        } else {
+          console.log('🟡 NO PHOTO UPDATE NEEDED');
+          if (!foto) {
+            console.log('🟡 No Facebook photo provided in this login');
+          } else {
+            console.log('🟡 Facebook photo same as current DB photo');
+          }
+          console.log('🟡 Current photo stays as:', user.url_foto_perfil);
+        }
+
+        logger.info('Facebook OAuth: existing user login', {
+          service: 'auth',
+          userId: user.id,
+          email: user.email,
+          ip: req.ip
+        });
+        console.log('Facebook OAuth: existing user login:', user.email);
+      }
+    } else {
+      // Usuario no existe - crear automáticamente (REQ-02: registro social)
+      console.log('Facebook OAuth: creating new user:', email);
+
+      // Determinar rol basado en el parámetro o default a 'cliente'
+      const userRole = rol || 'cliente';
+      if (!['cliente', 'profesional'].includes(userRole)) {
+        return res.status(400).json({ error: 'Rol inválido para registro social.' });
+      }
+
+      user = await prisma.usuarios.create({
+        data: {
+          nombre,
+          email,
+          facebook_id: uid,
+          url_foto_perfil: foto, // Guardando foto de Facebook
+          rol: userRole,
+          esta_verificado: true, // Los usuarios de Facebook están verificados automáticamente
+          hash_contrasena: null, // No tienen contraseña local
+        }
+      });
+
+      console.log('🟡 Facebook OAuth: new user created with photo:', {
+        email: user.email,
+        url_foto_perfil: user.url_foto_perfil,
+        photoWasSaved: !!user.url_foto_perfil
+      });
+
+      logger.info('Facebook OAuth: new user registered', {
+        service: 'auth',
+        userId: user.id,
+        email: user.email,
+        rol: user.rol,
+        ip: req.ip
+      });
+      console.log('Facebook OAuth: new user created:', user.email);
+    }
+
+    // Generar tokens JWT con expiresIn según requisitos
+    const token = jwt.sign(
+      { userId: user.id, role: user.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
+    );
+
+    // Generar refresh token
+    const refreshToken = crypto.randomBytes(64).toString('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Almacenar refresh token hashed en DB
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: user.id,
+        token_hash: refreshTokenHash,
+        expires_at: refreshExpiresAt
+      }
+    });
+
+    console.log('Facebook OAuth: successful login for:', user.email);
+
+    res.status(200).json({
+      message: 'Login exitoso con Facebook',
+      token,
+      refreshToken,
+      user: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol,
+        esta_verificado: user.esta_verificado,
+        url_foto_perfil: user.url_foto_perfil // Incluir foto de perfil en la respuesta
+      }
+    });
+  } catch (error) {
+    console.error('Facebook OAuth login error:', error);
+    logger.error('Facebook OAuth login error', {
+      service: 'auth',
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip
+    });
+    res.status(500).json({
+      error: 'Error interno del servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error procesando autenticación con Facebook'
+    });
+  }
+};
+
+/**
+ * Refresh token endpoint
+ * Genera nuevo access token usando refresh token válido
+ */
+exports.refreshToken = async (req, res) => {
+  const { refreshToken } = req.body;
+
+  try {
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token requerido' });
+    }
+
+    // Verificar y decodificar el refresh token
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    } catch (error) {
+      logger.warn('Invalid refresh token', { error: error.message, ip: req.ip });
+      return res.status(401).json({ error: 'Refresh token inválido' });
+    }
+
+    // Buscar el refresh token en la base de datos (hashed)
+    const tokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const storedToken = await prisma.refresh_tokens.findUnique({
+      where: { token_hash: tokenHash },
+      include: { user: true }
+    });
+
+    if (!storedToken || storedToken.revoked || storedToken.expires_at < new Date()) {
+      logger.warn('Refresh token not found, revoked or expired', {
+        tokenHash: tokenHash.substring(0, 8) + '...',
+        ip: req.ip
+      });
+      return res.status(401).json({ error: 'Refresh token inválido o expirado' });
+    }
+
+    // Generar nuevo access token
+    const newAccessToken = jwt.sign(
+      { userId: storedToken.user.id, role: storedToken.user.rol },
+      process.env.JWT_SECRET,
+      { expiresIn: '15m', algorithm: 'HS256' } // Access token: 15 minutos
+    );
+
+    // Opcional: Generar nuevo refresh token y revocar el anterior
+    const newRefreshToken = crypto.randomBytes(64).toString('hex');
+    const newRefreshTokenHash = crypto.createHash('sha256').update(newRefreshToken).digest('hex');
+    const newRefreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+    // Crear nuevo refresh token
+    await prisma.refresh_tokens.create({
+      data: {
+        user_id: storedToken.user.id,
+        token_hash: newRefreshTokenHash,
+        expires_at: newRefreshExpiresAt
+      }
+    });
+
+    // Revocar el refresh token anterior
+    await prisma.refresh_tokens.update({
+      where: { id: storedToken.id },
+      data: { revoked: true }
+    });
+
+    logger.info('Token refreshed successfully', {
+      userId: storedToken.user.id,
+      email: storedToken.user.email,
+      ip: req.ip
+    });
+
+    res.status(200).json({
+      message: 'Token refrescado exitosamente',
+      token: newAccessToken,
+      refreshToken: newRefreshToken
+    });
+  } catch (error) {
+    logger.error('Refresh token error', { error: error.message, ip: req.ip });
+    res.status(500).json({ error: 'Error al refrescar token' });
+  }
+};
+
+/**
+ * Logout endpoint
+ * Revoca todos los refresh tokens del usuario
+ */
+exports.logout = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Revocar todos los refresh tokens del usuario
+    await prisma.refresh_tokens.updateMany({
+      where: {
+        user_id: userId,
+        revoked: false
+      },
+      data: { revoked: true }
+    });
+
+    logger.info('User logged out, tokens revoked', {
+      userId,
+      ip: req.ip
+    });
+
+    res.status(200).json({ message: 'Logout exitoso' });
+  } catch (error) {
+    logger.error('Logout error', { error: error.message, ip: req.ip });
+    res.status(500).json({ error: 'Error en logout' });
+  }
+};
+
 module.exports = {
   register: exports.register,
   login: exports.login,
   googleCallback: exports.googleCallback,
   googleLogin: exports.googleLogin,
+  facebookCallback: exports.facebookCallback,
+  facebookLogin: exports.facebookLogin,
   registerProfessional: exports.registerProfessional,
   getCurrentUser: exports.getCurrentUser,
   verifyEmail: exports.verifyEmail,
+  resendVerificationEmail: exports.resendVerificationEmail,
   forgotPassword: exports.forgotPassword,
-  resetPassword: exports.resetPassword
+  resetPassword: exports.resetPassword,
+  refreshToken: exports.refreshToken,
+  logout: exports.logout
 };

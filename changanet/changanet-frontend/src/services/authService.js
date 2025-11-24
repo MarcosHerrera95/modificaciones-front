@@ -176,14 +176,18 @@ export const updateUserFCMToken = async (token, userId) => {
 
 /**
  * Inicia sesión usando autenticación OAuth de Facebook.
- * Abre un popup para el flujo de autenticación y retorna el usuario autenticado.
+ * Usa el flujo de redirección del backend para evitar problemas de COOP y popups.
+ * Retorna el resultado con el usuario autenticado.
  */
 export const loginWithFacebook = async () => {
   try {
-    // Facebook login not implemented yet - placeholder
-    return { success: false, error: 'Facebook login no implementado aún' };
+    // En lugar de usar Facebook SDK directamente, redirigir al backend OAuth
+    // Esto evita problemas de COOP y popups bloqueados
+    window.location.href = '/api/auth/facebook';
+    return { success: true, redirecting: true };
   } catch (error) {
-    return { success: false, error: error.message };
+    console.error('❌ Error en loginWithFacebook:', error);
+    return { success: false, error: 'Error al iniciar sesión con Facebook' };
   }
 };
 

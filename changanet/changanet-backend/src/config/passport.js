@@ -8,6 +8,7 @@
 
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const FacebookStrategy = require('passport-facebook').Strategy;
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 
@@ -83,6 +84,94 @@ passport.use(
     }
   )
 );
+
+/**
+ * @estrategia Facebook OAuth - Autenticación con Facebook
+ * @descripción Configura estrategia OAuth 2.0 para login con Facebook (REQ-02)
+ * @sprint Sprint 1 – Autenticación y Perfiles
+ * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
+ * @impacto Social: Inclusión digital mediante autenticación familiar y accesible
+ */
+if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
+  passport.use(
+    new FacebookStrategy(
+      {
+        clientID: process.env.FACEBOOK_APP_ID,
+        clientSecret: process.env.FACEBOOK_APP_SECRET,
+        callbackURL: process.env.FACEBOOK_CALLBACK_URL || 'http://localhost:51761/api/auth/facebook/callback',
+        profileFields: ['id', 'displayName', 'emails', 'photos'],
+        scope: ['email']
+      },
+      async (accessToken, refreshToken, profile, done) => {
+        try {
+          // Buscar usuario existente por email de Facebook
+          let user = await prisma.usuarios.findUnique({
+            where: { email: profile.emails[0].value }
+          });
+
+          if (user) {
+            // Usuario existe, actualizar información si es necesario
+            if (!user.facebook_id) {
+              user = await prisma.usuarios.update({
+                where: { id: user.id },
+                data: {
+                  facebook_id: profile.id,
+                  url_foto_perfil: profile.photos[0].value,
+                  esta_verificado: true, // Los usuarios de Facebook están verificados
+                }
+              });
+            }
+          } else {
+            // Crear nuevo usuario con datos de Facebook - rol "cliente" por defecto (REQ-02)
+            user = await prisma.usuarios.create({
+              data: {
+                nombre: profile.displayName,
+                email: profile.emails[0].value,
+                facebook_id: profile.id,
+                url_foto_perfil: profile.photos[0].value,
+                rol: 'cliente', // Rol por defecto según REQ-02
+                esta_verificado: true, // Los usuarios de Facebook están verificados
+              }
+            });
+            console.log('Facebook OAuth: New user created with role "cliente":', user.nombre);
+          }
+
+          console.log('Facebook OAuth: User authenticated:', user.nombre, '(', user.rol, ')');
+
+          // Generar token JWT con expiresIn: '15m' para access token
+          const token = jwt.sign(
+            { userId: user.id, role: user.rol },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m', algorithm: 'HS256' }
+          );
+
+          // Generar refresh token
+          const crypto = require('crypto');
+          const refreshTokenValue = crypto.randomBytes(64).toString('hex');
+          const refreshTokenHash = crypto.createHash('sha256').update(refreshTokenValue).digest('hex');
+          const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
+
+          // Almacenar refresh token hashed en DB
+          await prisma.refresh_tokens.create({
+            data: {
+              user_id: user.id,
+              token_hash: refreshTokenHash,
+              expires_at: refreshExpiresAt
+            }
+          });
+
+          // Devolver usuario, token y refresh token
+          return done(null, { user, token, refreshToken: refreshTokenValue });
+        } catch (error) {
+          console.error('Error en estrategia de Facebook:', error);
+          return done(error, null);
+        }
+      }
+    )
+  );
+} else {
+  console.log('⚠️ Facebook OAuth no configurado - variables FACEBOOK_APP_ID y FACEBOOK_APP_SECRET no encontradas');
+}
 
 // Serializar usuario para la sesión
 passport.serializeUser((user, done) => {

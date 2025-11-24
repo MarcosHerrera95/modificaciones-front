@@ -157,8 +157,170 @@ paths:
                     type: string
                   token:
                     type: string
+                  refreshToken:
+                    type: string
                   user:
                     $ref: '#/components/schemas/User'
+
+  /auth/refresh:
+    post:
+      summary: Refrescar token de acceso
+      tags: [Autenticación]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Token de refresh válido
+      responses:
+        200:
+          description: Token refrescado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+
+  /auth/logout:
+    post:
+      summary: Cerrar sesión
+      tags: [Autenticación]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Sesión cerrada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/resend-verification:
+    post:
+      summary: Reenviar email de verificación
+      tags: [Autenticación]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario
+      responses:
+        200:
+          description: Email de verificación reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/verify-email:
+    get:
+      summary: Verificar email del usuario
+      tags: [Autenticación]
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de verificación
+      responses:
+        200:
+          description: Email verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/forgot-password:
+    post:
+      summary: Solicitar recuperación de contraseña
+      tags: [Autenticación]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario
+      responses:
+        200:
+          description: Email de recuperación enviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /auth/reset-password:
+    post:
+      summary: Restablecer contraseña
+      tags: [Autenticación]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  description: Token de recuperación
+                newPassword:
+                  type: string
+                  minLength: 10
+                  description: Nueva contraseña
+      responses:
+        200:
+          description: Contraseña restablecida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 
   /search:
     get:
