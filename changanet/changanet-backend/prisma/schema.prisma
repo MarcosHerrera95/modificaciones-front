@@ -1,18 +1,10 @@
-/**
- * @archivo prisma/schema.prisma - Esquema de base de datos de Changánet
- * @descripción Define estructura relacional completa de la plataforma (REQ-01 a REQ-45)
- * @sprint Sprint 1 – Autenticación y Perfiles
- * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
- * @impacto Económico: Base de datos robusta para transacciones seguras y escalables
- */
-
 generator client {
   provider = "prisma-client-js"
 }
 
 generator erd {
   provider = "prisma-erd-generator"
-  output = "../docs/database-diagram.png"
+  output   = "../docs/database-diagram.png"
 }
 
 datasource db {
@@ -20,587 +12,430 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum EstadoServicio {
-  PENDIENTE
-  AGENDADO
-  COMPLETADO
-  CANCELADO
-}
-
-enum EstadoCotizacion {
-  PENDIENTE
-  ACEPTADO
-  RECHAZADO
-}
-
-// MODELO: usuarios
-// FUNCIÓN: Almacena todos los usuarios del sistema (clientes y profesionales).
-// RELACIÓN PRD: REQ-01 (Registro), REQ-02 (Login), REQ-03 (Verificación de email).
-// TARJETA BACKEND: Tarjeta 1: [Backend] Implementar API de Registro y Login.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
-model usuarios {
-  id                    String    @id @default(uuid())
-  email                 String    @unique
-  hash_contrasena       String?
-  nombre                String
-  telefono              String?
-  rol                   String    @default("cliente")
-  esta_verificado       Boolean   @default(false)
-  bloqueado             Boolean   @default(false) // RB-05: Usuarios bloqueados no pueden acceder
-  bloqueado_hasta       DateTime? // Fecha hasta la que está bloqueado el usuario
-  failed_login_attempts Int       @default(0) // Contador de intentos fallidos de login
-  token_verificacion    String?   @unique
-  token_expiracion      DateTime?
-  creado_en             DateTime  @default(now())
-  actualizado_en        DateTime?
-  google_id             String?   @unique
-  facebook_id           String?   @unique
-  url_foto_perfil       String?
-  fcm_token             String?   // Token para notificaciones push FCM
-  sms_enabled           Boolean   @default(false) // Permite envío de notificaciones SMS
-
-  // Campos adicionales para perfil de cliente
-  direccion             String?   // Dirección del cliente
-  preferencias_servicio String?   // Preferencias de servicio del cliente
-
-  perfil_profesional perfiles_profesionales?
-  servicios_como_cliente servicios[] @relation("ServicioCliente")
-  servicios_como_profesional servicios[] @relation("ServicioProfesional")
-  resenas_escritas resenas[]
-  mensajes_enviados mensajes[] @relation("MensajeRemitente")
-  mensajes_recibidos mensajes[] @relation("MensajeDestinatario")
-  disponibilidad disponibilidad[] @relation("DisponibilidadProfesional")
-  reservas_realizadas disponibilidad[] @relation("DisponibilidadReservadaCliente")
-  notificaciones notificaciones[]
-  cotizaciones_como_cliente cotizaciones[] @relation("CotizacionCliente")
-  cotizacion_respuestas cotizacion_respuestas[] @relation("CotizacionRespuestaProfesional")
-  verification_request verification_requests?
-  pagos_como_cliente pagos[] @relation("PagoCliente")
-
-  // Relaciones para cuentas bancarias y retiros (REQ-44)
-  cuentas_bancarias cuentas_bancarias[]
-  retiros retiros[]
-
-  pagos_como_profesional pagos[] @relation("PagoProfesional")
-
-  // Relaciones para servicios recurrentes
-  servicios_recurrrentes_cliente servicios_recurrrentes[] @relation("ServicioRecurrenteCliente")
-  servicios_recurrrentes_profesional servicios_recurrrentes[] @relation("ServicioRecurrenteProfesional")
-
-  // Relaciones para favoritos
-  favoritos_como_cliente favoritos[] @relation("FavoritoCliente")
-  favoritos_como_profesional favoritos[] @relation("FavoritoProfesional")
-
-  // Relaciones para logros y gamificación
-  logros_obtenidos logros_usuario[]
-
-  // Relaciones para refresh tokens
-  refresh_tokens refresh_tokens[]
-
-  // Preferencias de notificaciones - Sección 11 del PRD
-  notificaciones_push Boolean @default(true)
-  notificaciones_email Boolean @default(true)
-  notificaciones_sms Boolean @default(false)
-  notificaciones_servicios Boolean @default(true)
-  notificaciones_mensajes Boolean @default(true)
-  notificaciones_pagos Boolean @default(true)
-  notificaciones_marketing Boolean @default(false)
-
-  @@index([rol])
-  @@index([esta_verificado])
-  @@index([telefono])
-  @@index([sms_enabled])
-}
-
-// MODELO: perfiles_profesionales
-// FUNCIÓN: Almacena la información específica de los profesionales.
-// RELACIÓN PRD: REQ-06 (Foto), REQ-07 (Especialidad), REQ-08 (Experiencia), REQ-09 (Zona), REQ-10 (Tarifas).
-// TARJETA BACKEND: Tarjeta 2: [Backend] Implementar API para Gestión de Perfiles Profesionales.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
-model perfiles_profesionales {
-  usuario_id       String   @id @default(uuid()) // PK y FK que enlaza con usuarios.id
-  usuario          usuarios @relation(fields: [usuario_id], references: [id])
-
-  // REQ-07: Especialidades múltiples (mejorado)
-  especialidad     String   // Especialidad principal (para compatibilidad)
-  especialidades   String?  // JSON array de especialidades múltiples
-  anos_experiencia Int?     // REQ-08: Años de experiencia
-
-  // REQ-09: Zona de cobertura geográfica (mejorado)
-  zona_cobertura   String
-  latitud          Float?   // Coordenadas GPS para cálculo de distancia real
-  longitud         Float?   // Coordenadas GPS para cálculo de distancia real
-  coverage_zone_id String?  // FK a tabla coverage_zones
-  coverage_zone    coverage_zones? @relation(fields: [coverage_zone_id], references: [id])
-
-  // REQ-10: Sistema de tarifas flexible (mejorado)
-  tipo_tarifa      String   @default("hora") // "hora", "servicio", "convenio"
-  tarifa_hora      Float?
-  tarifa_servicio  Float?
-  tarifa_convenio  String?  // Descripción para "a convenir"
-
-  // REQ-06: Fotos de perfil y portada (mejorado)
-  url_foto_perfil  String?
-  url_foto_portada String?
-
-  // Campos adicionales para funcionalidad completa
-  descripcion      String?
-  esta_disponible  Boolean  @default(true)
-  calificacion_promedio Float?
-  estado_verificacion String @default("pendiente")
-  verificado_en    DateTime?
-  url_documento_verificacion String?
-
-  // Campos de analytics y mejora de UX
-  profile_completion_score Int @default(0) // Porcentaje de completitud del perfil
-  profile_views_count      Int @default(0) // Número de visualizaciones del perfil
-  last_profile_update      DateTime? // Última actualización del perfil
-
-  // Relaciones mejoradas
-  professional_specialties professional_specialties[]
-  specialties specialties[] @relation("SpecialtyProfessionals")
-
-  @@index([especialidad])
-  @@index([zona_cobertura])
-  @@index([calificacion_promedio])
-  @@index([latitud, longitud])
-  @@index([especialidad, zona_cobertura, calificacion_promedio])
-  @@index([tipo_tarifa])
-  @@index([esta_disponible])
-  @@index([coverage_zone_id])
-  @@index([profile_completion_score])
-  @@index([last_profile_update])
-}
-
-// MODELO: specialties (NUEVO)
-// FUNCIÓN: Catálogo de especialidades disponibles para profesionales.
-// RELACIÓN PRD: REQ-07 - Selector de especialidades múltiples.
-model specialties {
-  id          String @id @default(uuid())
-  name        String @unique // Nombre de la especialidad
-  category    String // Categoría: "Construcción", "Automotriz", "Tecnología", etc.
-  description String? // Descripción detallada de la especialidad
-  is_active   Boolean @default(true) // Si la especialidad está activa
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  // Relación con profesionales
-  professional_specialties professional_specialties[]
-  professionals perfiles_profesionales[] @relation("SpecialtyProfessionals")
-
-  @@index([category])
-  @@index([is_active])
-}
-
-// MODELO: coverage_zones (NUEVO)
-// FUNCIÓN: Zonas geográficas de cobertura para profesionales.
-// RELACIÓN PRD: REQ-09 - Selector de zona de cobertura geográfica.
-model coverage_zones {
-  id          String @id @default(uuid())
-  name        String // Nombre de la zona
-  state       String // Provincia/Estado
-  city        String // Ciudad
-  latitude    Float? // Coordenada de latitud del centro de la zona
-  longitude   Float? // Coordenada de longitud del centro de la zona
-  radius_km   Float @default(5.0) // Radio de cobertura en kilómetros
-  is_active   Boolean @default(true) // Si la zona está activa
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
-
-  // Relación con profesionales
-  professionals perfiles_profesionales[]
-
-  @@index([city, state])
-  @@index([is_active])
-  @@index([latitude, longitude])
-}
-
-// MODELO: professional_specialties (NUEVO)
-// FUNCIÓN: Relación many-to-many entre profesionales y especialidades.
-// RELACIÓN PRD: REQ-07 - Permite que un profesional tenga múltiples especialidades.
-model professional_specialties {
-  professional_id String // FK a perfiles_profesionales.usuario_id
-  professional    perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
-  specialty_id    String // FK a specialties.id
-  specialty       specialties @relation(fields: [specialty_id], references: [id], onDelete: Cascade)
-  is_primary     Boolean @default(false) // Si es la especialidad principal
-  created_at     DateTime @default(now())
-
-  @@id([professional_id, specialty_id])
-  @@index([professional_id])
-  @@index([specialty_id])
-  @@index([is_primary])
-}
-
-// MODELO: servicios
-// FUNCIÓN: Representa un servicio contratado, conectando a un cliente con un profesional.
-// RELACIÓN PRD: REQ-29 (Agendamiento), RB-02 (Solo reseñas si el servicio está completado).
-// TARJETA BACKEND: Tarjeta 6: [Backend] Implementar API de Gestión de Disponibilidad (parte de agendamiento).
-// SPRINT: Sprint 2 (Segunda Entrega) - "Consolidar y mejorar el producto".
-model servicios {
-  id             String   @id @default(uuid())
-  cliente_id     String
-  cliente        usuarios @relation("ServicioCliente", fields: [cliente_id], references: [id])
-  profesional_id String
-  profesional    usuarios @relation("ServicioProfesional", fields: [profesional_id], references: [id])
-  descripcion    String
-  estado         EstadoServicio @default(PENDIENTE)
-  fecha_agendada DateTime?
-  creado_en      DateTime @default(now())
-  completado_en  DateTime?
-  es_urgente     Boolean  @default(false) // Indica si el servicio es urgente - Sección 10 del PRD
-  resena         resenas?
-  pago           pagos?
-
-  // Relación con disponibilidad para agendamiento
-  slot_reservado disponibilidad?
-
-  // Relación con servicios recurrentes
-  servicio_recurrente_id String?
-  servicio_recurrente servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
-
-  @@index([cliente_id])
-  @@index([profesional_id])
-  @@index([estado])
-  @@index([creado_en])
-  @@index([es_urgente])
-  @@index([cliente_id, estado])
-  @@index([profesional_id, estado])
-  @@index([estado, creado_en])
-  @@index([es_urgente, estado])
-  @@index([fecha_agendada])
-  @@index([cliente_id, fecha_agendada])
-  @@index([profesional_id, fecha_agendada])
-}
-
-model resenas {
-  id            String   @id @default(uuid())
-  servicio_id   String   @unique
-  servicio      servicios @relation(fields: [servicio_id], references: [id])
-  cliente_id    String
-  cliente       usuarios @relation(fields: [cliente_id], references: [id])
-  calificacion  Int
-  comentario    String?
-  url_foto      String?
-  creado_en     DateTime @default(now())
-
-  @@index([servicio_id])
-}
-
-// MODELO: mensajes
-// FUNCIÓN: Almacena el historial de comunicación entre usuarios (el chat).
-// RELACIÓN PRD: REQ-16 (Chat interno), REQ-17 (Mensajes de texto), REQ-18 (Imágenes), REQ-20 (Historial).
-// TARJETA BACKEND: Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real.
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
-model mensajes {
-  id             String   @id @default(uuid()) // Identificador único del mensaje
-  remitente_id   String   // FK que enlaza con el usuario remitente
-  remitente      usuarios @relation("MensajeRemitente", fields: [remitente_id], references: [id])
-  destinatario_id String  // FK que enlaza con el usuario destinatario
-  destinatario   usuarios @relation("MensajeDestinatario", fields: [destinatario_id], references: [id])
-  contenido      String
-  url_imagen     String?
-  esta_leido     Boolean  @default(false)
-  creado_en      DateTime @default(now())
-
-  @@index([remitente_id, creado_en])
-  @@index([destinatario_id, creado_en])
-  @@index([remitente_id, destinatario_id, creado_en])
-  @@index([creado_en])
-}
-
-// MODELO: disponibilidad
-// FUNCIÓN: Gestiona los horarios en los que un profesional está disponible para trabajar.
-// RELACIÓN PRD: REQ-26 (Calendario), REQ-27 (Horarios), REQ-28 (Visibilidad), REQ-29 (Agendamiento).
-// TARJETA BACKEND: Tarjeta 6: [Backend] Implementar API de Gestión de Disponibilidad.
-// SPRINT: Sprint 2 (Segunda Entrega) - "Consolidar y mejorar el producto".
-model disponibilidad {
-  id            String   @id @default(uuid()) // Identificador único del bloque de disponibilidad
-  profesional_id String  // FK que enlaza con el profesional
-  profesional   usuarios @relation("DisponibilidadProfesional", fields: [profesional_id], references: [id])
-  fecha         DateTime // REQ-27: Fecha del bloque de disponibilidad
-  hora_inicio   DateTime // REQ-27: Hora de inicio del bloque
-  hora_fin      DateTime // REQ-27: Hora de fin del bloque
-  esta_disponible Boolean @default(true)
-
-  // Campos para agendamiento - REQ-29: Permitir agendar servicios directamente
-  reservado_por String?  // ID del cliente que reservó el slot
-  reservado_cliente usuarios? @relation("DisponibilidadReservadaCliente", fields: [reservado_por], references: [id])
-  reservado_en  DateTime? // Fecha y hora de la reserva
-  servicio_id   String?   @unique // ID del servicio agendado
-  servicio      servicios? @relation(fields: [servicio_id], references: [id])
-
-  @@index([profesional_id, fecha])
-  @@index([reservado_por])
-  @@index([servicio_id])
-  @@index([esta_disponible, fecha])
-}
-
-// MODELO: notificaciones
-// FUNCIÓN: Almacena las alertas automáticas que recibe el usuario.
-// RELACIÓN PRD: REQ-19 (Notificaciones automáticas).
-// TARJETA BACKEND: Tarjeta 4: [Backend] Implementar API de Chat en Tiempo Real (parte de notificaciones).
-// SPRINT: Sprint 1 (Primera Entrega) - "Implementación del producto de software".
-model notificaciones {
-  id         String   @id @default(uuid()) // Identificador único de la notificación
-  usuario_id String   // FK que enlaza con el usuario receptor
-  usuario    usuarios @relation(fields: [usuario_id], references: [id])
-  tipo       String
-  mensaje    String   // Contenido de la notificación
-  esta_leido Boolean  @default(false)
-  creado_en  DateTime @default(now()) // Fecha de creación de la notificación
-}
-model cotizaciones {
-  id             String   @id @default(uuid())
-  cliente_id     String
-  cliente        usuarios @relation("CotizacionCliente", fields: [cliente_id], references: [id])
-  descripcion    String
-  zona_cobertura String?
-  fotos_urls     String?  // JSON array de URLs de fotos subidas - REQ-31 mejorado
-  profesionales_solicitados String? // JSON array de IDs de profesionales preseleccionados - REQ-32
-  creado_en      DateTime @default(now())
-
-  // Relaciones con respuestas de profesionales
-  respuestas     cotizacion_respuestas[]
-
-  @@index([cliente_id])
-  @@index([creado_en])
-}
-
-// Modelo separado para respuestas de profesionales a cotizaciones
 model cotizacion_respuestas {
-  id             String   @id @default(uuid())
+  id             String       @id
   cotizacion_id  String
-  cotizacion     cotizaciones @relation(fields: [cotizacion_id], references: [id])
   profesional_id String
-  profesional    usuarios @relation("CotizacionRespuestaProfesional", fields: [profesional_id], references: [id])
   precio         Float?
   comentario     String?
-  estado         EstadoCotizacion @default(PENDIENTE) // pendiente, aceptado, rechazado
-  creado_en      DateTime @default(now())
+  estado         String       @default("PENDIENTE")
+  creado_en      DateTime     @default(now())
   respondido_en  DateTime?
+  usuarios       usuarios     @relation(fields: [profesional_id], references: [id])
+  cotizaciones   cotizaciones @relation(fields: [cotizacion_id], references: [id])
 
-  @@unique([cotizacion_id, profesional_id]) // Un profesional solo puede responder una vez por cotización
+  @@unique([cotizacion_id, profesional_id])
+  @@index([estado])
+  @@index([profesional_id])
   @@index([cotizacion_id])
-  @@index([profesional_id])
-  @@index([estado])
 }
 
-// MODELO: verification_requests
-// FUNCIÓN: Gestiona solicitudes de verificación de identidad para profesionales.
-// RELACIÓN PRD: REQ-36 (Subir documento), REQ-37 (Insignia verificado), REQ-40 (Aprobación admin).
-// TARJETA BACKEND: Tarjeta 8: [Backend] Implementar Sistema de Verificación de Identidad.
-// SPRINT: Sprint 3 (Tercera Entrega) - "Verificación y confianza".
-model verification_requests {
-  id            String   @id @default(uuid())
-  usuario_id    String   @unique // Un usuario solo puede tener una solicitud activa
-  usuario       usuarios @relation(fields: [usuario_id], references: [id])
-  documento_url String   // URL del documento subido (Cloudinary/Firebase)
-  estado        String   @default("pendiente") // "pendiente", "aprobado", "rechazado"
-  comentario_admin String? // Comentario del administrador al aprobar/rechazar
-  creado_en     DateTime @default(now())
-  revisado_en   DateTime?
-  revisado_por  String?  // ID del administrador que revisó
-}
+model cotizaciones {
+  id                        String                  @id
+  cliente_id                String
+  descripcion               String
+  zona_cobertura            String?
+  fotos_urls                String?
+  profesionales_solicitados String?
+  creado_en                 DateTime                @default(now())
+  cotizacion_respuestas     cotizacion_respuestas[]
+  usuarios                  usuarios                @relation(fields: [cliente_id], references: [id])
 
-// MODELO: pagos
-// FUNCIÓN: Registra todas las transacciones de pago para trazabilidad y generación de comprobantes
-// RELACIÓN PRD: REQ-41 (Integración pasarelas), REQ-42 (Custodia), REQ-44 (Retiro), REQ-45 (Comprobantes)
-// TARJETA BACKEND: Tarjeta 7: [Backend] Implementar Sistema de Pagos y Comisiones
-// SPRINT: Sprint 3 – Servicios y Transacciones
-model pagos {
-  id                String   @id @default(uuid())
-  servicio_id       String   @unique
-  servicio          servicios @relation(fields: [servicio_id], references: [id])
-  cliente_id        String
-  cliente           usuarios @relation("PagoCliente", fields: [cliente_id], references: [id])
-  profesional_id    String
-  profesional       usuarios @relation("PagoProfesional", fields: [profesional_id], references: [id])
-  monto_total       Float
-  comision_plataforma Float
-  monto_profesional Float
-  mercado_pago_id   String?  @unique // ID del pago en Mercado Pago
-  estado            String   @default("pendiente") // "pendiente", "aprobado", "liberado", "reembolsado"
-  metodo_pago       String?  // "tarjeta", "transferencia", etc.
-  fecha_pago        DateTime?
-  fecha_liberacion  DateTime?
-  url_comprobante   String?  // URL del comprobante generado
-  creado_en         DateTime @default(now())
-
+  @@index([creado_en])
   @@index([cliente_id])
-  @@index([profesional_id])
-  @@index([estado])
-  @@index([mercado_pago_id])
 }
 
-// MODELO: servicios_recurrrentes
-// FUNCIÓN: Gestiona servicios programados de forma recurrente (semanal, mensual, etc.)
-// RELACIÓN PRD: Optimización - Programación automática de servicios recurrentes
-// SPRINT: Optimización - Servicios recurrentes
-// IMPACTO: Mejora retención de clientes y ingresos estables para profesionales
-model servicios_recurrrentes {
-  id             String   @id @default(uuid())
-  cliente_id     String
-  cliente        usuarios @relation("ServicioRecurrenteCliente", fields: [cliente_id], references: [id])
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model coverage_zones {
+  id                     String?                  @id @default("lower(hex(randomblob(16)))")
+  name                   String
+  state                  String
+  city                   String
+  latitude               Float?
+  longitude              Float?
+  radius_km              Float?                   @default(5.0)
+  is_active              Boolean?                 @default(true)
+  created_at             DateTime?                @default(now())
+  updated_at             DateTime?                @default(now())
+  perfiles_profesionales perfiles_profesionales[]
+
+  @@index([is_active], map: "idx_coverage_zones_active")
+  @@index([city, state], map: "idx_coverage_zones_city")
+  @@ignore
+}
+
+model cuentas_bancarias {
+  id             String    @id
   profesional_id String
-  profesional    usuarios @relation("ServicioRecurrenteProfesional", fields: [profesional_id], references: [id])
-
-  descripcion    String
-  frecuencia     String   // "semanal", "quincenal", "mensual", "bimestral", "trimestral"
-  dia_semana     Int?     // 0-6 (domingo a sábado) para frecuencia semanal
-  dia_mes       Int?     // 1-31 para frecuencia mensual
-  hora_inicio   String   // HH:MM format
-  duracion_horas Float    // duración estimada en horas
-
-  tarifa_base   Float    // tarifa por servicio individual
-  descuento_recurrencia Float @default(0) // descuento porcentual por ser recurrente
-
-  fecha_inicio  DateTime
-  fecha_fin     DateTime? // opcional, si es indefinido
-  activo        Boolean  @default(true)
-
-  creado_en     DateTime @default(now())
+  cvu            String
+  alias          String
+  banco          String?
+  titular        String?
+  es_principal   Boolean   @default(false)
+  verificada     Boolean   @default(false)
+  creado_en      DateTime  @default(now())
   actualizado_en DateTime?
+  usuarios       usuarios  @relation(fields: [profesional_id], references: [id])
+  retiros        retiros[]
 
-  // Servicios individuales generados automáticamente
-  servicios_generados servicios[]
-
-  @@index([cliente_id])
+  @@index([verificada])
   @@index([profesional_id])
-  @@index([activo])
-  @@index([fecha_inicio])
-  @@index([frecuencia])
 }
 
-// MODELO: refresh_tokens
-// FUNCIÓN: Almacena tokens de refresh revocables para autenticación JWT
-// RELACIÓN PRD: Seguridad de tokens - refresh tokens revocables y hashed
-// SPRINT: Autenticación y Seguridad
+model disponibilidad {
+  id                                               String     @id
+  profesional_id                                   String
+  fecha                                            DateTime
+  hora_inicio                                      DateTime
+  hora_fin                                         DateTime
+  esta_disponible                                  Boolean    @default(true)
+  reservado_por                                    String?
+  reservado_en                                     DateTime?
+  servicio_id                                      String?    @unique
+  servicios                                        servicios? @relation(fields: [servicio_id], references: [id])
+  usuarios_disponibilidad_reservado_porTousuarios  usuarios?  @relation("disponibilidad_reservado_porTousuarios", fields: [reservado_por], references: [id])
+  usuarios_disponibilidad_profesional_idTousuarios usuarios   @relation("disponibilidad_profesional_idTousuarios", fields: [profesional_id], references: [id])
+
+  @@index([esta_disponible, fecha])
+  @@index([servicio_id])
+  @@index([reservado_por])
+  @@index([profesional_id, fecha])
+}
+
+model favoritos {
+  id                                          String   @id
+  cliente_id                                  String
+  profesional_id                              String
+  creado_en                                   DateTime @default(now())
+  usuarios_favoritos_profesional_idTousuarios usuarios @relation("favoritos_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_favoritos_cliente_idTousuarios     usuarios @relation("favoritos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+
+  @@unique([cliente_id, profesional_id])
+  @@index([profesional_id])
+  @@index([cliente_id])
+}
+
+model logros {
+  id             String           @id
+  nombre         String
+  descripcion    String
+  icono          String
+  categoria      String
+  criterio       String
+  puntos         Int              @default(0)
+  activo         Boolean          @default(true)
+  creado_en      DateTime         @default(now())
+  logros_usuario logros_usuario[]
+
+  @@index([activo])
+  @@index([categoria])
+}
+
+model logros_usuario {
+  id          String   @id
+  usuario_id  String
+  logro_id    String
+  obtenido_en DateTime @default(now())
+  logros      logros   @relation(fields: [logro_id], references: [id])
+  usuarios    usuarios @relation(fields: [usuario_id], references: [id])
+
+  @@unique([usuario_id, logro_id])
+  @@index([logro_id])
+  @@index([usuario_id])
+}
+
+model mensajes {
+  id                                          String   @id
+  remitente_id                                String
+  destinatario_id                             String
+  contenido                                   String
+  url_imagen                                  String?
+  esta_leido                                  Boolean  @default(false)
+  creado_en                                   DateTime @default(now())
+  usuarios_mensajes_destinatario_idTousuarios usuarios @relation("mensajes_destinatario_idTousuarios", fields: [destinatario_id], references: [id])
+  usuarios_mensajes_remitente_idTousuarios    usuarios @relation("mensajes_remitente_idTousuarios", fields: [remitente_id], references: [id])
+
+  @@index([creado_en])
+  @@index([remitente_id, destinatario_id, creado_en])
+  @@index([destinatario_id, creado_en])
+  @@index([remitente_id, creado_en])
+}
+
+model notificaciones {
+  id         String   @id
+  usuario_id String
+  tipo       String
+  mensaje    String
+  esta_leido Boolean  @default(false)
+  creado_en  DateTime @default(now())
+  usuarios   usuarios @relation(fields: [usuario_id], references: [id])
+}
+
+model pagos {
+  id                                      String    @id
+  servicio_id                             String    @unique
+  cliente_id                              String
+  profesional_id                          String
+  monto_total                             Float
+  comision_plataforma                     Float
+  monto_profesional                       Float
+  mercado_pago_id                         String?   @unique
+  estado                                  String    @default("pendiente")
+  metodo_pago                             String?
+  fecha_pago                              DateTime?
+  fecha_liberacion                        DateTime?
+  url_comprobante                         String?
+  creado_en                               DateTime  @default(now())
+  usuarios_pagos_profesional_idTousuarios usuarios  @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_pagos_cliente_idTousuarios     usuarios  @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  servicios                               servicios @relation(fields: [servicio_id], references: [id])
+
+  @@index([mercado_pago_id])
+  @@index([estado])
+  @@index([profesional_id])
+  @@index([cliente_id])
+}
+
+model perfiles_profesionales {
+  usuario_id                 String                     @id
+  especialidad               String
+  especialidades             String?
+  anos_experiencia           Int?
+  zona_cobertura             String
+  latitud                    Float?
+  longitud                   Float?
+  tipo_tarifa                String                     @default("hora")
+  tarifa_hora                Float?
+  tarifa_servicio            Float?
+  tarifa_convenio            String?
+  descripcion                String?
+  url_foto_perfil            String?
+  url_foto_portada           String?
+  esta_disponible            Boolean                    @default(true)
+  calificacion_promedio      Float?
+  estado_verificacion        String                     @default("pendiente")
+  verificado_en              DateTime?
+  url_documento_verificacion String?
+  coverage_zone_id           String?
+  profile_completion_score   Int?                       @default(0)
+  profile_views_count        Int?                       @default(0)
+  last_profile_update        DateTime?                  @default(now())
+  usuarios                   usuarios                   @relation(fields: [usuario_id], references: [id])
+  coverage_zones             coverage_zones?            @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  professional_specialties   professional_specialties[]
+
+  @@index([last_profile_update], map: "idx_professionals_last_update")
+  @@index([profile_completion_score], map: "idx_professionals_completion_score")
+  @@index([esta_disponible])
+  @@index([tipo_tarifa])
+  @@index([especialidad, zona_cobertura, calificacion_promedio])
+  @@index([latitud, longitud])
+  @@index([calificacion_promedio])
+  @@index([zona_cobertura])
+  @@index([especialidad])
+}
+
+model professional_specialties {
+  professional_id        String
+  specialty_id           String
+  is_primary             Boolean?               @default(false)
+  created_at             DateTime?              @default(now())
+  specialties            specialties            @relation(fields: [specialty_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  perfiles_profesionales perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([professional_id, specialty_id])
+  @@index([specialty_id], map: "idx_professional_specialties_specialty")
+  @@index([professional_id], map: "idx_professional_specialties_professional")
+}
+
 model refresh_tokens {
-  id         String   @id @default(uuid())
+  id         String   @id
   user_id    String
-  user       usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  token_hash String   @unique // Hash del refresh token
+  token_hash String   @unique
   issued_at  DateTime @default(now())
   expires_at DateTime
   revoked    Boolean  @default(false)
+  usuarios   usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@index([user_id])
-  @@index([token_hash])
   @@index([expires_at])
+  @@index([token_hash])
+  @@index([user_id])
 }
 
-// Note: Enums converted to String types for SQLite compatibility
-// Valid values:
-// - rol: "cliente", "profesional", "admin"
-// - estado_verificacion: "pendiente", "verificado", "rechazado"
-// - estado (servicios): "pendiente", "agendado", "completado", "pagado", "cancelado"
-// - tipo (notificaciones): "nuevo_mensaje", "nueva_cotizacion", "servicio_agendado", "resena_recibida", "pago_liberado", "fondos_liberados"
-// - estado (cotizaciones): "pendiente", "aceptado", "rechazado"
-// - frecuencia (servicios_recurrrentes): "semanal", "quincenal", "mensual", "bimestral", "trimestral"
-// - estado (pagos): "pendiente", "aprobado", "liberado", "reembolsado"
+model resenas {
+  id           String    @id
+  servicio_id  String    @unique
+  cliente_id   String
+  calificacion Int
+  comentario   String?
+  url_foto     String?
+  creado_en    DateTime  @default(now())
+  usuarios     usuarios  @relation(fields: [cliente_id], references: [id])
+  servicios    servicios @relation(fields: [servicio_id], references: [id])
 
-// MODELO: favoritos
-// FUNCIÓN: Permite a los clientes marcar profesionales como favoritos para acceso rápido
-// RELACIÓN PRD: Mejora UX para clientes recurrentes
-// SPRINT: Mejoras de UX
-model favoritos {
-  id             String   @id @default(uuid())
-  cliente_id     String
-  cliente        usuarios @relation("FavoritoCliente", fields: [cliente_id], references: [id])
-  profesional_id String
-  profesional    usuarios @relation("FavoritoProfesional", fields: [profesional_id], references: [id])
-  creado_en      DateTime @default(now())
-
-  @@unique([cliente_id, profesional_id]) // Un cliente solo puede tener un favorito por profesional
-  @@index([cliente_id])
-  @@index([profesional_id])
+  @@index([servicio_id])
 }
 
-// MODELO: logros
-// FUNCIÓN: Sistema de medallas y logros para gamificación (REQ-38)
-// RELACIÓN PRD: REQ-38 (Medallas por logros)
-// SPRINT: Gamificación
-model logros {
-  id          String   @id @default(uuid())
-  nombre      String   // Nombre del logro (ej: "Primer Servicio", "Cliente Recurrente")
-  descripcion String   // Descripción del logro
-  icono       String   // Emoji o URL del icono
-  categoria   String   // "servicios", "resenas", "verificacion", "experiencia"
-  criterio    String   // Condición para obtener el logro (ej: "servicios_completados >= 1")
-  puntos      Int      @default(0) // Puntos que otorga el logro
-  activo      Boolean  @default(true)
-  creado_en   DateTime @default(now())
-
-  // Relación con logros obtenidos por usuarios
-  logros_usuario logros_usuario[]
-
-  @@index([categoria])
-  @@index([activo])
-}
-
-// MODELO: logros_usuario
-// FUNCIÓN: Registra qué logros ha obtenido cada usuario
-// RELACIÓN PRD: REQ-38 (Sistema de medallas)
-model logros_usuario {
-  id         String   @id @default(uuid())
-  usuario_id String
-  usuario    usuarios @relation(fields: [usuario_id], references: [id])
-  logro_id   String
-  logro      logros   @relation(fields: [logro_id], references: [id])
-  obtenido_en DateTime @default(now())
-
-  @@unique([usuario_id, logro_id]) // Un usuario solo puede obtener un logro una vez
-  @@index([usuario_id])
-  @@index([logro_id])
-}
-
-// MODELO: cuentas_bancarias
-// FUNCIÓN: Almacena cuentas bancarias de profesionales para retiros
-// RELACIÓN PRD: REQ-44 (Retiro de fondos a cuenta bancaria)
-// SPRINT: Sprint 3 – Servicios y Transacciones
-// IMPACTO: Permite a profesionales retirar sus ganancias de forma segura
-model cuentas_bancarias {
-  id             String   @id @default(uuid())
-  profesional_id String
-  profesional    usuarios @relation(fields: [profesional_id], references: [id])
-  cvu            String   // Clave Virtual Uniforme (22 dígitos)
-  alias          String   // Alias bancario
-  banco          String?  // Nombre del banco
-  titular        String?  // Nombre del titular de la cuenta
-  es_principal   Boolean  @default(false) // Cuenta principal para retiros
-  verificada     Boolean  @default(false) // Cuenta verificada por el sistema
-  creado_en      DateTime @default(now())
-  actualizado_en DateTime?
-  
-  // Relación con retiros
-  retiros retiros[]
-  
-  @@index([profesional_id])
-  @@index([verificada])
-}
-
-// MODELO: retiros
-// FUNCIÓN: Historial de retiros de fondos de profesionales
-// RELACIÓN PRD: REQ-44 (Retiro de fondos a cuenta bancaria)
-// SPRINT: Sprint 3 – Servicios y Transacciones
-// IMPACTO: Trazabilidad completa de retiros para auditoría y transparencia
 model retiros {
-  id              String   @id @default(uuid())
-  profesional_id  String
-  profesional     usuarios @relation(fields: [profesional_id], references: [id])
-  monto           Float    // Monto a retirar
-  cuenta_id       String
-  cuenta          cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
-  estado          String   @default("procesando") // "procesando", "completado", "fallido", "cancelado"
-  fecha_solicitud DateTime @default(now())
-  fecha_procesado DateTime? // Fecha en que se procesó el retiro
-  fecha_acreditado DateTime? // Fecha estimada de acreditación
-  referencia      String?  // Referencia bancaria o ID de transacción
-  notas           String?  // Notas adicionales o motivo de fallo
-  creado_en       DateTime @default(now())
-  
-  @@index([profesional_id])
-  @@index([estado])
+  id                String            @id
+  profesional_id    String
+  monto             Float
+  cuenta_id         String
+  estado            String            @default("procesando")
+  fecha_solicitud   DateTime          @default(now())
+  fecha_procesado   DateTime?
+  fecha_acreditado  DateTime?
+  referencia        String?
+  notas             String?
+  creado_en         DateTime          @default(now())
+  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
+  usuarios          usuarios          @relation(fields: [profesional_id], references: [id])
+
   @@index([fecha_solicitud])
+  @@index([estado])
+  @@index([profesional_id])
+}
+
+model servicios {
+  id                                          String                  @id
+  cliente_id                                  String
+  profesional_id                              String
+  descripcion                                 String
+  estado                                      String                  @default("PENDIENTE")
+  fecha_agendada                              DateTime?
+  creado_en                                   DateTime                @default(now())
+  completado_en                               DateTime?
+  es_urgente                                  Boolean                 @default(false)
+  servicio_recurrente_id                      String?
+  disponibilidad                              disponibilidad?
+  pagos                                       pagos?
+  resenas                                     resenas?
+  servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
+  usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_servicios_cliente_idTousuarios     usuarios                @relation("servicios_cliente_idTousuarios", fields: [cliente_id], references: [id])
+
+  @@index([profesional_id, fecha_agendada])
+  @@index([cliente_id, fecha_agendada])
+  @@index([fecha_agendada])
+  @@index([es_urgente, estado])
+  @@index([estado, creado_en])
+  @@index([profesional_id, estado])
+  @@index([cliente_id, estado])
+  @@index([es_urgente])
+  @@index([creado_en])
+  @@index([estado])
+  @@index([profesional_id])
+  @@index([cliente_id])
+}
+
+model servicios_recurrrentes {
+  id                                                       String      @id
+  cliente_id                                               String
+  profesional_id                                           String
+  descripcion                                              String
+  frecuencia                                               String
+  dia_semana                                               Int?
+  dia_mes                                                  Int?
+  hora_inicio                                              String
+  duracion_horas                                           Float
+  tarifa_base                                              Float
+  descuento_recurrencia                                    Float       @default(0)
+  fecha_inicio                                             DateTime
+  fecha_fin                                                DateTime?
+  activo                                                   Boolean     @default(true)
+  creado_en                                                DateTime    @default(now())
+  actualizado_en                                           DateTime?
+  servicios                                                servicios[]
+  usuarios_servicios_recurrrentes_profesional_idTousuarios usuarios    @relation("servicios_recurrrentes_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_servicios_recurrrentes_cliente_idTousuarios     usuarios    @relation("servicios_recurrrentes_cliente_idTousuarios", fields: [cliente_id], references: [id])
+
+  @@index([frecuencia])
+  @@index([fecha_inicio])
+  @@index([activo])
+  @@index([profesional_id])
+  @@index([cliente_id])
+}
+
+model specialties {
+  id                       String                     @id @default("lower(hex(randomblob(16)))")
+  name                     String                     @unique(map: "sqlite_autoindex_specialties_2")
+  category                 String
+  description              String?
+  is_active                Boolean?                   @default(true)
+  created_at               DateTime?                  @default(now())
+  updated_at               DateTime?                  @default(now())
+  professional_specialties professional_specialties[]
+
+  @@index([is_active], map: "idx_specialties_active")
+  @@index([category], map: "idx_specialties_category")
+}
+
+model usuarios {
+  id                                                                     String                   @id
+  email                                                                  String                   @unique
+  hash_contrasena                                                        String?
+  nombre                                                                 String
+  telefono                                                               String?
+  rol                                                                    String                   @default("cliente")
+  esta_verificado                                                        Boolean                  @default(false)
+  bloqueado                                                              Boolean                  @default(false)
+  bloqueado_hasta                                                        DateTime?
+  failed_login_attempts                                                  Int                      @default(0)
+  token_verificacion                                                     String?                  @unique
+  token_expiracion                                                       DateTime?
+  creado_en                                                              DateTime                 @default(now())
+  actualizado_en                                                         DateTime?
+  google_id                                                              String?                  @unique
+  facebook_id                                                            String?                  @unique
+  url_foto_perfil                                                        String?
+  fcm_token                                                              String?
+  sms_enabled                                                            Boolean                  @default(false)
+  direccion                                                              String?
+  preferencias_servicio                                                  String?
+  notificaciones_push                                                    Boolean                  @default(true)
+  notificaciones_email                                                   Boolean                  @default(true)
+  notificaciones_sms                                                     Boolean                  @default(false)
+  notificaciones_servicios                                               Boolean                  @default(true)
+  notificaciones_mensajes                                                Boolean                  @default(true)
+  notificaciones_pagos                                                   Boolean                  @default(true)
+  notificaciones_marketing                                               Boolean                  @default(false)
+  cotizacion_respuestas                                                  cotizacion_respuestas[]
+  cotizaciones                                                           cotizaciones[]
+  cuentas_bancarias                                                      cuentas_bancarias[]
+  disponibilidad_disponibilidad_reservado_porTousuarios                  disponibilidad[]         @relation("disponibilidad_reservado_porTousuarios")
+  disponibilidad_disponibilidad_profesional_idTousuarios                 disponibilidad[]         @relation("disponibilidad_profesional_idTousuarios")
+  favoritos_favoritos_profesional_idTousuarios                           favoritos[]              @relation("favoritos_profesional_idTousuarios")
+  favoritos_favoritos_cliente_idTousuarios                               favoritos[]              @relation("favoritos_cliente_idTousuarios")
+  logros_usuario                                                         logros_usuario[]
+  mensajes_mensajes_destinatario_idTousuarios                            mensajes[]               @relation("mensajes_destinatario_idTousuarios")
+  mensajes_mensajes_remitente_idTousuarios                               mensajes[]               @relation("mensajes_remitente_idTousuarios")
+  notificaciones                                                         notificaciones[]
+  pagos_pagos_profesional_idTousuarios                                   pagos[]                  @relation("pagos_profesional_idTousuarios")
+  pagos_pagos_cliente_idTousuarios                                       pagos[]                  @relation("pagos_cliente_idTousuarios")
+  perfiles_profesionales                                                 perfiles_profesionales?
+  refresh_tokens                                                         refresh_tokens[]
+  resenas                                                                resenas[]
+  retiros                                                                retiros[]
+  servicios_servicios_profesional_idTousuarios                           servicios[]              @relation("servicios_profesional_idTousuarios")
+  servicios_servicios_cliente_idTousuarios                               servicios[]              @relation("servicios_cliente_idTousuarios")
+  servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[] @relation("servicios_recurrrentes_profesional_idTousuarios")
+  servicios_recurrrentes_servicios_recurrrentes_cliente_idTousuarios     servicios_recurrrentes[] @relation("servicios_recurrrentes_cliente_idTousuarios")
+  verification_requests                                                  verification_requests?
+
+  @@index([sms_enabled])
+  @@index([telefono])
+  @@index([esta_verificado])
+  @@index([rol])
+}
+
+model verification_requests {
+  id               String    @id
+  usuario_id       String    @unique
+  documento_url    String
+  estado           String    @default("pendiente")
+  comentario_admin String?
+  creado_en        DateTime  @default(now())
+  revisado_en      DateTime?
+  revisado_por     String?
+  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
 }

@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// MODELO: usuarios
+model usuarios {
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  hash_contrasena       String?
+  nombre                String
+  telefono              String?
+  rol                   String    @default("cliente")
+  esta_verificado       Boolean   @default(false)
+  url_foto_perfil       String?
+  fcm_token             String?
+  
+  // Preferencias de notificaciones
+  notificaciones_push   Boolean   @default(true)
+  notificaciones_email  Boolean   @default(true)
+  notificaciones_mensajes Boolean @default(true)
+
+  mensajes_enviados     mensajes[] @relation("MensajeRemitente")
+  mensajes_recibidos    mensajes[] @relation("MensajeDestinatario")
+  
+  creado_en             DateTime  @default(now())
+  actualizado_en        DateTime?
+
+  @@index([rol])
+  @@index([email])
+}
+
+// MODELO: mensajes (CORE CHAT FUNCTIONALITY)
+model mensajes {
+  id             String   @id @default(uuid())
+  remitente_id   String
+  remitente      usuarios @relation("MensajeRemitente", fields: [remitente_id], references: [id])
+  destinatario_id String
+  destinatario   usuarios @relation("MensajeDestinatario", fields: [destinatario_id], references: [id])
+  contenido      String
+  url_imagen     String?
+  esta_leido     Boolean  @default(false)
+  creado_en      DateTime @default(now())
+
+  @@index([remitente_id, creado_en])
+  @@index([destinatario_id, creado_en])
+  @@index([remitente_id, destinatario_id, creado_en])
+  @@index([creado_en])
+}

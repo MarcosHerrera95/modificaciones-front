@@ -240,11 +240,12 @@ export class AuthProvider extends React.Component {
       return { success: true, message: data.message || 'Usuario creado exitosamente.' };
     } catch (error) {
       console.error('Error en signup:', error);
-      return { success: false, error: 'No pudimos crear tu cuenta. Inténtalo de nuevo.' };
+      const errorMessage = error.message || 'No pudimos crear tu cuenta. Inténtalo de nuevo.';
+      return { success: false, error: errorMessage };
     }
   };
 
-  // Método para refrescar tokens automáticamente
+  // Método para refrescar tokens automáticamente con mejor manejo de errores
   refreshToken = async () => {
     try {
       const refreshToken = localStorage.getItem('changanet_refresh_token');
@@ -260,7 +261,10 @@ export class AuthProvider extends React.Component {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to refresh token');
+        if (response.status === 401 || response.status === 403) {
+          throw new Error('Refresh token expired or invalid');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
@@ -268,15 +272,30 @@ export class AuthProvider extends React.Component {
         // Actualizar tokens en localStorage
         localStorage.setItem('changanet_token', data.token);
         localStorage.setItem('changanet_refresh_token', data.refreshToken);
+        
+        // Actualizar estado del usuario si está disponible
+        if (data.user) {
+          this.setState({ user: data.user });
+          localStorage.setItem('changanet_user', JSON.stringify(data.user));
+        }
+
+        console.log('Token refreshed successfully');
         return { success: true, token: data.token };
       } else {
-        throw new Error('Invalid refresh response');
+        throw new Error('Invalid refresh response format');
       }
     } catch (error) {
       console.error('Error refreshing token:', error);
-      // Si falla el refresh, hacer logout
+      
+      // Si falla el refresh, hacer logout y redirigir a login
       this.logout();
-      return { success: false, error: error.message };
+      
+      // Solo mostrar error si no es un problema de red
+      if (!error.message.includes('Failed to fetch')) {
+        return { success: false, error: 'Sesión expirada. Por favor, inicia sesión nuevamente.' };
+      }
+      
+      return { success: false, error: 'Error de conexión. Inténtalo nuevamente.' };
     }
   };
 

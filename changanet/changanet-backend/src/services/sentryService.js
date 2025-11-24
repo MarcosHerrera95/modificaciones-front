@@ -1,6 +1,5 @@
 // src/services/sentryService.js - Servicio de Sentry para backend
 const Sentry = require('@sentry/node');
-const { nodeProfilingIntegration } = require('@sentry/profiling-node');
 
 /**
  * Inicializa Sentry para el backend de Changánet
@@ -21,8 +20,7 @@ function initializeSentry() {
 
     // Integraciones para Node.js/Express
     integrations: [
-      // Profiling para análisis de rendimiento detallado
-      nodeProfilingIntegration(),
+      // Se eliminan integraciones problemáticas para compatibilidad
     ],
 
     // Configuración de trazas

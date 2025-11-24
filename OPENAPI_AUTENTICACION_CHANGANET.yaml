@@ -1,0 +1,800 @@
+# OpenAPI 3.0 - Especificación Completa de Autenticación Changánet
+
+openapi: 3.0.0
+info:
+  title: Changánet API - Autenticación
+  version: 1.0.0
+  description: |
+    API completa de autenticación para la plataforma Changánet.
+    Implementa todos los requerimientos funcionales REQ-01 a REQ-05 del PRD.
+    
+    ## Funcionalidades Principales:
+    - Registro con email y contraseña (REQ-01)
+    - Autenticación social OAuth2 (REQ-02)  
+    - Verificación por correo electrónico (REQ-03)
+    - Validación de unicidad de email (REQ-04)
+    - Recuperación de contraseña (REQ-05)
+    
+    ## Características de Seguridad:
+    - Rate limiting por IP y endpoint
+    - Tokens JWT con refresh tokens revocables
+    - Sistema de bloqueo por intentos fallidos
+    - Logging de auditoría estructurado
+  contact:
+    name: Equipo de Desarrollo Changánet
+    email: dev@changanet.com.ar
+  license:
+    name: Propietario
+    url: https://changanet.com.ar
+
+servers:
+  - url: https://api.changanet.com/v1
+    description: Servidor de producción
+  - url: https://staging-api.changanet.com/v1
+    description: Servidor de staging
+  - url: http://localhost:3004/api
+    description: Servidor de desarrollo
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      summary: Registrar un nuevo usuario (REQ-01)
+      description: |
+        Registra un nuevo usuario en la plataforma con email y contraseña.
+        El sistema valida la fortaleza de la contraseña y envía un email de verificación.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - email
+                - password
+                - rol
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  description: Nombre completo del usuario
+                  example: "Juan Pérez"
+                email:
+                  type: string
+                  format: email
+                  description: Email único del usuario
+                  example: "juan@ejemplo.com"
+                password:
+                  type: string
+                  minLength: 10
+                  description: |
+                    Contraseña segura con puntuación mínima de 30 puntos.
+                    Debe contener letras, números y símbolos especiales.
+                  example: "MiPasswordSegura123!"
+                rol:
+                  type: string
+                  enum: [cliente, profesional]
+                  description: Tipo de cuenta a crear
+                  example: "cliente"
+                telefono:
+                  type: string
+                  pattern: '^\+?[1-9]\d{1,14}$'
+                  description: Teléfono opcional con código de país
+                  example: "+5491123456789"
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Usuario registrado exitosamente. Revisa tu email para verificar la cuenta."
+                  token:
+                    type: string
+                    description: JWT access token (expira en 15 minutos)
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken:
+                    type: string
+                    description: Refresh token para renovar la sesión
+                    example: "a1b2c3d4e5f6..."
+                  user:
+                    $ref: '#/components/schemas/User'
+                  requiresVerification:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: El email ya está registrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "El email ya está registrado."
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/login:
+    post:
+      summary: Iniciar sesión de usuario (REQ-01)
+      description: |
+        Autentica un usuario con email y contraseña.
+        Incluye sistema de bloqueo temporal tras intentos fallidos.
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario registrado
+                  example: "juan@ejemplo.com"
+                password:
+                  type: string
+                  description: Contraseña del usuario
+                  example: "MiPasswordSegura123!"
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login exitoso."
+                  token:
+                    type: string
+                    description: JWT access token
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken:
+                    type: string
+                    description: Refresh token
+                    example: "a1b2c3d4e5f6..."
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Credenciales inválidas."
+        '403':
+          description: Usuario bloqueado temporalmente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Cuenta bloqueada temporalmente por múltiples intentos fallidos."
+                  retryAfter:
+                    type: integer
+                    description: Segundos hasta que se desbloquee
+                    example: 900
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/google:
+    get:
+      summary: Iniciar OAuth con Google (REQ-02)
+      description: |
+        Inicia el flujo de autenticación OAuth2 con Google.
+        Redirige al usuario a la página de consentimiento de Google.
+      tags:
+        - Autenticación OAuth
+      responses:
+        '302':
+          description: Redirección a Google OAuth
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL de autorización de Google
+
+  /auth/google/callback:
+    get:
+      summary: Callback OAuth Google (REQ-02)
+      description: |
+        Maneja el callback de Google OAuth tras la autenticación exitosa.
+        Crea o actualiza el usuario y genera tokens JWT.
+      tags:
+        - Autenticación OAuth
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Código de autorización de Google
+      responses:
+        '302':
+          description: Redirección al frontend con tokens
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL del frontend con token y datos de usuario
+
+  /auth/facebook:
+    get:
+      summary: Iniciar OAuth con Facebook (REQ-02)
+      description: |
+        Inicia el flujo de autenticación OAuth2 con Facebook.
+        Redirecciona al usuario para autorización.
+      tags:
+        - Autenticación OAuth
+      responses:
+        '302':
+          description: Redirección a Facebook OAuth
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL de autorización de Facebook
+
+  /auth/facebook/callback:
+    get:
+      summary: Callback OAuth Facebook (REQ-02)
+      description: |
+        Callback de Facebook OAuth tras autenticación exitosa.
+        Procesa datos del usuario y genera tokens JWT.
+      tags:
+        - Autenticación OAuth
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Código de autorización de Facebook
+      responses:
+        '302':
+          description: Redirección al frontend con tokens
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL del frontend con token y datos de usuario
+
+  /auth/google-login:
+    post:
+      summary: Login directo con Google (REQ-02)
+      description: |
+        Endpoint alternativo para login con Google desde frontend móvil.
+        Recibe datos del token de Google y crea/actualiza usuario.
+      tags:
+        - Autenticación OAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uid
+                - email
+                - nombre
+              properties:
+                uid:
+                  type: string
+                  description: Google User ID
+                  example: "12345678901234567890"
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@gmail.com"
+                nombre:
+                  type: string
+                  example: "Juan Pérez"
+                foto:
+                  type: string
+                  format: uri
+                  description: URL de la foto de perfil de Google
+                  example: "https://lh3.googleusercontent.com/a/..."
+                rol:
+                  type: string
+                  enum: [cliente, profesional]
+                  default: "cliente"
+      responses:
+        '200':
+          description: Login con Google exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login exitoso con Google"
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/facebook-login:
+    post:
+      summary: Login directo con Facebook (REQ-02)
+      description: |
+        Endpoint alternativo para login con Facebook desde frontend móvil.
+        Procesa datos del usuario de Facebook y genera tokens.
+      tags:
+        - Autenticación OAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - uid
+                - email
+                - nombre
+              properties:
+                uid:
+                  type: string
+                  description: Facebook User ID
+                  example: "123456789012345"
+                email:
+                  type: string
+                  format: email
+                  example: "usuario@facebook.com"
+                nombre:
+                  type: string
+                  example: "Juan Pérez"
+                foto:
+                  type: string
+                  format: uri
+                  description: URL de la foto de perfil de Facebook
+                  example: "https://graph.facebook.com/v12.0/123/picture"
+                rol:
+                  type: string
+                  enum: [cliente, profesional]
+                  default: "cliente"
+      responses:
+        '200':
+          description: Login con Facebook exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Login exitoso con Facebook"
+                  token:
+                    type: string
+                  refreshToken:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/verify-email:
+    get:
+      summary: Verificar email del usuario (REQ-03)
+      description: |
+        Verifica el email del usuario usando el token enviado por correo.
+        Marca la cuenta como verificada y elimina el token temporal.
+      tags:
+        - Verificación
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Token de verificación recibido por email
+          example: "a1b2c3d4e5f6..."
+      responses:
+        '200':
+          description: Email verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email verificado exitosamente"
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Token de verificación expirado"
+
+  /auth/resend-verification:
+    post:
+      summary: Reenviar email de verificación (REQ-03)
+      description: |
+        Reenvía el email de verificación a un usuario registrado.
+        Genera un nuevo token de verificación.
+      tags:
+        - Verificación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario que requiere reenvío
+                  example: "juan@ejemplo.com"
+      responses:
+        '200':
+          description: Email de verificación reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email de verificación reenviado exitosamente"
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Usuario no encontrado"
+
+  /auth/forgot-password:
+    post:
+      summary: Solicitar recuperación de contraseña (REQ-05)
+      description: |
+        Inicia el proceso de recuperación de contraseña.
+        Envía un email con enlace para restablecer la contraseña.
+      tags:
+        - Recuperación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario para recuperación
+                  example: "juan@ejemplo.com"
+      responses:
+        '200':
+          description: Email de recuperación enviado (o mensaje genérico)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Si el email existe, se enviará un enlace de recuperación."
+        '429':
+          $ref: '#/components/responses/RateLimitError'
+
+  /auth/reset-password:
+    post:
+      summary: Restablecer contraseña (REQ-05)
+      description: |
+        Restablece la contraseña usando el token de recuperación.
+        Valida la fortaleza de la nueva contraseña.
+      tags:
+        - Recuperación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - newPassword
+              properties:
+                token:
+                  type: string
+                  description: Token de recuperación recibido por email
+                  example: "reset-token-123..."
+                newPassword:
+                  type: string
+                  minLength: 10
+                  description: Nueva contraseña segura
+                  example: "NuevaPasswordSegura456!"
+      responses:
+        '200':
+          description: Contraseña restablecida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Contraseña restablecida exitosamente"
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/refresh:
+    post:
+      summary: Renovar access token
+      description: |
+        Renueva el access token usando un refresh token válido.
+        Genera nuevo refresh token y revoca el anterior.
+      tags:
+        - Token Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token válido
+                  example: "refresh-token-123..."
+      responses:
+        '200':
+          description: Token renovado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Token refrescado exitosamente"
+                  token:
+                    type: string
+                    description: Nuevo access token
+                  refreshToken:
+                    type: string
+                    description: Nuevo refresh token
+        '401':
+          description: Refresh token inválido o expirado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Refresh token inválido o expirado"
+
+  /auth/logout:
+    post:
+      summary: Cerrar sesión
+      description: |
+        Cierra la sesión del usuario y revoca todos sus refresh tokens.
+        Limpia los datos de sesión del cliente.
+      tags:
+        - Token Management
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Logout exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout exitoso"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/me:
+    get:
+      summary: Obtener datos del usuario actual
+      description: |
+        Obtiene los datos del usuario actualmente autenticado.
+        Requiere token JWT válido.
+      tags:
+        - Usuario
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario actual
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT para autenticación
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del usuario
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        nombre:
+          type: string
+          description: Nombre completo del usuario
+          example: "Juan Pérez"
+        email:
+          type: string
+          format: email
+          description: Email único del usuario
+          example: "juan@ejemplo.com"
+        rol:
+          type: string
+          enum: [cliente, profesional, admin]
+          description: Rol del usuario en la plataforma
+          example: "cliente"
+        esta_verificado:
+          type: boolean
+          description: Indica si el email está verificado
+          example: true
+        url_foto_perfil:
+          type: string
+          format: uri
+          description: URL de la foto de perfil
+          example: "https://storage.changanet.com/profiles/photo.jpg"
+        telefono:
+          type: string
+          nullable: true
+          description: Teléfono del usuario (opcional)
+          example: "+5491123456789"
+        bloqueado:
+          type: boolean
+          description: Indica si el usuario está bloqueado
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación del usuario
+          example: "2025-11-24T14:54:00.000Z"
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Mensaje de error general
+          example: "Error de validación"
+        details:
+          type: object
+          description: Detalles específicos de validación
+          example:
+            score: 25
+            warnings: ["La contraseña debe tener al menos 10 caracteres"]
+            suggestions: ["Usa una combinación de letras, números y símbolos"]
+
+  responses:
+    ValidationError:
+      description: Error de validación de datos
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            error: "La contraseña no cumple con los requisitos de seguridad."
+            details:
+              score: 25
+              warnings: ["La contraseña debe tener al menos 10 caracteres"]
+              suggestions: ["Usa una combinación de letras, números y símbolos"]
+
+    RateLimitError:
+      description: Demasiados intentos, rate limit excedido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Demasiados intentos"
+              message:
+                type: string
+                example: "Demasiados intentos. Inténtalo de nuevo en 300 segundos."
+              retryAfter:
+                type: integer
+                description: Segundos para reintentar
+                example: 300
+
+    UnauthorizedError:
+      description: Token de autenticación inválido o expirado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Token inválido"
+              message:
+                type: string
+                example: "Tu sesión ha expirado. Por favor, inicia sesión nuevamente."
+
+    ServerError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Error interno del servidor"
+              details:
+                type: string
+                description: Detalles del error (solo en desarrollo)
+                example: "Database connection failed"
+
+tags:
+  - name: Autenticación
+    description: Endpoints principales de autenticación con email y contraseña
+  - name: Autenticación OAuth
+    description: Endpoints para autenticación social con Google y Facebook
+  - name: Verificación
+    description: Endpoints para verificación de email y reenvío de emails
+  - name: Recuperación
+    description: Endpoints para recuperación de contraseña
+  - name: Token Management
+    description: Endpoints para gestión de tokens JWT y refresh
+  - name: Usuario
+    description: Endpoints relacionados con datos del usuario

@@ -21,8 +21,9 @@ const prisma = new PrismaClient();
  * @tarjeta Tarjeta 1: [Backend] Implementar API de Registro y Login
  * @impacto Social: Inclusión digital mediante autenticación familiar y accesible
  */
-passport.use(
-  new GoogleStrategy(
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  passport.use(
+    new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
@@ -84,6 +85,9 @@ passport.use(
     }
   )
 );
+} else {
+  console.log('⚠️ Google OAuth no configurado - variables GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET no encontradas');
+}
 
 /**
  * @estrategia Facebook OAuth - Autenticación con Facebook

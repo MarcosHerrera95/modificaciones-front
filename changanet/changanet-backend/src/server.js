@@ -102,6 +102,7 @@ const { sendPushNotification } = require('./services/pushNotificationService');
 const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
 const { scheduleRecurringServiceGeneration, scheduleAutomaticFundReleases } = require('./services/recurringServiceScheduler');
 const { initializeDefaultAchievements } = require('./controllers/achievementsController');
+const UnifiedWebSocketService = require('./services/unifiedWebSocketService');
 
 // Importar documentación Swagger
 const swaggerUi = require('swagger-ui-express');
@@ -143,94 +144,8 @@ const io = new Server(server, {
   }
 });
 
-/**
- * Middleware de autenticación para Socket.IO
- * Verifica el token JWT enviado en el handshake de conexión
- */
-io.use(async (socket, next) => {
-  const token = socket.handshake.auth.token;
-  const clientIP = socket.handshake.address;
-  const userAgent = socket.handshake.headers['user-agent'];
-  const isDevelopment = process.env.NODE_ENV !== 'production';
-
-  console.log(`🔐 Socket.IO Auth Attempt - IP: ${clientIP}, UA: ${userAgent?.substring(0, 50)}..., ENV: ${process.env.NODE_ENV}`);
-
-  if (!token) {
-    if (isDevelopment) {
-      console.warn('⚠️ DEVELOPMENT: Socket.IO connection without token allowed for testing');
-      console.warn(`⚠️ Client IP: ${clientIP}, Time: ${new Date().toISOString()}`);
-      console.warn('⚠️ Remember to enable authentication in production!');
-
-      // En desarrollo, crear usuario de prueba pero marcar como no autenticado
-      socket.user = {
-        id: 'dev-test-user',
-        nombre: 'Usuario de Prueba',
-        email: 'test@changánet.dev',
-        rol: 'cliente',
-        esta_verificado: false
-      };
-      socket.isDevMode = true;
-      return next();
-    } else {
-      console.error('🚨 PRODUCTION SECURITY ALERT: Socket.IO connection without token BLOCKED!');
-      console.error(`🚨 Client IP: ${clientIP}, Time: ${new Date().toISOString()}`);
-      return next(new Error('Authentication required'));
-    }
-  }
-
-  try {
-    // Verificar el token usando jwt.verify
-    const jwt = require('jsonwebtoken');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
-
-    // Obtener datos del usuario desde la base de datos
-    const userData = await prisma.usuarios.findUnique({
-      where: { id: decoded.userId || decoded.id },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        rol: true,
-        esta_verificado: true
-      }
-    });
-
-    if (!userData) {
-      console.error(`🚨 SECURITY ALERT: Valid JWT but user not found in DB!`);
-      console.error(`🚨 Token userId: ${decoded.userId || decoded.id}, IP: ${clientIP}`);
-      if (!isDevelopment) {
-        return next(new Error('User not found'));
-      }
-      // En desarrollo, permitir pero loggear
-      socket.user = null;
-      socket.isUnauthenticated = true;
-      return next();
-    }
-
-    // Adjuntar datos del usuario al socket
-    socket.user = {
-      ...decoded,
-      ...userData,
-      role: userData.rol
-    };
-
-    console.log(`✅ Socket.IO: User authenticated: ${socket.user.nombre} (${socket.user.email})`);
-    next();
-  } catch (error) {
-    console.error(`🚨 SECURITY ALERT: JWT verification failed!`);
-    console.error(`🚨 Error: ${error.message}, IP: ${clientIP}, Token: ${token?.substring(0, 20)}...`);
-
-    if (!isDevelopment) {
-      return next(new Error('Invalid token'));
-    }
-
-    // En desarrollo, permitir pero loggear como error de desarrollo
-    console.warn('⚠️ DEVELOPMENT: Allowing connection despite invalid token');
-    socket.user = null;
-    socket.isUnauthenticated = true;
-    next();
-  }
-});
+// ✅ AUTENTICACIÓN DE WEBSOCKET MANEJADA POR UNIFIED WEBSOCKET SERVICE
+// Ver src/services/unifiedWebSocketService.js para detalles de implementación
 
 /**
  * Configuración de middleware para seguridad, monitoreo y optimización.
@@ -397,11 +312,10 @@ app.use('/api/search', searchRoutes);
 // Rutas de mensajería con autenticación requerida
 app.use('/api/messages', authenticateToken, messageRoutes);
 
-// Rutas de chat con autenticación requerida
-app.use('/api/chat', authenticateToken, chatRoutes);
-
-// Rutas de chat simplificado (solo modelo mensajes) - REEMPLAZA al chat anterior
-app.use('/api/chat', authenticateToken, simpleChatRoutes);
+// ✅ RUTAS UNIFICADAS DE CHAT (REQUERIMIENTOS REQ-16 a REQ-20)
+// Implementación completa según especificaciones PRD
+const unifiedChatRoutes = require('./routes/unifiedChatRoutes');
+app.use('/api/chat', authenticateToken, unifiedChatRoutes);
 
 // Rutas de reseñas con autenticación requerida
 app.use('/api/reviews', authenticateToken, reviewRoutes);
@@ -465,186 +379,10 @@ app.use('/api/favorites', favoritesRoutes);
 // Rutas de logros y gamificación
 app.use('/api/achievements', achievementsRoutes);
 
-/**
- * Configuración de eventos de Socket.IO para chat en tiempo real.
- * Implementa REQ-16: Chat interno en página del perfil
- * Maneja conexiones de usuarios, envío de mensajes y marcación como leídos.
- *
- * EVENTOS IMPLEMENTADOS:
- * - 'join': Unir usuario a su sala personal
- * - 'sendMessage': Enviar mensaje con validaciones completas
- * - 'markAsRead': Marcar mensajes como leídos
- * - 'disconnect': Manejo de desconexiones
- *
- * CARACTERÍSTICAS DE SEGURIDAD:
- * - Autenticación JWT obligatoria
- * - Validación de participantes en chats de servicios
- * - Límites de caracteres y validación de contenido
- * - Notificaciones push y email automáticas
- */
-io.on('connection', (socket) => {
-  console.log('Usuario conectado:', socket.id);
-
-  /**
-   * Evento para unir un usuario a su sala personal de Socket.IO.
-   * Permite enviar mensajes dirigidos específicamente a ese usuario.
-   */
-  socket.on('join', (userId) => {
-    socket.join(userId);
-    console.log(`Usuario ${userId} se unió a su sala personal`);
-  });
-
-  /**
-   * Evento para enviar un mensaje a otro usuario.
-   * Guarda el mensaje en la base de datos y lo emite en tiempo real.
-   */
-  socket.on('sendMessage', async (data) => {
-    const { remitente_id, destinatario_id, contenido, url_imagen, servicio_id } = data;
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-
-    // 🚨 SECURITY CHECK: Verificar si el socket está autenticado
-    if (!socket.user && !isDevelopment) {
-      console.error(`🚨 BLOCKED: Unauthenticated user attempted to send message!`);
-      console.error(`🚨 Socket ID: ${socket.id}, IP: ${socket.handshake.address}`);
-      console.error(`🚨 Message data: ${JSON.stringify(data)}`);
-      socket.emit('error', { message: 'Authentication required to send messages.' });
-      return;
-    }
-
-    if (socket.isDevMode) {
-      console.log(`🧪 DEV MODE: Test user sending message - From: ${remitente_id}, To: ${destinatario_id}`);
-    } else {
-      console.log(`💬 Message attempt - From: ${remitente_id}, To: ${destinatario_id}, User: ${socket.user?.nombre || 'Unknown'}`);
-    }
-
-    try {
-      // Validar que todos los campos requeridos estén presentes
-      if (!remitente_id || !destinatario_id || (!contenido && !url_imagen)) {
-        console.warn(`⚠️ Incomplete message data: ${JSON.stringify(data)}`);
-        socket.emit('error', { message: 'Se requiere contenido o imagen para enviar mensaje.' });
-        return;
-      }
-
-      // Validar límite de caracteres para contenido de texto
-      if (contenido && contenido.length > 1000) {
-        socket.emit('error', { message: 'El mensaje no puede exceder 1000 caracteres.' });
-        return;
-      }
-
-      // Validar que ambos usuarios pertenezcan al servicio si se especifica servicio_id
-      if (servicio_id) {
-        const service = await prisma.servicios.findUnique({
-          where: { id: servicio_id },
-          include: { cliente: true, profesional: true }
-        });
-
-        if (!service) {
-          socket.emit('error', { message: 'Servicio no encontrado.' });
-          return;
-        }
-
-        const isParticipant = (service.cliente_id === remitente_id && service.profesional_id === destinatario_id) ||
-                              (service.profesional_id === remitente_id && service.cliente_id === destinatario_id);
-
-        if (!isParticipant) {
-          socket.emit('error', { message: 'No tienes permiso para enviar mensajes en este chat.' });
-          return;
-        }
-      }
-
-      // En modo desarrollo con usuario de prueba, usar ID de desarrollo
-      let actualRemitenteId = remitente_id;
-      if (socket.isDevMode && remitente_id === 'dev-test-user') {
-        actualRemitenteId = socket.user.id;
-      }
-
-      // Crear el mensaje en la base de datos
-      const message = await prisma.mensajes.create({
-        data: {
-          remitente_id: actualRemitenteId,
-          destinatario_id,
-          contenido,
-          url_imagen: url_imagen || null,
-          servicio_id: servicio_id || null,
-          esta_leido: false,
-        },
-      });
-
-      // Enviar notificación push al destinatario (FCM)
-      try {
-        await sendPushNotification(
-          destinatario_id,
-          'Nuevo mensaje',
-          `Tienes un nuevo mensaje en Changánet`,
-          {
-            type: 'mensaje',
-            remitente_id: remitente_id,
-            message_id: message.id
-          }
-        );
-      } catch (pushError) {
-        console.warn('Error enviando push notification:', pushError.message);
-      }
-
-      // Enviar notificación en base de datos (para historial)
-      const sender = await prisma.usuarios.findUnique({ where: { id: actualRemitenteId }, select: { nombre: true } });
-      await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${sender?.nombre || 'un usuario'}`);
-
-      // Emitir el mensaje en tiempo real usando salas de Socket.IO
-      io.to(destinatario_id).emit('receiveMessage', message);
-      io.to(remitente_id).emit('messageSent', message);
-
-      console.log(`Mensaje enviado de ${remitente_id} a ${destinatario_id}`);
-    } catch (error) {
-      console.error('Error al enviar mensaje:', error);
-      socket.emit('error', { message: 'No se pudo enviar el mensaje.' });
-    }
-  });
-
-  /**
-   * Evento para marcar mensajes como leídos.
-   * Actualiza el estado de los mensajes en la base de datos.
-   */
-  socket.on('markAsRead', async (data) => {
-    const { senderId, recipientId } = data;
-
-    try {
-      await prisma.mensajes.updateMany({
-        where: {
-          remitente_id: senderId,
-          destinatario_id: recipientId,
-          esta_leido: false,
-        },
-        data: { esta_leido: true },
-      });
-
-      // Notificar al remitente que sus mensajes fueron marcados como leídos
-      io.to(senderId).emit('messagesRead', { by: recipientId });
-    } catch (error) {
-      console.error('Error al marcar mensajes como leídos:', error);
-      socket.emit('error', { message: 'No se pudieron marcar los mensajes como leídos.' });
-    }
-  });
-
-  /**
-   * Evento para manejar el estado de "escribiendo" de los usuarios.
-   * Permite mostrar indicadores en tiempo real cuando alguien está escribiendo.
-   */
-  socket.on('typing', (data) => {
-    const { from, to, isTyping } = data;
-    console.log(`⌨️ Typing event - From: ${from}, To: ${to}, IsTyping: ${isTyping}`);
-    
-    // Enviar evento de typing al destinatario
-    socket.to(to).emit('userTyping', { from, isTyping });
-  });
-
-  /**
-   * Evento que se ejecuta cuando un usuario se desconecta.
-   */
-  socket.on('disconnect', () => {
-    console.log('Usuario desconectado:', socket.id);
-  });
-});
+// ✅ INICIALIZACIÓN DEL WEBSOCKET UNIFICADO (REQUERIMIENTOS REQ-16 a REQ-20)
+// Implementa chat en tiempo real según especificaciones PRD
+const webSocketService = new UnifiedWebSocketService(io);
+console.log('📡 WebSocket Unificado inicializado - Chat en tiempo real activo');
 
 // Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error) - Monitoreo de errores (REQ-40)
 app.use(sentryErrorHandler());
