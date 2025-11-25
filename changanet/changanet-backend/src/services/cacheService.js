@@ -28,7 +28,7 @@ const initializeRedis = async () => {
       });
       
       redisClient.on('error', (err) => {
-        console.warn('Redis cache error:', err);
+        console.warn('Redis cache unavailable, using only memory cache');
         redisClient = null;
       });
       

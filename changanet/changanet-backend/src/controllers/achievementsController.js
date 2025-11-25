@@ -143,8 +143,13 @@ exports.initializeDefaultAchievements = async () => {
       });
 
       if (!exists) {
+        // Generar un ID único para el logro
+        const achievementId = require('crypto').randomUUID();
         await prisma.logros.create({
-          data: achievement
+          data: {
+            id: achievementId,
+            ...achievement
+          }
         });
         console.log(`✅ Logro creado: ${achievement.nombre}`);
       }

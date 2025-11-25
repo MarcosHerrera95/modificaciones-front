@@ -228,6 +228,7 @@ class TestSuiteMensajeria {
   // Test 3: Funcionalidad de Chat (Backend)
   async testChatFunctionality() {
     this.log('\n🔍 TEST 3: Funcionalidad de Chat', 'cyan');
+    const { nanoid } = require('nanoid');
     
     // Crear usuarios de prueba
     this.log('Creando usuarios de prueba...', 'yellow');
@@ -256,6 +257,7 @@ class TestSuiteMensajeria {
       // Simular mensaje directo en BD para testing
       const message = await this.prisma.mensajes.create({
         data: {
+          id: nanoid(),
           conversation_id: conversation.id,
           sender_id: user1.id,
           message: 'Mensaje de prueba desde test suite',

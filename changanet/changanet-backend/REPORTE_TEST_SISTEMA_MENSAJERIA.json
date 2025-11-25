@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-11-25T17:06:21.031Z",
+  "timestamp": "2025-11-25T17:07:28.033Z",
   "summary": {
     "total": 20,
     "passed": 17,
@@ -11,121 +11,121 @@
       "name": "Conexión a Base de Datos",
       "status": "PASS",
       "message": "Conectado exitosamente, 1 usuarios en BD",
-      "timestamp": "2025-11-25T17:06:20.151Z"
+      "timestamp": "2025-11-25T17:07:27.851Z"
     },
     {
       "name": "Esquema de Tabla Mensajes",
       "status": "PASS",
       "message": "Todos los campos requeridos existen",
-      "timestamp": "2025-11-25T17:06:20.153Z"
+      "timestamp": "2025-11-25T17:07:27.852Z"
     },
     {
       "name": "Índices de Base de Datos",
       "status": "PASS",
       "message": "6 índices encontrados",
-      "timestamp": "2025-11-25T17:06:20.153Z"
+      "timestamp": "2025-11-25T17:07:27.853Z"
     },
     {
       "name": "Servidor Backend Activo",
       "status": "FAIL",
       "message": "Backend no está disponible",
-      "timestamp": "2025-11-25T17:06:20.182Z"
+      "timestamp": "2025-11-25T17:07:27.880Z"
     },
     {
       "name": "Funcionalidad de Chat",
       "status": "FAIL",
-      "message": "\nInvalid `this.prisma.conversations.create()` invocation in\nd:\\modificaciones-front\\changanet\\changanet-backend\\test-sistema-mensajeria-completo.js:248:60\n\n  245 // Test envío de mensaje (simulando autenticación)\n  246 try {\n  247   // First create a conversation between the users\n→ 248   const conversation = await this.prisma.conversations.create({\n          data: {\n            client_id: \"TEbt5cJD5zspyL7_nPW8J\",\n            professional_id: \"vhzymRxQfsI1QJ2SwXvsb\",\n        +   id: String\n          }\n        })\n\nArgument `id` is missing.",
-      "timestamp": "2025-11-25T17:06:20.811Z"
+      "message": "\nInvalid `this.prisma.mensajes.create()` invocation in\nd:\\modificaciones-front\\changanet\\changanet-backend\\test-sistema-mensajeria-completo.js:258:50\n\n  255 });\n  256 \n  257 // Simular mensaje directo en BD para testing\n→ 258 const message = await this.prisma.mensajes.create({\n        data: {\n          conversation_id: \"HWDETaknsqb0ThIwdF1lZ\",\n          sender_id: \"0x6EUK-Q5keJGA4fCCNxS\",\n          message: \"Mensaje de prueba desde test suite\",\n          status: \"sent\",\n      +   id: String\n        },\n        include: {\n          sender: {\n            select: {\n              nombre: true\n            }\n          },\n          conversations: {\n            select: {\n              client: {\n                select: {\n                  nombre: true\n                }\n              },\n              professional: {\n                select: {\n                  nombre: true\n                }\n              }\n            }\n          }\n        }\n      })\n\nArgument `id` is missing.",
+      "timestamp": "2025-11-25T17:07:27.972Z"
     },
     {
       "name": "Servicio de Notificaciones",
       "status": "PASS",
       "message": "Archivo chatNotificationService.js existe",
-      "timestamp": "2025-11-25T17:06:20.811Z"
+      "timestamp": "2025-11-25T17:07:27.973Z"
     },
     {
       "name": "Métodos de Notificación",
       "status": "PASS",
       "message": "3/3 métodos implementados",
-      "timestamp": "2025-11-25T17:06:20.859Z"
+      "timestamp": "2025-11-25T17:07:28.019Z"
     },
     {
       "name": "Configuración de Servicios Externos",
       "status": "PASS",
       "message": "2/2 servicios configurados",
-      "timestamp": "2025-11-25T17:06:20.859Z"
+      "timestamp": "2025-11-25T17:07:28.019Z"
     },
     {
       "name": "Archivo Frontend: ChatWidget.jsx",
       "status": "PASS",
       "message": "Existe y es accesible",
-      "timestamp": "2025-11-25T17:06:20.859Z"
+      "timestamp": "2025-11-25T17:07:28.019Z"
     },
     {
       "name": "Validaciones en ChatWidget",
       "status": "WARN",
       "message": "Validaciones no encontradas",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.019Z"
     },
     {
       "name": "Archivo Frontend: ChatContext.jsx",
       "status": "PASS",
       "message": "Existe y es accesible",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.019Z"
     },
     {
       "name": "Archivo Frontend: useChat.js",
       "status": "PASS",
       "message": "Existe y es accesible",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "REQ-16: Chat interno en página del perfil",
       "status": "PASS",
       "message": "Implementado según análisis de código",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "REQ-17: Mensajes de texto",
       "status": "PASS",
       "message": "Implementado según análisis de código",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "REQ-18: Envío de imágenes",
       "status": "PASS",
       "message": "Implementado según análisis de código",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "REQ-19: Notificaciones push y email",
       "status": "PASS",
       "message": "Implementado según análisis de código",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "REQ-20: Historial de conversaciones",
       "status": "PASS",
       "message": "Implementado según análisis de código",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "Cumplimiento Total PRD",
       "status": "PASS",
       "message": "100% (5/5)",
-      "timestamp": "2025-11-25T17:06:20.860Z"
+      "timestamp": "2025-11-25T17:07:28.020Z"
     },
     {
       "name": "Limpieza de Datos de Prueba",
       "status": "PASS",
       "message": "2 usuarios eliminados",
-      "timestamp": "2025-11-25T17:06:21.029Z"
+      "timestamp": "2025-11-25T17:07:28.032Z"
     },
     {
       "name": "Performance de Base de Datos",
       "status": "PASS",
-      "message": "Tiempo de respuesta: 2ms",
-      "timestamp": "2025-11-25T17:06:21.031Z"
+      "message": "Tiempo de respuesta: 1ms",
+      "timestamp": "2025-11-25T17:07:28.033Z"
     }
   ],
   "environment": {
