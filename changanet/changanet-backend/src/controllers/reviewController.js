@@ -32,6 +32,7 @@ const {
   invalidateAllProfessionalCaches
 } = require('../services/cacheService');
 const { logger } = require('../middleware/performanceLogger');
+const { logReviewCreated } = require('../services/auditService');
 
 const prisma = new PrismaClient();
 
@@ -143,14 +144,27 @@ exports.createReview = async (req, res) => {
       return newReview;
     });
 
-    logger.info('Review created successfully', { 
-      reviewId: review.id, 
+    logger.info('Review created successfully', {
+      reviewId: review.id,
       professionalId: service.profesional_id,
       duration: `${Date.now() - startTime}ms`
     });
 
     // Invalidar caché relacionado con el profesional
     invalidateAllProfessionalCaches(service.profesional_id);
+
+    // ACTUALIZAR REPUTACIÓN DEL PROFESIONAL TRAS RECIBIR RESEÑA (REQ-36 a REQ-40)
+    try {
+      const { updateProfessionalReputation } = require('./reputationController');
+      await updateProfessionalReputation(service.profesional_id);
+      console.log(`✅ Reputación actualizada para profesional ${service.profesional_id} tras recibir reseña ${review.id}`);
+
+      // Registrar en auditoría
+      await logReviewCreated(userId, service.profesional_id, servicio_id, rating, req.ip, req.get('User-Agent'));
+    } catch (reputationError) {
+      console.error('Error updating reputation after review creation:', reputationError);
+      // No fallar la operación principal por error en reputación
+    }
 
     // Enviar notificación push al profesional
     try {

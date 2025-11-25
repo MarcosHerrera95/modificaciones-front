@@ -1,11 +1,11 @@
 /**
  * Rutas para el sistema de verificación de identidad.
- * Implementa sección 7.8 del PRD: Verificación de Identidad y Reputación
+ * Implementa REQ-36: Verificación de Identidad
  * Define endpoints para solicitudes de verificación y gestión administrativa.
  */
 
 const express = require('express');
-const verificationController = require('../controllers/verificationController');
+const identityVerificationController = require('../controllers/identityVerificationController');
 const { authenticateToken } = require('../middleware/authenticate');
 const { uploadVerificationDocument } = require('../services/storageService');
 
@@ -29,32 +29,28 @@ const upload = multer({
 
 const router = express.Router();
 
-// POST /api/verification/request
-// Solicitar verificación de identidad (solo profesionales)
-router.post('/request',
-  authenticateToken,
-  upload.single('document'),
-  verificationController.requestVerification
-);
+// POST /api/verification/upload
+// Generar URL presignada para subida de documento
+router.post('/upload', authenticateToken, identityVerificationController.generateUploadUrl);
+
+// POST /api/verification
+// Crear solicitud de verificación con URLs de documentos
+router.post('/', authenticateToken, identityVerificationController.createVerification);
 
 // GET /api/verification/status
 // Obtener estado de verificación del usuario actual
-router.get('/status', authenticateToken, verificationController.getVerificationStatus);
+router.get('/status', authenticateToken, identityVerificationController.getVerificationStatus);
 
-// GET /api/admin/verification-requests
-// Listar solicitudes pendientes (solo administradores)
-router.get('/admin/verification-requests', authenticateToken, verificationController.getPendingVerifications);
-
-// PUT /api/admin/verification/:id/approve
+// PUT /api/verification/:id/approve
 // Aprobar solicitud de verificación (solo administradores)
-router.put('/admin/verification/:id/approve', authenticateToken, verificationController.approveVerification);
+router.put('/:id/approve', authenticateToken, identityVerificationController.approveVerification);
 
-// PUT /api/admin/verification/:id/reject
+// PUT /api/verification/:id/reject
 // Rechazar solicitud de verificación (solo administradores)
-router.put('/admin/verification/:id/reject', authenticateToken, verificationController.rejectVerification);
+router.put('/:id/reject', authenticateToken, identityVerificationController.rejectVerification);
 
 // GET /api/verification/:requestId/document
 // Obtener URL firmada para acceder al documento (usuario propietario o admin)
-router.get('/:requestId/document', authenticateToken, verificationController.getDocumentUrl);
+router.get('/:requestId/document', authenticateToken, identityVerificationController.getDocumentUrl);
 
 module.exports = router;

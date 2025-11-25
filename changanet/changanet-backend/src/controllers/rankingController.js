@@ -4,10 +4,47 @@
  */
 
 const { PrismaClient } = require('@prisma/client');
+const {
+  getCachedRanking,
+  cacheRanking,
+  invalidateRankingCache,
+  getCachedProfessionalRanking,
+  cacheProfessionalRanking,
+  invalidateProfessionalRankingCache
+} = require('../services/cacheService');
 const prisma = new PrismaClient();
 
 /**
- * Calcular el ranking de un profesional basado en múltiples factores
+ * Calcular porcentaje de puntualidad
+ */
+const calculateOnTimePercentage = async (professionalId) => {
+  try {
+    const services = await prisma.servicios.findMany({
+      where: {
+        profesional_id: professionalId,
+        estado: 'COMPLETADO'
+      }
+    });
+
+    if (services.length === 0) return 0;
+
+    const onTimeServices = services.filter(service => {
+      if (!service.fecha_agendada || !service.completado_en) return false;
+      const scheduledDate = new Date(service.fecha_agendada);
+      const completedDate = new Date(service.completado_en);
+      return completedDate <= scheduledDate;
+    });
+
+    return Math.round((onTimeServices.length / services.length) * 100);
+  } catch (error) {
+    console.error('Error calculating on-time percentage:', error);
+    return 0;
+  }
+};
+
+/**
+ * Calcular el ranking score según fórmula requerida
+ * ranking_score = (average_rating * 0.6) + (completed_jobs * 0.3) + (on_time_percentage * 0.1)
  */
 const calculateProfessionalRanking = async (professionalId) => {
   try {
@@ -19,9 +56,7 @@ const calculateProfessionalRanking = async (professionalId) => {
           include: {
             servicios_como_profesional: {
               where: { estado: 'COMPLETADO' }
-            },
-            resenas_escritas: true, // Reseñas que recibió
-            logros_obtenidos: { include: { logro: true } } // REQ-38: Sistema de medallas
+            }
           }
         }
       }
@@ -30,34 +65,16 @@ const calculateProfessionalRanking = async (professionalId) => {
     if (!professional) return 0;
 
     const user = professional.usuario;
-    let score = 0;
 
-    // Factor 1: Calificación promedio (40% del score)
-    const avgRating = professional.calificacion_promedio || 0;
-    score += avgRating * 40;
+    // Obtener métricas según fórmula requerida
+    const averageRating = professional.calificacion_promedio || 0;
+    const completedJobs = user.servicios_como_profesional.length;
+    const onTimePercentage = await calculateOnTimePercentage(professionalId);
 
-    // Factor 2: Número de servicios completados (20% del score)
-    const completedServices = user.servicios_como_profesional.length;
-    score += Math.min(completedServices * 2, 20); // Máximo 20 puntos
+    // Calcular ranking score
+    const rankingScore = (averageRating * 0.6) + (completedJobs * 0.3) + (onTimePercentage * 0.1);
 
-    // Factor 3: Verificación de identidad (15% del score)
-    if (user.esta_verificado) {
-      score += 15;
-    }
-
-    // Factor 4: Experiencia (10% del score)
-    const experience = professional.anos_experiencia || 0;
-    score += Math.min(experience * 2, 10); // Máximo 10 puntos
-
-    // Factor 5: Logros obtenidos (10% del score) - REQ-38: Sistema de medallas
-    const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0);
-    score += Math.min(achievementPoints * 0.5, 10); // Máximo 10 puntos
-
-    // Factor 6: Reseñas positivas (5% del score)
-    const positiveReviews = user.resenas_escritas.filter(r => r.calificacion >= 4).length;
-    score += Math.min(positiveReviews * 0.5, 5); // Máximo 5 puntos
-
-    return Math.round(score * 100) / 100; // Redondear a 2 decimales
+    return Math.round(rankingScore * 100) / 100; // Redondear a 2 decimales
   } catch (error) {
     console.error('Error calculating professional ranking:', error);
     return 0;
@@ -69,6 +86,19 @@ const calculateProfessionalRanking = async (professionalId) => {
  */
 exports.getProfessionalsRanking = async (req, res) => {
   try {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    // Intentar obtener desde caché primero
+    const cachedRanking = await getCachedRanking(limit, offset);
+    if (cachedRanking) {
+      return res.json({
+        success: true,
+        data: cachedRanking,
+        cached: true
+      });
+    }
+
     const professionals = await prisma.perfiles_profesionales.findMany({
       include: {
         usuario: {
@@ -105,14 +135,19 @@ exports.getProfessionalsRanking = async (req, res) => {
     // Ordenar por score descendente
     rankings.sort((a, b) => b.score - a.score);
 
-    // Asignar posiciones
-    rankings.forEach((ranking, index) => {
-      ranking.ranking = index + 1;
+    // Asignar posiciones y aplicar paginación
+    const paginatedRankings = rankings.slice(offset, offset + limit);
+    paginatedRankings.forEach((ranking, index) => {
+      ranking.ranking = offset + index + 1;
     });
+
+    // Almacenar en caché
+    await cacheRanking(limit, offset, paginatedRankings);
 
     res.json({
       success: true,
-      data: rankings
+      data: paginatedRankings,
+      cached: false
     });
   } catch (error) {
     console.error('Error obteniendo rankings:', error);
@@ -129,6 +164,16 @@ exports.getProfessionalsRanking = async (req, res) => {
 exports.getProfessionalRanking = async (req, res) => {
   try {
     const { professionalId } = req.params;
+
+    // Intentar obtener desde caché primero
+    const cachedRanking = await getCachedProfessionalRanking(professionalId);
+    if (cachedRanking) {
+      return res.json({
+        success: true,
+        data: cachedRanking,
+        cached: true
+      });
+    }
 
     const score = await calculateProfessionalRanking(professionalId);
 
@@ -163,24 +208,30 @@ exports.getProfessionalRanking = async (req, res) => {
     const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0); // REQ-38: Sistema de medallas
     const positiveReviews = user.resenas_escritas.filter(r => r.calificacion >= 4).length;
 
+    const rankingData = {
+      id: professionalId,
+      nombre: professional.usuario.nombre,
+      especialidad: professional.especialidad,
+      zona_cobertura: professional.zona_cobertura,
+      score: score,
+      ranking: position,
+      detalles: {
+        calificacion_promedio: professional.calificacion_promedio || 0,
+        servicios_completados: user.servicios_como_profesional.length,
+        esta_verificado: user.esta_verificado,
+        anos_experiencia: professional.anos_experiencia || 0,
+        logros_puntos: achievementPoints,
+        resenas_positivas: positiveReviews
+      }
+    };
+
+    // Almacenar en caché
+    await cacheProfessionalRanking(professionalId, rankingData);
+
     res.json({
       success: true,
-      data: {
-        id: professionalId,
-        nombre: professional.usuario.nombre,
-        especialidad: professional.especialidad,
-        zona_cobertura: professional.zona_cobertura,
-        score: score,
-        ranking: position,
-        detalles: {
-          calificacion_promedio: professional.calificacion_promedio || 0,
-          servicios_completados: user.servicios_como_profesional.length,
-          esta_verificado: user.esta_verificado,
-          anos_experiencia: professional.anos_experiencia || 0,
-          logros_puntos: achievementPoints,
-          resenas_positivas: positiveReviews
-        }
-      }
+      data: rankingData,
+      cached: false
     });
   } catch (error) {
     console.error('Error obteniendo ranking del profesional:', error);

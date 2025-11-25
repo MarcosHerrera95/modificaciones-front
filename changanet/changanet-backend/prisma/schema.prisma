@@ -9,7 +9,6 @@ generator erd {
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 model cotizacion_respuestas {
@@ -172,28 +171,40 @@ model notificaciones {
 }
 
 model pagos {
-  id                                      String    @id
-  servicio_id                             String    @unique
-  cliente_id                              String
-  profesional_id                          String
-  monto_total                             Float
-  comision_plataforma                     Float
-  monto_profesional                       Float
-  mercado_pago_id                         String?   @unique
-  estado                                  String    @default("pendiente")
-  metodo_pago                             String?
-  fecha_pago                              DateTime?
-  fecha_liberacion                        DateTime?
-  url_comprobante                         String?
-  creado_en                               DateTime  @default(now())
-  usuarios_pagos_profesional_idTousuarios usuarios  @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
-  usuarios_pagos_cliente_idTousuarios     usuarios  @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
-  servicios                               servicios @relation(fields: [servicio_id], references: [id])
+  id                                       String    @id
+  servicio_id                              String    @unique
+  cliente_id                               String
+  profesional_id                           String
+  monto_total                              Float
+  comision_plataforma                      Float
+  monto_profesional                        Float
+  mercado_pago_id                          String?   @unique
+  mercado_pago_preference_id               String?   @unique
+  estado                                   String    @default("pendiente")
+  metodo_pago                              String?
+  fecha_pago                               DateTime?
+  fecha_liberacion                         DateTime?
+  fecha_liberacion_programada              DateTime?
+  url_comprobante                          String?
+  metadata                                 String?   // JSON string para datos adicionales
+  webhook_procesado                        Boolean   @default(false)
+  ultimo_webhook_procesado_en              DateTime?
+  intentos_webhook                         Int       @default(0)
+  created_at                               DateTime  @default(now())
+  updated_at                               DateTime  @updatedAt
+  usuarios_pagos_profesional_idTousuarios  usuarios  @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_pagos_cliente_idTousuarios      usuarios  @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  servicios                                servicios @relation(fields: [servicio_id], references: [id])
+  eventos_pagos                            eventos_pagos[]
+  disputas                                 disputas_pagos[]
 
+  @@index([mercado_pago_preference_id])
   @@index([mercado_pago_id])
   @@index([estado])
   @@index([profesional_id])
   @@index([cliente_id])
+  @@index([webhook_procesado])
+  @@index([fecha_liberacion_programada])
 }
 
 model perfiles_profesionales {
@@ -223,6 +234,9 @@ model perfiles_profesionales {
   usuarios                   usuarios                   @relation(fields: [usuario_id], references: [id])
   coverage_zones             coverage_zones?            @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
   professional_specialties   professional_specialties[]
+  // Relaciones nuevas para BudgetRequest
+  budgetRequestDistributions BudgetRequestProfessional[]
+  budgetOffers               BudgetOffer[]
 
   @@index([last_profile_update], map: "idx_professionals_last_update")
   @@index([profile_completion_score], map: "idx_professionals_completion_score")
@@ -313,6 +327,8 @@ model servicios {
   servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
   usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
   usuarios_servicios_cliente_idTousuarios     usuarios                @relation("servicios_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  // Relación nueva para appointments
+  appointments                                appointments[]
 
   @@index([profesional_id, fecha_agendada])
   @@index([cliente_id, fecha_agendada])
@@ -421,6 +437,24 @@ model usuarios {
   servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[] @relation("servicios_recurrrentes_profesional_idTousuarios")
   servicios_recurrrentes_servicios_recurrrentes_cliente_idTousuarios     servicios_recurrrentes[] @relation("servicios_recurrrentes_cliente_idTousuarios")
   verification_requests                                                  verification_requests?
+  // Relaciones nuevas para Verificación de Identidad y Reputación
+  identity_verifications                                                 identity_verification[]
+  reviewed_verifications                                                 identity_verification[]     @relation("VerificationReviewedBy")
+  professional_reputation                                                professional_reputation?
+  reputation_history                                                     reputation_history[]
+  // Relaciones nuevas para BudgetRequest
+  budgetRequests                                                         BudgetRequest[]
+  // Relaciones nuevas para disputas_pagos
+  disputas_pagos                                                         disputas_pagos[]
+  // Relaciones nuevas para sistema de disponibilidad y agenda
+  professionals_availability_professional_idTousuarios                  professionals_availability[] @relation("professionals_availability_professional_idTousuarios")
+  appointments_professional_idTousuarios                                 appointments[]              @relation("appointments_professional_idTousuarios")
+  appointments_client_idTousuarios                                       appointments[]              @relation("appointments_client_idTousuarios")
+  blocked_slots_professional_idTousuarios                                blocked_slots[]             @relation("blocked_slots_professional_idTousuarios")
+  blocked_slots_created_byTousuarios                                     blocked_slots[]             @relation("blocked_slots_created_byTousuarios")
+  calendar_sync_professional_idTousuarios                                calendar_sync[]             @relation("calendar_sync_professional_idTousuarios")
+  // Relación con auditoría
+  audit_logs                                                           audit_log[]
 
   @@index([sms_enabled])
   @@index([telefono])
@@ -439,3 +473,341 @@ model verification_requests {
   revisado_por     String?
   usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
 }
+
+// ==================================================
+// NUEVAS TABLAS: Verificación de Identidad y Reputación
+// Implementación para REQ-36 a REQ-40
+// ==================================================
+
+model identity_verification {
+  id                  String   @id @default(cuid())
+  user_id             String
+  document_type       String   // 'dni','pasaporte','id'
+  document_front_url  String
+  document_back_url   String?
+  status              String   @default("pending") // 'pending','approved','rejected'
+  admin_review_notes  String?
+  reviewed_by         String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  // Relaciones
+  user                usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  admin               usuarios? @relation("VerificationReviewedBy", fields: [reviewed_by], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("identity_verification")
+}
+
+model professional_reputation {
+  user_id             String   @id
+  average_rating      Float    @default(0)
+  completed_jobs      Int      @default(0)
+  on_time_percentage  Float    @default(0)
+  medals              String   @default("[]") // JSON string: ['puntualidad','excelencia','top-rated']
+  ranking_score       Float    @default(0)
+  updated_at          DateTime @updatedAt
+
+  // Relaciones
+  user                usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([ranking_score])
+  @@index([updated_at])
+  @@map("professional_reputation")
+}
+
+model reputation_history {
+  id          String   @id @default(cuid())
+  user_id     String
+  event_type  String   // 'job_completed','medal_awarded','rating_received','reputation_updated'
+  value       String   @default("{}") // JSON string
+  created_at  DateTime @default(now())
+
+  // Relaciones
+  user        usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@map("reputation_history")
+}
+
+// ==================================================
+// Tabla de Auditoría General
+// Implementación para cumplimiento y trazabilidad
+// ==================================================
+
+model audit_log {
+  id          String   @id @default(cuid())
+  user_id     String?  // Usuario que realizó la acción (puede ser null para acciones del sistema)
+  action      String   // 'verification_submitted','verification_approved','verification_rejected','reputation_updated', etc.
+  resource    String   // 'identity_verification','professional_reputation','service', etc.
+  resource_id String?  // ID del recurso afectado
+  details     String   @default("{}") // JSON string con detalles adicionales
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+
+  // Relaciones
+  user        usuarios? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([user_id])
+  @@index([action])
+  @@index([resource])
+  @@index([created_at])
+  @@index([resource, resource_id])
+  @@map("audit_log")
+}
+
+// ==================================================
+// NUEVAS TABLAS: Sistema Avanzado de Disponibilidad y Agenda
+// Implementación según especificaciones REQ-26 a REQ-30
+// ==================================================
+
+model professionals_availability {
+  id              String   @id @default(cuid())
+  professional_id String
+  recurrence_type String   @default("single")
+  start_datetime  DateTime
+  end_datetime    DateTime
+  timezone        String   @default("America/Argentina/Buenos_Aires")
+  meta            String   @default("{}") // JSON string
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  // Relaciones
+  professional    usuarios @relation("professionals_availability_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@index([start_datetime])
+  @@index([end_datetime])
+  @@index([recurrence_type])
+  @@map("professionals_availability")
+}
+
+model appointments {
+  id                String   @id @default(cuid())
+  professional_id   String
+  client_id         String
+  service_id        String?
+  start_datetime    DateTime
+  end_datetime      DateTime
+  status            String   @default("pending")
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  source            String   @default("web")
+  notes             String?
+  cancellation_reason String?
+  confirmed_at      DateTime?
+  cancelled_at      DateTime?
+  completed_at      DateTime?
+
+  // Relaciones
+  professional      usuarios  @relation("appointments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  client            usuarios  @relation("appointments_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
+  service           servicios? @relation(fields: [service_id], references: [id], onDelete: SetNull)
+
+  @@index([professional_id])
+  @@index([client_id])
+  @@index([service_id])
+  @@index([start_datetime])
+  @@index([end_datetime])
+  @@index([status])
+  @@index([created_at])
+  @@map("appointments")
+}
+
+model blocked_slots {
+  id              String   @id @default(cuid())
+  professional_id String
+  start_datetime  DateTime
+  end_datetime    DateTime
+  reason          String
+  created_by      String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  // Relaciones
+  professional    usuarios @relation("blocked_slots_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  creator         usuarios? @relation("blocked_slots_created_byTousuarios", fields: [created_by], references: [id], onDelete: SetNull)
+
+  @@index([professional_id])
+  @@index([start_datetime])
+  @@index([end_datetime])
+  @@map("blocked_slots")
+}
+
+model calendar_sync {
+  id                  String   @id @default(cuid())
+  professional_id     String
+  provider            String
+  external_calendar_id String?
+  access_token        String?
+  refresh_token       String?
+  token_expires_at    DateTime?
+  sync_enabled        Boolean  @default(true)
+  last_sync_at        DateTime?
+  sync_status         String   @default("idle")
+  sync_error          String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  // Relaciones
+  professional        usuarios @relation("calendar_sync_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+
+  @@unique([professional_id, provider])
+  @@index([professional_id])
+  @@index([provider])
+  @@index([sync_enabled])
+  @@map("calendar_sync")
+}
+
+model eventos_pagos {
+  id          String   @id
+  pago_id     String
+  tipo_evento String
+  datos       String   // JSON string
+  procesado   Boolean  @default(false)
+  creado_en   DateTime @default(now())
+  pago        pagos    @relation(fields: [pago_id], references: [id], onDelete: Cascade)
+
+  @@index([pago_id, tipo_evento])
+  @@index([procesado])
+}
+
+model disputas_pagos {
+  id               String    @id
+  pago_id          String
+  usuario_id       String
+  motivo           String
+  descripcion      String
+  estado           String    @default("abierta")
+  fecha_apertura   DateTime  @default(now())
+  fecha_resolucion DateTime?
+  resolucion       String?
+  notas_admin      String?
+  reembolso_monto  Float?
+  pago             pagos     @relation(fields: [pago_id], references: [id])
+  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
+
+  @@index([pago_id])
+  @@index([usuario_id])
+  @@index([estado])
+  @@index([fecha_apertura])
+}
+
+// ==================================================
+// NUEVOS MODELOS: Sistema de Solicitud de Presupuestos
+// Implementación para REQ-31 a REQ-35
+// ==================================================
+
+model BudgetRequest {
+  id                String   @id @default(cuid())
+  clientId          String
+  title             String
+  description       String
+  photos            String   @default("[]") // JSON string
+  category          String
+  status            String   @default("DRAFT")
+  budgetRangeMin    Float?
+  budgetRangeMax    Float?
+  preferredDate     DateTime?
+  location          String?  // JSON string
+  requirements      String   @default("{}") // JSON string
+  totalOffers       Int      @default(0)
+  selectedOfferId   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relaciones
+  client            usuarios @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  distributions     BudgetRequestProfessional[]
+  offers            BudgetOffer[]
+  selectedOffer     BudgetOffer? @relation("SelectedOffer", fields: [selectedOfferId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+}
+
+model BudgetRequestProfessional {
+  id           String                 @id @default(cuid())
+  requestId    String
+  professionalId String
+  sentAt       DateTime               @default(now())
+  responded    Boolean                @default(false)
+  respondedAt  DateTime?
+  expiresAt    DateTime
+  status       String                 @default("SENT")
+  notes        String?
+  createdAt    DateTime               @default(now())
+
+  // Relaciones
+  request      BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
+
+  @@unique([requestId, professionalId])
+  @@index([requestId])
+  @@index([professionalId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([responded])
+}
+
+model BudgetOffer {
+  id                  String    @id @default(cuid())
+  requestId           String
+  professionalId      String
+  price               Float
+  estimatedDays       Int?
+  comments            String?
+  photos              String    @default("[]") // JSON string
+  availabilityDetails String?
+  offerStatus         String    @default("PENDING")
+  isSelected          Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relaciones
+  request             BudgetRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional        perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
+
+  // Relación para la oferta seleccionada
+  selectedRequest     BudgetRequest[] @relation("SelectedOffer")
+
+  @@unique([requestId, professionalId])
+  @@index([requestId])
+  @@index([professionalId])
+  @@index([price])
+  @@index([createdAt])
+  @@index([offerStatus])
+  @@index([isSelected])
+}
+
+// ==================================================
+// Tabla de Configuración de Comisiones
+// Implementación para REQ-43: Comisión configurable (5-10%)
+// ==================================================
+
+model commission_settings {
+  id                    String   @id @default(cuid())
+  commission_percentage Float    // 0.05 = 5%
+  minimum_fee           Float    // Monto mínimo de comisión
+  active                Boolean  @default(true)
+  updated_at            DateTime @updatedAt
+  updated_by            String?  // ID del admin que actualizó
+
+  @@index([active])
+  @@index([updated_at])
+}
+
+// ==================================================
+// Nota: Enums convertidos a String para compatibilidad con SQLite
+// Valores válidos:
+// BudgetRequestStatus: DRAFT, SENT, DISTRIBUTED, RESPONDING, CLOSED, EXPIRED
+// BudgetDistributionStatus: SENT, VIEWED, RESPONDED, EXPIRED, DECLINED
+// BudgetOfferStatus: PENDING, ACCEPTED, REJECTED, WITHDRAWN
+// ==================================================

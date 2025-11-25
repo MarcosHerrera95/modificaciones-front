@@ -6,6 +6,8 @@ import QuoteRequestForm from '../components/QuoteRequestForm';
 import RatingDisplay from '../components/RatingDisplay';
 import BackButton from '../components/BackButton';
 import ProfilePicture from '../components/ProfilePicture';
+import ReviewStats from '../components/ReviewStats';
+import PaginatedReviewsList from '../components/PaginatedReviewsList';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -15,7 +17,6 @@ const ProfessionalDetail = () => {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [professional, setProfessional] = useState(null);
   const [gallery, setGallery] = useState([]);
-  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,24 +43,6 @@ const ProfessionalDetail = () => {
         { id: 1, url: 'https://placehold.co/400x300?text=Trabajo+1', title: 'Trabajo de plomería residencial' },
         { id: 2, url: 'https://placehold.co/400x300?text=Trabajo+2', title: 'Instalación eléctrica' },
         { id: 3, url: 'https://placehold.co/400x300?text=Trabajo+3', title: 'Reparación de carpintería' }
-      ]);
-
-      // Mock reviews data
-      setReviews([
-        {
-          id: 1,
-          cliente: { nombre: 'María García' },
-          calificacion: 5,
-          comentario: 'Excelente trabajo, muy profesional y puntual.',
-          creado_en: new Date().toISOString()
-        },
-        {
-          id: 2,
-          cliente: { nombre: 'Carlos López' },
-          calificacion: 4,
-          comentario: 'Buen servicio, recomendado.',
-          creado_en: new Date().toISOString()
-        }
       ]);
 
     } catch (error) {
@@ -131,7 +114,7 @@ const ProfessionalDetail = () => {
                 <div className="flex items-center bg-amber-50 px-4 py-2 rounded-full">
                   <span className="text-amber-500 text-xl mr-2">⭐</span>
                   <span className="font-bold text-gray-800">{professional.calificacion_promedio || '4.8'}</span>
-                  <span className="text-gray-500 ml-1">({reviews.length} reseñas)</span>
+                  <span className="text-gray-500 ml-1">(reseñas)</span>
                 </div>
                 <div className="flex items-center bg-emerald-50 px-4 py-2 rounded-full">
                   <span className="text-emerald-600 text-xl mr-2">$</span>
@@ -267,46 +250,12 @@ const ProfessionalDetail = () => {
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Reseñas de Clientes</h2>
 
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 mb-8">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <RatingDisplay
-                        rating={professional.calificacion_promedio || 4.8}
-                        size="lg"
-                        showLabel={true}
-                        showPercentage={true}
-                      />
-                      <p className="text-gray-600 mt-2">Basado en {reviews.length} reseñas</p>
-                    </div>
-                  </div>
-                </div>
+                {/* Estadísticas de reseñas */}
+                <ReviewStats professionalId={professionalId} />
 
-                <div className="space-y-6">
-                  {reviews.map(review => (
-                    <div key={review.id} className="border-b border-gray-200 pb-6 last:border-0">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center">
-                          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mr-4">
-                            <span className="text-emerald-600 font-bold text-lg">
-                              {review.cliente.nombre.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div>
-                            <h4 className="font-semibold text-gray-800">{review.cliente.nombre}</h4>
-                            <RatingDisplay
-                              rating={review.calificacion}
-                              size="sm"
-                              showLabel={false}
-                            />
-                          </div>
-                        </div>
-                        <span className="text-gray-500 text-sm">
-                          {new Date(review.creado_en).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-gray-600">{review.comentario || 'Sin comentario'}</p>
-                    </div>
-                  ))}
+                {/* Lista paginada de reseñas */}
+                <div className="mt-8">
+                  <PaginatedReviewsList professionalId={professionalId} />
                 </div>
               </div>
             )}

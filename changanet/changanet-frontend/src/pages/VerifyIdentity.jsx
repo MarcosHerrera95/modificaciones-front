@@ -57,27 +57,64 @@ const VerifyIdentity = () => {
     }
 
     try {
-      const formData = new FormData();
-      formData.append('document', selectedFile);
-
-      const response = await fetch('/api/verification/request', {
+      // Paso 1: Generar URL presignada
+      const uploadResponse = await fetch('/api/verification/upload', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`,
+          'Content-Type': 'application/json'
         },
-        body: formData
+        body: JSON.stringify({
+          documentType: 'dni', // Por defecto DNI, se puede hacer configurable
+          fileName: selectedFile.name,
+          fileType: selectedFile.type
+        })
       });
 
-      const data = await response.json();
+      if (!uploadResponse.ok) {
+        throw new Error('Error al generar URL de subida');
+      }
 
-      if (response.ok) {
+      const uploadData = await uploadResponse.json();
+
+      // Paso 2: Subir archivo a la URL presignada
+      const uploadToS3Response = await fetch(uploadData.data.uploadUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: {
+          'Content-Type': selectedFile.type
+        }
+      });
+
+      if (!uploadToS3Response.ok) {
+        throw new Error('Error al subir el documento');
+      }
+
+      // Paso 3: Crear solicitud de verificación
+      const verificationResponse = await fetch('/api/verification/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          documentType: 'dni',
+          documentFrontUrl: uploadData.data.key
+          // documentBackUrl opcional para el reverso
+        })
+      });
+
+      const verificationData = await verificationResponse.json();
+
+      if (verificationResponse.ok) {
         alert('Documento enviado exitosamente. Será revisado en las próximas 24-48 horas.');
         setSelectedFile(null);
         setPreview('');
       } else {
-        setError(data.error || 'Error al enviar documento');
+        setError(verificationData.error || 'Error al enviar documento');
       }
     } catch (err) {
+      console.error('Error:', err);
       setError('Error de conexión. Inténtalo de nuevo.');
     } finally {
       setLoading(false);

@@ -1,0 +1,822 @@
+openapi: 3.0.3
+info:
+  title: ChangAnet - API de Disponibilidad y Agenda Avanzada
+  description: |
+    API completa para el sistema de gestión de disponibilidad y agenda según PRD REQ-26 a REQ-30.
+
+    **Características principales:**
+    - Gestión avanzada de disponibilidad con recurrencia
+    - Sistema de citas/agendamientos con validaciones
+    - Prevención de conflictos y race conditions
+    - Sincronización con calendarios externos (Google Calendar)
+    - Notificaciones automáticas y recordatorios
+    - Timezones y manejo DST
+  version: 1.0.0
+  contact:
+    name: Equipo ChangAnet
+    email: api@changanet.com
+
+servers:
+  - url: https://api.changanet.com/v1
+    description: Producción
+  - url: https://staging-api.changanet.com/v1
+    description: Staging
+  - url: http://localhost:3000/api
+    description: Desarrollo local
+
+security:
+  - bearerAuth: []
+
+paths:
+  /advanced-availability:
+    post:
+      summary: Crear slot de disponibilidad
+      description: Crea un nuevo slot de disponibilidad para un profesional con soporte para recurrencia
+      tags: [Disponibilidad]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - start_datetime
+                - end_datetime
+              properties:
+                recurrence_type:
+                  type: string
+                  enum: [single, daily, weekly, monthly]
+                  default: single
+                  description: Tipo de recurrencia del slot
+                start_datetime:
+                  type: string
+                  format: date-time
+                  description: Fecha y hora de inicio (ISO 8601)
+                end_datetime:
+                  type: string
+                  format: date-time
+                  description: Fecha y hora de fin (ISO 8601)
+                timezone:
+                  type: string
+                  default: "America/Argentina/Buenos_Aires"
+                  description: Zona horaria del slot
+                meta:
+                  type: object
+                  properties:
+                    slot_duration:
+                      type: integer
+                      minimum: 15
+                      maximum: 480
+                      default: 60
+                      description: Duración en minutos
+                    buffer_minutes:
+                      type: integer
+                      minimum: 0
+                      maximum: 120
+                      default: 15
+                      description: Buffer entre servicios
+                    days:
+                      type: array
+                      items:
+                        type: integer
+                        minimum: 0
+                        maximum: 6
+                      description: Días de la semana (0=domingo, 6=sábado) para recurrencia semanal
+            example:
+              recurrence_type: "weekly"
+              start_datetime: "2025-12-01T09:00:00.000Z"
+              end_datetime: "2025-12-01T17:00:00.000Z"
+              timezone: "America/Argentina/Buenos_Aires"
+              meta:
+                slot_duration: 60
+                buffer_minutes: 15
+                days: [1, 3, 5]  # Lunes, miércoles, viernes
+      responses:
+        201:
+          description: Slot creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  availability:
+                    $ref: '#/components/schemas/Availability'
+        400:
+          $ref: '#/components/responses/BadRequest'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /advanced-availability/{professionalId}:
+    get:
+      summary: Obtener disponibilidad agregada
+      description: Obtiene la disponibilidad de un profesional para un rango de fechas
+      tags: [Disponibilidad]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: professionalId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del profesional
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de inicio (YYYY-MM-DD)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de fin (YYYY-MM-DD)
+        - name: timezone
+          in: query
+          schema:
+            type: string
+          description: Zona horaria del cliente
+      responses:
+        200:
+          description: Disponibilidad obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  professional_id:
+                    type: string
+                  timezone:
+                    type: string
+                  from:
+                    type: string
+                    format: date-time
+                  to:
+                    type: string
+                    format: date-time
+                  slots:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Availability'
+                        - type: object
+                          properties:
+                            is_available:
+                              type: boolean
+                              description: Indica si el slot está disponible
+                            conflict_reason:
+                              type: string
+                              description: Razón del conflicto si no está disponible
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /advanced-availability/{slotId}:
+    put:
+      summary: Actualizar slot de disponibilidad
+      description: Actualiza un slot existente de disponibilidad
+      tags: [Disponibilidad]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del slot
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                start_datetime:
+                  type: string
+                  format: date-time
+                end_datetime:
+                  type: string
+                  format: date-time
+                timezone:
+                  type: string
+                meta:
+                  type: object
+      responses:
+        200:
+          description: Slot actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  slot:
+                    $ref: '#/components/schemas/Availability'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Eliminar slot de disponibilidad
+      description: Elimina un slot de disponibilidad (solo si no tiene reservas)
+      tags: [Disponibilidad]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del slot
+      responses:
+        200:
+          description: Slot eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        400:
+          description: No se puede eliminar slot con reservas
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /appointments:
+    post:
+      summary: Crear cita/agendamiento
+      description: Crea una nueva cita verificando disponibilidad y previniendo conflictos
+      tags: [Citas]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - professional_id
+                - start_datetime
+                - end_datetime
+              properties:
+                professional_id:
+                  type: string
+                  description: ID del profesional
+                service_id:
+                  type: string
+                  description: ID del servicio (opcional)
+                start_datetime:
+                  type: string
+                  format: date-time
+                  description: Fecha y hora de inicio
+                end_datetime:
+                  type: string
+                  format: date-time
+                  description: Fecha y hora de fin
+                notes:
+                  type: string
+                  description: Notas adicionales
+                source:
+                  type: string
+                  enum: [web, mobile, api, google_calendar, ical]
+                  default: web
+                  description: Origen de la cita
+      responses:
+        201:
+          description: Cita creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  appointment:
+                    $ref: '#/components/schemas/Appointment'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        409:
+          description: Horario no disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "El horario seleccionado ya no está disponible."
+
+    get:
+      summary: Obtener citas del usuario
+      description: Obtiene las citas del usuario según su rol (cliente/profesional)
+      tags: [Citas]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Fecha de inicio
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Fecha de fin
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, confirmed, cancelled, completed, no_show]
+          description: Estado de las citas
+        - name: professional_id
+          in: query
+          schema:
+            type: string
+          description: Filtrar por profesional (solo admin)
+        - name: client_id
+          in: query
+          schema:
+            type: string
+          description: Filtrar por cliente (solo admin)
+      responses:
+        200:
+          description: Citas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  appointments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+
+  /appointments/{appointmentId}/confirm:
+    put:
+      summary: Confirmar cita
+      description: Confirma una cita pendiente (REQ-30)
+      tags: [Citas]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID de la cita
+      responses:
+        200:
+          description: Cita confirmada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  appointment:
+                    $ref: '#/components/schemas/Appointment'
+        403:
+          $ref: '#/components/responses/Forbidden'
+        404:
+          $ref: '#/components/responses/NotFound'
+
+  /appointments/{appointmentId}/cancel:
+    post:
+      summary: Cancelar cita
+      description: Cancela una cita con validación de políticas
+      tags: [Citas]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: appointmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID de la cita
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Razón de la cancelación
+      responses:
+        200:
+          description: Cita cancelada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  appointment:
+                    $ref: '#/components/schemas/Appointment'
+        400:
+          description: Cancelación no permitida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "No se puede cancelar con menos de 24 horas de anticipación."
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /blocked-slots:
+    post:
+      summary: Crear bloqueo temporal
+      description: Crea un bloqueo temporal en la agenda del profesional
+      tags: [Bloqueos]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - start_datetime
+                - end_datetime
+                - reason
+              properties:
+                start_datetime:
+                  type: string
+                  format: date-time
+                end_datetime:
+                  type: string
+                  format: date-time
+                reason:
+                  type: string
+                  minLength: 1
+      responses:
+        201:
+          description: Bloqueo creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  blocked_slot:
+                    $ref: '#/components/schemas/BlockedSlot'
+        403:
+          $ref: '#/components/responses/Forbidden'
+
+  /calendar/auth-url:
+    get:
+      summary: Generar URL de autorización Google Calendar
+      description: Genera la URL para iniciar el proceso de OAuth con Google Calendar
+      tags: [Calendario]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: URL generada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  auth_url:
+                    type: string
+                    format: uri
+                    description: URL para redireccionar al usuario a Google OAuth
+
+  /calendar/callback:
+    get:
+      summary: Procesar callback OAuth
+      description: Procesa el callback de Google OAuth y guarda los tokens
+      tags: [Calendario]
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Código de autorización de Google
+        - name: state
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Estado (ID del profesional)
+      responses:
+        200:
+          description: Calendario conectado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  sync:
+                    $ref: '#/components/schemas/CalendarSync'
+
+  /calendar/sync/{provider}:
+    post:
+      summary: Sincronizar calendario
+      description: Sincroniza manualmente el calendario externo
+      tags: [Calendario]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: provider
+          in: path
+          schema:
+            type: string
+            enum: [google, outlook, ical]
+            default: google
+          description: Proveedor de calendario
+      responses:
+        200:
+          description: Calendario sincronizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /calendar/export-ical:
+    get:
+      summary: Exportar disponibilidad como iCal
+      description: Genera y descarga un archivo iCal con la disponibilidad
+      tags: [Calendario]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de inicio
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Fecha de fin
+      responses:
+        200:
+          description: Archivo iCal generado
+          content:
+            text/calendar:
+              schema:
+                type: string
+                description: Contenido del archivo iCal
+
+  /calendar/import-ical:
+    post:
+      summary: Importar desde iCal
+      description: Importa eventos desde un archivo iCal
+      tags: [Calendario]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ical_content
+              properties:
+                ical_content:
+                  type: string
+                  description: Contenido del archivo iCal
+                block_availability:
+                  type: boolean
+                  default: true
+                  description: Si debe bloquear disponibilidad para eventos importados
+      responses:
+        200:
+          description: Importación completada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  imported_events:
+                    type: integer
+
+components:
+  schemas:
+    Availability:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID único del slot
+        professional_id:
+          type: string
+          description: ID del profesional
+        recurrence_type:
+          type: string
+          enum: [single, daily, weekly, monthly]
+          description: Tipo de recurrencia
+        start_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio
+        end_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de fin
+        timezone:
+          type: string
+          description: Zona horaria
+        meta:
+          type: object
+          description: Metadatos adicionales (duración, buffer, etc.)
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID único de la cita
+        professional_id:
+          type: string
+          description: ID del profesional
+        client_id:
+          type: string
+          description: ID del cliente
+        service_id:
+          type: string
+          description: ID del servicio asociado
+        start_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio
+        end_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de fin
+        status:
+          type: string
+          enum: [pending, confirmed, cancelled, completed, no_show]
+          description: Estado de la cita
+        notes:
+          type: string
+          description: Notas adicionales
+        cancellation_reason:
+          type: string
+          description: Razón de cancelación
+        source:
+          type: string
+          enum: [web, mobile, api, google_calendar, ical]
+          description: Origen de la cita
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        confirmed_at:
+          type: string
+          format: date-time
+        cancelled_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    BlockedSlot:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID único del bloqueo
+        professional_id:
+          type: string
+          description: ID del profesional
+        start_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de inicio del bloqueo
+        end_datetime:
+          type: string
+          format: date-time
+          description: Fecha y hora de fin del bloqueo
+        reason:
+          type: string
+          description: Razón del bloqueo
+        created_by:
+          type: string
+          description: ID del usuario que creó el bloqueo
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CalendarSync:
+      type: object
+      properties:
+        id:
+          type: string
+          description: ID único de la sincronización
+        professional_id:
+          type: string
+          description: ID del profesional
+        provider:
+          type: string
+          enum: [google, outlook, ical]
+          description: Proveedor de calendario
+        sync_enabled:
+          type: boolean
+          description: Si la sincronización está habilitada
+        last_sync_at:
+          type: string
+          format: date-time
+          description: Última sincronización
+        sync_status:
+          type: string
+          enum: [idle, syncing, error, disabled]
+          description: Estado de sincronización
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "Los datos proporcionados son inválidos"
+
+    Forbidden:
+      description: Acceso denegado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "No tienes permisos para realizar esta acción"
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: "El recurso solicitado no existe"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT de autenticación

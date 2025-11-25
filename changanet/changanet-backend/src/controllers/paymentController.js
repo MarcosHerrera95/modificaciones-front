@@ -106,6 +106,10 @@ async function createPaymentPreference(req, res) {
     const commission = 0; // Se calculará al completar el servicio
     const professionalAmount = amount; // Monto completo inicialmente
 
+    // Programar liberación automática en 24 horas (RB-04)
+    const releaseDate = new Date();
+    releaseDate.setHours(releaseDate.getHours() + 24);
+
     const payment = await prisma.pagos.create({
       data: {
         servicio_id: serviceId,
@@ -115,7 +119,14 @@ async function createPaymentPreference(req, res) {
         comision_plataforma: commission,
         monto_profesional: professionalAmount,
         estado: 'pendiente',
-        mercado_pago_preference_id: preference.id
+        mercado_pago_id: preference.id, // Usar preference ID como mercado_pago_id
+        mercado_pago_preference_id: preference.id, // Campo corregido
+        fecha_liberacion_programada: releaseDate,
+        metadata: JSON.stringify({
+          serviceDescription: service.descripcion,
+          specialServiceType: service.es_urgente ? 'urgente' : 'regular',
+          commissionRate: process.env.PLATFORM_COMMISSION_RATE || '0.05'
+        })
       }
     });
 
@@ -388,6 +399,141 @@ async function downloadReceipt(req, res) {
   }
 }
 
+/**
+ * Crea una disputa para un pago
+ * REQ-46: Sistema de disputas y reembolsos
+ */
+async function createDispute(req, res) {
+  try {
+    const { paymentId } = req.params;
+    const { motivo, descripcion } = req.body;
+    const userId = req.user.id;
+
+    if (!motivo || !descripcion) {
+      return res.status(400).json({
+        error: 'Faltan campos requeridos: motivo, descripcion',
+      });
+    }
+
+    const result = await paymentService.createDispute(paymentId, userId, motivo, descripcion);
+
+    logger.info('Dispute created successfully', {
+      service: 'payments',
+      userId,
+      paymentId,
+      disputeId: result.disputeId,
+      motivo,
+      ip: req.ip
+    });
+
+    res.status(201).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Error creating dispute', {
+      service: 'payments',
+      userId: req.user?.id,
+      paymentId: req.params.paymentId,
+      error,
+      ip: req.ip
+    });
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
+/**
+ * Procesa un reembolso
+ * REQ-46: Sistema de disputas y reembolsos
+ */
+async function processRefund(req, res) {
+  try {
+    const { paymentId } = req.params;
+    const { amount, reason } = req.body;
+    const userId = req.user.id;
+
+    if (!amount || !reason) {
+      return res.status(400).json({
+        error: 'Faltan campos requeridos: amount, reason',
+      });
+    }
+
+    const result = await paymentService.processRefund(paymentId, amount, reason, userId);
+
+    logger.info('Refund processed successfully', {
+      service: 'payments',
+      userId,
+      paymentId,
+      amount,
+      reason,
+      refundId: result.refundId,
+      ip: req.ip
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error('Error processing refund', {
+      service: 'payments',
+      userId: req.user?.id,
+      paymentId: req.params.paymentId,
+      amount: req.body?.amount,
+      error,
+      ip: req.ip
+    });
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
+/**
+ * Obtiene el historial de eventos de un pago
+ */
+async function getPaymentEvents(req, res) {
+  try {
+    const { paymentId } = req.params;
+
+    const events = await paymentService.getPaymentEvents(paymentId);
+
+    res.json({
+      success: true,
+      data: events,
+    });
+  } catch (error) {
+    console.error('Error obteniendo eventos del pago:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
+/**
+ * Obtiene disputas asociadas a un usuario
+ */
+async function getUserDisputes(req, res) {
+  try {
+    const userId = req.user.id;
+    const { status } = req.query;
+
+    const disputes = await paymentService.getUserDisputes(userId, status);
+
+    res.json({
+      success: true,
+      data: disputes,
+    });
+  } catch (error) {
+    console.error('Error obteniendo disputas del usuario:', error);
+    res.status(500).json({
+      error: error.message || 'Error interno del servidor',
+    });
+  }
+}
+
 module.exports = {
   createPaymentPreference,
   releaseFunds,
@@ -396,4 +542,8 @@ module.exports = {
   withdrawFunds,
   generateReceipt,
   downloadReceipt,
+  createDispute,
+  processRefund,
+  getPaymentEvents,
+  getUserDisputes,
 };

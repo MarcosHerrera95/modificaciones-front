@@ -37,6 +37,22 @@ router.get('/receipt/:paymentId', authenticateToken, paymentController.generateR
 // Descarga un comprobante de pago
 router.get('/receipts/:fileName', authenticateToken, paymentController.downloadReceipt);
 
+// POST /api/payments/:paymentId/dispute
+// Crea una disputa para un pago
+router.post('/:paymentId/dispute', authenticateToken, paymentController.createDispute);
+
+// POST /api/payments/:paymentId/refund
+// Procesa un reembolso
+router.post('/:paymentId/refund', authenticateToken, paymentController.processRefund);
+
+// GET /api/payments/:paymentId/events
+// Obtiene el historial de eventos de un pago
+router.get('/:paymentId/events', authenticateToken, paymentController.getPaymentEvents);
+
+// GET /api/payments/disputes
+// Obtiene disputas del usuario autenticado
+router.get('/disputes', authenticateToken, paymentController.getUserDisputes);
+
 // POST /api/payments/auto-release
 // Liberación automática de fondos (para cron jobs - sin autenticación requerida)
 router.post('/auto-release', async (req, res) => {

@@ -22,6 +22,7 @@ const ClientDashboard = lazy(() => import('./pages/ClientDashboard'));
 const ClientServices = lazy(() => import('./pages/ClientServices'));
 const ClientQuotes = lazy(() => import('./pages/ClientQuotes'));
 const ClientReviews = lazy(() => import('./pages/ClientReviews'));
+const ServiceReview = lazy(() => import('./pages/ServiceReview'));
 const ProfessionalProfile = lazy(() => import('./pages/ProfessionalProfile'));
 const ProfessionalDashboard = lazy(() => import('./pages/ProfessionalDashboard'));
 const ProfessionalServices = lazy(() => import('./pages/ProfessionalServices'));
@@ -100,6 +101,7 @@ function App() {
                     <Route path="/cliente/servicios" element={<ClientServices />} />
                     <Route path="/cliente/cotizaciones" element={<ClientQuotes />} />
                     <Route path="/cliente/resenas" element={<ClientReviews />} />
+                    <Route path="/servicio/:serviceId/resena" element={<ServiceReview />} />
                     <Route path="/cliente/mensajes" element={<ClientMessages />} />
                     <Route path="/profesional/dashboard" element={<ProfessionalDashboard />} />
                     <Route path="/profesional/servicios" element={<ProfessionalServices />} />

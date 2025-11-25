@@ -557,6 +557,308 @@ async function calculateAvailableFunds(professionalId) {
   }
 }
 
+/**
+ * Crea una disputa para un pago
+ * @param {string} paymentId - ID del pago
+ * @param {string} userId - ID del usuario que crea la disputa
+ * @param {string} motivo - Motivo de la disputa
+ * @param {string} descripcion - Descripción detallada
+ * @returns {Object} Disputa creada
+ */
+async function createDispute(paymentId, userId, motivo, descripcion) {
+  try {
+    // Verificar que el pago existe y pertenece al usuario
+    const payment = await prisma.pagos.findUnique({
+      where: { id: paymentId },
+      include: {
+        servicio: {
+          include: {
+            cliente: true,
+            profesional: true
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      throw new Error('Pago no encontrado');
+    }
+
+    // Verificar que el usuario esté autorizado (cliente o profesional del servicio)
+    const isAuthorized = payment.cliente_id === userId || payment.profesional_id === userId;
+    if (!isAuthorized) {
+      throw new Error('No tienes autorización para crear una disputa en este pago');
+    }
+
+    // Verificar que el pago esté en un estado válido para disputa
+    const validDisputeStates = ['aprobado', 'liberado'];
+    if (!validDisputeStates.includes(payment.estado)) {
+      throw new Error('El pago no está en un estado válido para crear una disputa');
+    }
+
+    // Crear la disputa
+    const disputeId = `disp_${Date.now()}`;
+    const dispute = await prisma.disputas_pagos.create({
+      data: {
+        id: disputeId,
+        pago_id: paymentId,
+        usuario_id: userId,
+        motivo,
+        descripcion,
+        estado: 'abierta',
+        fecha_apertura: new Date()
+      }
+    });
+
+    // Actualizar estado del pago a "en_disputa"
+    await prisma.pagos.update({
+      where: { id: paymentId },
+      data: {
+        estado: 'en_disputa'
+      }
+    });
+
+    // Registrar evento de disputa
+    await logPaymentEvent(paymentId, 'dispute_created', {
+      disputeId,
+      userId,
+      motivo,
+      descripcion
+    });
+
+    // Notificar a la otra parte
+    const { createNotification } = require('./notificationService');
+    const otherPartyId = userId === payment.cliente_id ? payment.profesional_id : payment.cliente_id;
+    await createNotification(
+      otherPartyId,
+      'nueva_disputa',
+      `Se ha abierto una disputa en tu pago. Motivo: ${motivo}`,
+      { paymentId, disputeId, userId }
+    );
+
+    console.log(`⚖️ Disputa creada: ${disputeId} para pago ${paymentId}`);
+
+    return {
+      disputeId,
+      paymentId,
+      estado: 'abierta',
+      createdAt: new Date()
+    };
+
+  } catch (error) {
+    console.error('Error creando disputa:', error);
+    throw error;
+  }
+}
+
+/**
+ * Procesa un reembolso
+ * @param {string} paymentId - ID del pago
+ * @param {number} amount - Monto del reembolso
+ * @param {string} reason - Razón del reembolso
+ * @param {string} userId - ID del usuario que solicita el reembolso
+ * @returns {Object} Resultado del reembolso
+ */
+async function processRefund(paymentId, amount, reason, userId) {
+  try {
+    // Verificar que el pago existe
+    const payment = await prisma.pagos.findUnique({
+      where: { id: paymentId },
+      include: {
+        servicio: {
+          include: {
+            cliente: true,
+            profesional: true
+          }
+        }
+      }
+    });
+
+    if (!payment) {
+      throw new Error('Pago no encontrado');
+    }
+
+    // Verificar autorización
+    const isAuthorized = payment.cliente_id === userId;
+    if (!isAuthorized) {
+      throw new Error('Solo el cliente puede solicitar reembolsos');
+    }
+
+    // Validar estados para reembolso
+    const refundableStates = ['aprobado', 'en_disputa', 'liberado'];
+    if (!refundableStates.includes(payment.estado)) {
+      throw new Error('El pago no está en un estado válido para reembolso');
+    }
+
+    // Validar monto de reembolso
+    if (amount > payment.monto_total) {
+      throw new Error('El monto del reembolso no puede ser mayor al monto total');
+    }
+
+    // En una implementación real, aquí se procesaría el reembolso con Mercado Pago
+    const refundId = `ref_${Date.now()}`;
+
+    // Actualizar estado del pago
+    const newStatus = amount === payment.monto_total ? 'reembolsado' : 'reembolsado_parcial';
+    await prisma.pagos.update({
+      where: { id: paymentId },
+      data: {
+        estado: newStatus,
+        metadata: JSON.stringify({
+          ...(payment.metadata ? JSON.parse(payment.metadata) : {}),
+          lastRefund: {
+            id: refundId,
+            amount,
+            reason,
+            processedAt: new Date(),
+            userId
+          }
+        })
+      }
+    });
+
+    // Registrar evento de reembolso
+    await logPaymentEvent(paymentId, 'refund_processed', {
+      refundId,
+      amount,
+      reason,
+      partialRefund: amount < payment.monto_total,
+      userId
+    });
+
+    // Notificar al profesional
+    const { createNotification } = require('./notificationService');
+    await createNotification(
+      payment.profesional_id,
+      'reembolso_procesado',
+      `Se ha procesado un reembolso de ${amount} en tu pago. Razón: ${reason}`,
+      { paymentId, refundId, amount, reason }
+    );
+
+    console.log(`💸 Reembolso procesado: ${refundId} - Monto: ${amount} - Pago: ${paymentId}`);
+
+    return {
+      refundId,
+      paymentId,
+      amount,
+      reason,
+      newStatus,
+      processedAt: new Date(),
+      estimatedArrival: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 días hábiles
+    };
+
+  } catch (error) {
+    console.error('Error procesando reembolso:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene el historial de eventos de un pago
+ * @param {string} paymentId - ID del pago
+ * @returns {Array} Lista de eventos
+ */
+async function getPaymentEvents(paymentId) {
+  try {
+    const events = await prisma.eventos_pagos.findMany({
+      where: { pago_id: paymentId },
+      orderBy: { creado_en: 'asc' }
+    });
+
+    // Parsear datos JSON para cada evento
+    const parsedEvents = events.map(event => ({
+      id: event.id,
+      tipo_evento: event.tipo_evento,
+      datos: JSON.parse(event.datos),
+      procesado: event.procesado,
+      creado_en: event.creado_en
+    }));
+
+    return parsedEvents;
+
+  } catch (error) {
+    console.error('Error obteniendo eventos del pago:', error);
+    throw error;
+  }
+}
+
+/**
+ * Obtiene disputas de un usuario
+ * @param {string} userId - ID del usuario
+ * @param {string} status - Estado de las disputas (opcional)
+ * @returns {Array} Lista de disputas
+ */
+async function getUserDisputes(userId, status = null) {
+  try {
+    const whereClause = {
+      usuario_id: userId
+    };
+
+    if (status) {
+      whereClause.estado = status;
+    }
+
+    const disputes = await prisma.disputas_pagos.findMany({
+      where: whereClause,
+      include: {
+        pago: {
+          select: {
+            id: true,
+            monto_total: true,
+            estado: true,
+            servicio: {
+              select: {
+                descripcion: true,
+                cliente: {
+                  select: { nombre: true }
+                },
+                profesional: {
+                  select: { nombre: true }
+                }
+              }
+            }
+          }
+        }
+      },
+      orderBy: { fecha_apertura: 'desc' }
+    });
+
+    return disputes;
+
+  } catch (error) {
+    console.error('Error obteniendo disputas del usuario:', error);
+    throw error;
+  }
+}
+
+/**
+ * Registra un evento en el historial de un pago
+ * @param {string} paymentId - ID del pago
+ * @param {string} tipoEvento - Tipo de evento
+ * @param {Object} datos - Datos del evento
+ */
+async function logPaymentEvent(paymentId, tipoEvento, datos) {
+  try {
+    const eventId = `evt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    await prisma.eventos_pagos.create({
+      data: {
+        id: eventId,
+        pago_id: paymentId,
+        tipo_evento: tipoEvento,
+        datos: JSON.stringify(datos),
+        creado_en: new Date()
+      }
+    });
+
+    console.log(`📝 Evento registrado: ${tipoEvento} para pago ${paymentId}`);
+
+  } catch (error) {
+    console.error('Error registrando evento de pago:', error);
+    // No lanzar error para evitar interrumpir el flujo principal
+  }
+}
+
 module.exports = {
   createPaymentPreference,
   releaseFunds,
@@ -565,4 +867,9 @@ module.exports = {
   withdrawFunds,
   generatePaymentReceipt,
   calculateAvailableFunds,
+  createDispute,
+  processRefund,
+  getPaymentEvents,
+  getUserDisputes,
+  logPaymentEvent,
 };

@@ -13,6 +13,9 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [userFilters, setUserFilters] = useState({ page: 1, search: '', role: '', blocked: '' });
   const [serviceFilters, setServiceFilters] = useState({ page: 1, search: '', status: '', urgent: '' });
+  const [commissionSettings, setCommissionSettings] = useState(null);
+  const [commissionHistory, setCommissionHistory] = useState([]);
+  const [commissionLoading, setCommissionLoading] = useState(false);
 
   useEffect(() => {
     if (user && user.rol === 'admin') {
@@ -27,6 +30,8 @@ const AdminDashboard = () => {
       loadUsers();
     } else if (activeTab === 'services') {
       loadServices();
+    } else if (activeTab === 'payments') {
+      loadCommissionSettings();
     }
   }, [activeTab, userFilters, serviceFilters]);
 
@@ -85,6 +90,62 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       console.error('Error loading services:', error);
+    }
+  };
+
+  const loadCommissionSettings = async () => {
+    try {
+      setCommissionLoading(true);
+      const [settingsRes, historyRes] = await Promise.all([
+        fetch('/api/admin/commissions/active', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+        }),
+        fetch('/api/admin/commissions/history', {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('changanet_token')}` }
+        })
+      ]);
+
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setCommissionSettings(settingsData.data);
+      }
+
+      if (historyRes.ok) {
+        const historyData = await historyRes.json();
+        setCommissionHistory(historyData.data);
+      }
+    } catch (error) {
+      console.error('Error loading commission settings:', error);
+    } finally {
+      setCommissionLoading(false);
+    }
+  };
+
+  const handleUpdateCommissionSettings = async (newSettings) => {
+    try {
+      setCommissionLoading(true);
+      const response = await fetch('/api/admin/commissions/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify(newSettings)
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setCommissionSettings(result.data);
+        alert('Configuración de comisión actualizada exitosamente');
+        loadCommissionSettings(); // Recargar datos
+      } else {
+        alert('Error al actualizar configuración de comisión');
+      }
+    } catch (error) {
+      console.error('Error updating commission settings:', error);
+      alert('Error al actualizar configuración de comisión');
+    } finally {
+      setCommissionLoading(false);
     }
   };
 
@@ -757,71 +818,117 @@ const AdminDashboard = () => {
               {/* Configuración de Comisiones */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4">Configuración de Comisiones</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Comisión Estándar (%)
-                    </label>
-                    <input
-                      type="number"
-                      defaultValue="8"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Comisión aplicada a la mayoría de servicios</p>
+
+                {commissionLoading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Comisión Urgente (%)
-                    </label>
-                    <input
-                      type="number"
-                      defaultValue="10"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Comisión aplicada a servicios urgentes</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monto Mínimo de Retiro ($)
-                    </label>
-                    <input
-                      type="number"
-                      defaultValue="50"
-                      min="0"
-                      step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Monto mínimo para procesar retiros</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Días para Liberación de Fondos
-                    </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="1">1 día</option>
-                      <option value="3" selected>3 días</option>
-                      <option value="7">7 días</option>
-                      <option value="14">14 días</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">Tiempo de espera antes de liberar fondos</p>
-                  </div>
-                </div>
-                
-                <div className="mt-6">
-                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                    Guardar Configuración
-                  </button>
-                </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Comisión Estándar (%)
+                        </label>
+                        <input
+                          type="number"
+                          defaultValue={commissionSettings?.commission_percentage ? (commissionSettings.commission_percentage * 100) : 5}
+                          min="5"
+                          max="10"
+                          step="0.1"
+                          id="commission_percentage"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Comisión aplicada a servicios completados (5-10% según PRD)</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Monto Mínimo de Comisión ($)
+                        </label>
+                        <input
+                          type="number"
+                          defaultValue={commissionSettings?.minimum_fee || 0}
+                          min="0"
+                          step="0.01"
+                          id="minimum_fee"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">Monto mínimo de comisión por transacción</p>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                          <h4 className="text-sm font-medium text-blue-900 mb-2">Configuración Actual</h4>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-600">Comisión:</span>
+                              <span className="font-medium ml-2">
+                                {commissionSettings?.commission_percentage ? (commissionSettings.commission_percentage * 100) : 5}%
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-gray-600">Mínimo:</span>
+                              <span className="font-medium ml-2">
+                                ${commissionSettings?.minimum_fee || 0}
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-xs text-blue-700 mt-2">
+                            Última actualización: {commissionSettings?.updated_at ? new Date(commissionSettings.updated_at).toLocaleDateString() : 'Nunca'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6">
+                      <button
+                        onClick={() => {
+                          const commissionInput = document.getElementById('commission_percentage');
+                          const minimumInput = document.getElementById('minimum_fee');
+
+                          const newSettings = {
+                            commission_percentage: parseFloat(commissionInput.value) / 100, // Convertir a decimal
+                            minimum_fee: parseFloat(minimumInput.value)
+                          };
+
+                          handleUpdateCommissionSettings(newSettings);
+                        }}
+                        disabled={commissionLoading}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {commissionLoading ? 'Guardando...' : 'Guardar Configuración'}
+                      </button>
+                    </div>
+
+                    {/* Historial de Cambios */}
+                    {commissionHistory.length > 0 && (
+                      <div className="mt-8">
+                        <h4 className="text-md font-medium text-gray-900 mb-4">Historial de Cambios</h4>
+                        <div className="space-y-3 max-h-48 overflow-y-auto">
+                          {commissionHistory.map((entry, index) => (
+                            <div key={index} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium">
+                                  Comisión: {(entry.commission_percentage * 100).toFixed(1)}% |
+                                  Mínimo: ${entry.minimum_fee}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(entry.updated_at).toLocaleDateString()} {new Date(entry.updated_at).toLocaleTimeString()}
+                                </p>
+                              </div>
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                entry.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {entry.active ? 'Activa' : 'Anterior'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           )}

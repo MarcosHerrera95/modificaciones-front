@@ -15,11 +15,54 @@
 
 const express = require('express');
 const { searchProfessionals } = require('../controllers/searchController');
+const { searchRateLimiter, suggestionsRateLimiter } = require('../middleware/advancedRateLimiting');
 
 const router = express.Router();
 
 // Ruta para buscar profesionales con filtros avanzados y ordenamiento
 // REQ-11,12,13,14,15: Implementa búsqueda completa según PRD
-router.get('/', searchProfessionals);
+// Incluye rate limiting avanzado y sanitización de entrada
+router.get('/', searchRateLimiter, searchProfessionals);
+
+// Ruta para obtener sugerencias de búsqueda (autocompletado)
+// Endpoint separado con rate limiting específico
+router.get('/suggestions', suggestionsRateLimiter, async (req, res) => {
+  try {
+    const { q, limit = 10 } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.json({
+        success: true,
+        suggestions: [],
+        query: q || ''
+      });
+    }
+
+    // TODO: Implementar lógica de sugerencias desde base de datos
+    // Por ahora, devolver sugerencias básicas
+    const mockSuggestions = [
+      { type: 'specialty', value: 'plomero', category: 'servicios' },
+      { type: 'specialty', value: 'electricista', category: 'servicios' },
+      { type: 'location', value: 'Buenos Aires', category: 'ciudades' },
+      { type: 'location', value: 'Palermo', category: 'barrios' }
+    ].filter(item =>
+      item.value.toLowerCase().includes(q.toLowerCase())
+    ).slice(0, parseInt(limit));
+
+    res.json({
+      success: true,
+      suggestions: mockSuggestions,
+      query: q,
+      count: mockSuggestions.length
+    });
+
+  } catch (error) {
+    console.error('Error getting search suggestions:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al obtener sugerencias de búsqueda'
+    });
+  }
+});
 
 module.exports = router;

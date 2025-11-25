@@ -9,6 +9,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { sendNotification } = require('../services/notificationService');
 const { sendSMS } = require('../services/smsService');
+const { logServiceCompleted } = require('../services/auditService');
 
 const prisma = new PrismaClient();
 
@@ -259,6 +260,19 @@ exports.updateServiceStatus = async (req, res) => {
       const { incrementServiceCompleted, incrementTripleImpactActivity } = require('../services/metricsService');
       incrementServiceCompleted('general', 'economic');
       incrementTripleImpactActivity('environmental', 'servicio_completado');
+
+      // ACTUALIZAR REPUTACIÓN DEL PROFESIONAL (REQ-36 a REQ-40)
+      try {
+        const { updateProfessionalReputation } = require('./reputationController');
+        await updateProfessionalReputation(userId);
+        console.log(`✅ Reputación actualizada para profesional ${userId} tras completar servicio ${serviceId}`);
+
+        // Registrar en auditoría
+        await logServiceCompleted(userId, service.cliente_id, serviceId, req.ip, req.get('User-Agent'));
+      } catch (reputationError) {
+        console.error('Error updating reputation after service completion:', reputationError);
+        // No fallar la operación principal por error en reputación
+      }
     }
 
     // Send notification to client

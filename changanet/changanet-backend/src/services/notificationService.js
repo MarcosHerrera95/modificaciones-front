@@ -658,6 +658,247 @@ async function sendPaymentReminders(now) {
   }
 }
 
+/**
+ * Enviar notificaciones específicas del sistema de presupuestos (REQ-35)
+ * @param {string} eventType - Tipo de evento del presupuesto
+ * @param {Object} eventData - Datos del evento
+ */
+async function sendBudgetNotifications(eventType, eventData) {
+  try {
+    console.log(`Enviando notificaciones de presupuesto: ${eventType}`, eventData);
+
+    switch (eventType) {
+      case 'NEW_BUDGET_REQUEST':
+        await notifyNewBudgetRequest(eventData);
+        break;
+
+      case 'NEW_BUDGET_OFFER':
+        await notifyNewBudgetOffer(eventData);
+        break;
+
+      case 'OFFER_SELECTED':
+        await notifyOfferSelected(eventData);
+        break;
+
+      case 'OFFER_REJECTED':
+        await notifyOfferRejected(eventData);
+        break;
+
+      case 'REQUEST_CANCELLED':
+        await notifyRequestCancelled(eventData);
+        break;
+
+      case 'REQUEST_EXPIRED':
+        await notifyRequestExpired(eventData);
+        break;
+
+      default:
+        console.warn(`Tipo de evento de presupuesto desconocido: ${eventType}`);
+    }
+  } catch (error) {
+    console.error('Error enviando notificaciones de presupuesto:', error);
+    throw error;
+  }
+}
+
+/**
+ * Notificar nueva solicitud de presupuesto a profesionales
+ */
+async function notifyNewBudgetRequest(eventData) {
+  const { requestId, requestTitle, requestDescription, category, budgetRange, clientName, expiresAt } = eventData;
+
+  try {
+    // Obtener IDs de profesionales a notificar
+    const distributions = await prisma.budgetRequestProfessional.findMany({
+      where: { requestId },
+      select: { professionalId: true }
+    });
+
+    const professionalIds = distributions.map(d => d.professionalId);
+
+    // Enviar notificación a cada profesional
+    for (const professionalId of professionalIds) {
+      await exports.createNotification(
+        professionalId,
+        'cotizacion',
+        `Nueva solicitud de presupuesto: ${requestTitle}`,
+        {
+          requestId,
+          requestTitle,
+          requestDescription,
+          category,
+          budgetRange,
+          clientName,
+          expiresAt: expiresAt.toISOString(),
+          actionUrl: `/profesional/presupuestos`
+        },
+        'high'
+      );
+    }
+
+    console.log(`Notificaciones enviadas a ${professionalIds.length} profesionales para solicitud ${requestId}`);
+  } catch (error) {
+    console.error('Error notificando nueva solicitud:', error);
+  }
+}
+
+/**
+ * Notificar nueva oferta de presupuesto al cliente
+ */
+async function notifyNewBudgetOffer(eventData) {
+  const { requestId, offer, clientId } = eventData;
+
+  try {
+    await exports.createNotification(
+      clientId,
+      'cotizacion',
+      `Nueva oferta recibida para "${offer.request?.title || 'tu solicitud'}"`,
+      {
+        requestId,
+        offerId: offer.id,
+        professionalName: offer.professional?.usuarios?.nombre,
+        price: offer.price,
+        estimatedDays: offer.estimatedDays,
+        actionUrl: `/cliente/presupuestos/${requestId}/comparar`
+      },
+      'high'
+    );
+
+    console.log(`Notificación de nueva oferta enviada al cliente ${clientId} para solicitud ${requestId}`);
+  } catch (error) {
+    console.error('Error notificando nueva oferta:', error);
+  }
+}
+
+/**
+ * Notificar selección de oferta al profesional ganador
+ */
+async function notifyOfferSelected(eventData) {
+  const { requestId, winningOffer, clientName } = eventData;
+
+  try {
+    await exports.createNotification(
+      winningOffer.professionalId,
+      'cotizacion_aceptada',
+      `¡Felicitaciones! Tu oferta fue seleccionada para "${winningOffer.request?.title}"`,
+      {
+        requestId,
+        offerId: winningOffer.id,
+        clientName,
+        price: winningOffer.price,
+        actionUrl: `/profesional/servicios`
+      },
+      'critical'
+    );
+
+    console.log(`Notificación de oferta seleccionada enviada al profesional ${winningOffer.professionalId}`);
+  } catch (error) {
+    console.error('Error notificando oferta seleccionada:', error);
+  }
+}
+
+/**
+ * Notificar rechazo de ofertas a profesionales no seleccionados
+ */
+async function notifyOfferRejected(eventData) {
+  const { requestId, rejectedOffers } = eventData;
+
+  try {
+    for (const offer of rejectedOffers) {
+      await exports.createNotification(
+        offer.professional?.usuarios?.id,
+        'cotizacion_rechazada',
+        `Tu oferta para "${offer.request?.title}" no fue seleccionada`,
+        {
+          requestId,
+          offerId: offer.id,
+          clientName: offer.request?.client?.nombre,
+          actionUrl: `/profesional/presupuestos`
+        },
+        'medium'
+      );
+    }
+
+    console.log(`Notificaciones de ofertas rechazadas enviadas a ${rejectedOffers.length} profesionales`);
+  } catch (error) {
+    console.error('Error notificando ofertas rechazadas:', error);
+  }
+}
+
+/**
+ * Notificar cancelación de solicitud a profesionales
+ */
+async function notifyRequestCancelled(eventData) {
+  const { requestId, clientName, reason } = eventData;
+
+  try {
+    // Obtener IDs de profesionales afectados
+    const distributions = await prisma.budgetRequestProfessional.findMany({
+      where: { requestId },
+      select: { professionalId: true }
+    });
+
+    const professionalIds = distributions.map(d => d.professionalId);
+
+    // Enviar notificación a cada profesional
+    for (const professionalId of professionalIds) {
+      await exports.createNotification(
+        professionalId,
+        'cotizacion',
+        `La solicitud "${eventData.requestTitle || 'de presupuesto'}" ha sido cancelada`,
+        {
+          requestId,
+          clientName,
+          reason,
+          actionUrl: `/profesional/presupuestos`
+        },
+        'medium'
+      );
+    }
+
+    console.log(`Notificaciones de cancelación enviadas a ${professionalIds.length} profesionales`);
+  } catch (error) {
+    console.error('Error notificando cancelación:', error);
+  }
+}
+
+/**
+ * Notificar expiración de solicitud a profesionales
+ */
+async function notifyRequestExpired(eventData) {
+  const { requestId, requestTitle, clientName } = eventData;
+
+  try {
+    // Obtener IDs de profesionales afectados
+    const distributions = await prisma.budgetRequestProfessional.findMany({
+      where: { requestId },
+      select: { professionalId: true }
+    });
+
+    const professionalIds = distributions.map(d => d.professionalId);
+
+    // Enviar notificación a cada profesional
+    for (const professionalId of professionalIds) {
+      await exports.createNotification(
+        professionalId,
+        'cotizacion',
+        `La solicitud "${requestTitle}" ha expirado sin respuesta`,
+        {
+          requestId,
+          requestTitle,
+          clientName,
+          actionUrl: `/profesional/presupuestos`
+        },
+        'low'
+      );
+    }
+
+    console.log(`Notificaciones de expiración enviadas a ${professionalIds.length} profesionales`);
+  } catch (error) {
+    console.error('Error notificando expiración:', error);
+  }
+}
+
 module.exports = {
   createNotification: exports.createNotification,
   createNotificationQuick: exports.createNotificationQuick,
@@ -668,6 +909,7 @@ module.exports = {
   deleteNotification: exports.deleteNotification,
   scheduleNotification: exports.scheduleNotification,
   processScheduledNotifications: exports.processScheduledNotifications,
+  sendBudgetNotifications,
   NOTIFICATION_TYPES,
   NOTIFICATION_PRIORITIES
 };

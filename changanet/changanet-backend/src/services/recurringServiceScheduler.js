@@ -7,7 +7,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { createNotification, NOTIFICATION_TYPES, processScheduledNotifications } = require('./notificationService');
 const { sendPushNotification } = require('./pushNotificationService');
-const { autoReleaseFunds } = require('./paymentsService');
+const { scheduledAutoRelease } = require('./autoReleaseService');
 
 const prisma = new PrismaClient();
 
@@ -375,10 +375,10 @@ async function processAutomaticFundReleases() {
   try {
     console.log('💰 Procesando liberaciones automáticas de fondos...');
 
-    const result = await autoReleaseFunds();
+    const result = await scheduledAutoRelease();
 
-    if (result.processed > 0) {
-      console.log(`✅ Procesadas ${result.processed} liberaciones automáticas de fondos`);
+    if (result.releaseResult.paymentsProcessed > 0) {
+      console.log(`✅ Procesadas ${result.releaseResult.paymentsProcessed} liberaciones automáticas de fondos`);
     }
 
     return result;
