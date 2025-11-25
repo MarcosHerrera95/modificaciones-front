@@ -1,399 +1,423 @@
 // src/components/search/AdvancedFilters.jsx
 /**
- * Componente de Filtros Avanzados para Changánet
- * Implementa REQ-12: Filtros por especialidad, ciudad, barrio y radio
- * Implementa REQ-13: Filtros por rango de precio
- * Implementa REQ-14: Ordenamiento por calificación, cercanía y disponibilidad
+ * Componente de Filtros Avanzados para Búsqueda de Profesionales
+ * Implementa filtros según REQ-12 y REQ-13 del PRD
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { debounce } from 'lodash';
+import React, { useState, useEffect } from 'react';
+import { useGeolocation } from '../../hooks/useGeolocation';
 
 const AdvancedFilters = ({ 
-  filters = {}, 
+  filters, 
   onFiltersChange, 
-  userLocation = null,
+  onClearFilters,
+  isLoading = false,
   className = '' 
 }) => {
-  // Estado local de los filtros
-  const [localFilters, setLocalFilters] = useState({
-    specialty: filters.specialty || '',
-    city: filters.city || '',
-    district: filters.district || '',
-    minPrice: filters.minPrice || '',
-    maxPrice: filters.maxPrice || '',
-    priceType: filters.priceType || 'hora',
-    sortBy: filters.sortBy || 'rating',
-    radius: filters.radius || '',
-    onlyVerified: filters.onlyVerified || false,
-    availableOnly: filters.availableOnly || false,
-    ...filters
-  });
+  const { location: geoLocation, requestLocation, clearLocation } = useGeolocation();
+  
+  // Estado local de filtros (para evitar actualizaciones excesivas)
+  const [localFilters, setLocalFilters] = useState(filters);
 
-  // Estados para sugerencias
-  const [specialtySuggestions, setSpecialtySuggestions] = useState([]);
-  const [locationSuggestions, setLocationSuggestions] = useState([]);
-  const [showSpecialtySuggestions, setShowSpecialtySuggestions] = useState(false);
-  const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
-
-  // Función debounced para obtener sugerencias de especialidades
-  const getSpecialtySuggestions = useCallback(
-    debounce(async (query) => {
-      if (query.length < 2) {
-        setSpecialtySuggestions([]);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/search/specialties?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (data.success) {
-          setSpecialtySuggestions(data.data.slice(0, 5));
-        }
-      } catch (error) {
-        console.error('Error getting specialty suggestions:', error);
-        setSpecialtySuggestions([]);
-      }
-    }, 300),
-    []
-  );
-
-  // Función debounced para obtener sugerencias de ubicaciones
-  const getLocationSuggestions = useCallback(
-    debounce(async (query) => {
-      if (query.length < 2) {
-        setLocationSuggestions([]);
-        return;
-      }
-
-      try {
-        const response = await fetch(`/api/search/suggestions?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
-        
-        if (data.success) {
-          setLocationSuggestions(data.data.locations.slice(0, 5));
-        }
-      } catch (error) {
-        console.error('Error getting location suggestions:', error);
-        setLocationSuggestions([]);
-      }
-    }, 300),
-    []
-  );
-
-  // Efectos para actualizar sugerencias
+  // Sincronizar con filtros externos
   useEffect(() => {
-    if (localFilters.specialty) {
-      getSpecialtySuggestions(localFilters.specialty);
-    } else {
-      setSpecialtySuggestions([]);
-    }
-  }, [localFilters.specialty, getSpecialtySuggestions]);
+    setLocalFilters(filters);
+  }, [filters]);
 
-  useEffect(() => {
-    if (localFilters.city) {
-      getLocationSuggestions(localFilters.city);
-    } else {
-      setLocationSuggestions([]);
-    }
-  }, [localFilters.city, getLocationSuggestions]);
+  // Contar filtros activos
+  const activeFiltersCount = Object.keys(localFilters).filter(key => {
+    const value = localFilters[key];
+    if (typeof value === 'boolean') return value;
+    return value && value.toString().trim() !== '';
+  }).length;
 
-  // Función para actualizar filtros
-  const updateFilter = useCallback((key, value) => {
+  // Manejar cambios en filtros
+  const handleFilterChange = (key, value) => {
     const newFilters = { ...localFilters, [key]: value };
     setLocalFilters(newFilters);
-    
-    // Callback para notificar cambios
-    if (onFiltersChange) {
-      onFiltersChange(newFilters);
-    }
-  }, [localFilters, onFiltersChange]);
+    onFiltersChange(newFilters);
+  };
 
-  // Función para limpiar filtros
-  const clearFilters = useCallback(() => {
-    const clearedFilters = {
-      specialty: '',
-      city: '',
-      district: '',
-      minPrice: '',
-      maxPrice: '',
-      priceType: 'hora',
-      sortBy: 'rating',
-      radius: '',
-      onlyVerified: false,
-      availableOnly: false
-    };
-    setLocalFilters(clearedFilters);
-    
-    if (onFiltersChange) {
-      onFiltersChange(clearedFilters);
-    }
-  }, [onFiltersChange]);
-
-  // Función para obtener filtros activos
-  const getActiveFiltersCount = () => {
-    return Object.entries(localFilters).filter(([key, value]) => {
-      if (key === 'sortBy' || key === 'priceType') return false;
-      if (key === 'onlyVerified' || key === 'availableOnly') return value;
-      return value && value.toString().trim() !== '';
-    }).length;
+  // Limpiar un filtro específico
+  const handleClearFilter = (key) => {
+    const newFilters = { ...localFilters };
+    delete newFilters[key];
+    setLocalFilters(newFilters);
+    onFiltersChange(newFilters);
   };
 
   return (
-    <div className={`advanced-filters bg-white rounded-xl shadow-lg p-6 ${className}`}>
-      {/* Header con título y contador de filtros */}
+    <div className={`bg-white rounded-2xl shadow-lg p-6 ${className}`}>
+      {/* Header con contador de filtros */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-2">
-          <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-              d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z" />
-          </svg>
-          <h3 className="text-lg font-semibold text-gray-900">Filtros de Búsqueda</h3>
-          {getActiveFiltersCount() > 0 && (
-            <span className="bg-emerald-100 text-emerald-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-              {getActiveFiltersCount()} activo{getActiveFiltersCount() !== 1 ? 's' : ''}
-            </span>
-          )}
+        <div className="flex items-center space-x-3">
+          <span className="text-2xl">🔍</span>
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">Filtros de Búsqueda</h3>
+            {activeFiltersCount > 0 && (
+              <span className="text-sm text-emerald-600 font-medium">
+                {activeFiltersCount} filtro{activeFiltersCount !== 1 ? 's' : ''} activo{activeFiltersCount !== 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
         
-        {getActiveFiltersCount() > 0 && (
+        {/* Botón para limpiar todos los filtros */}
+        {activeFiltersCount > 0 && (
           <button
-            onClick={clearFilters}
-            className="text-sm text-gray-500 hover:text-gray-700 underline"
+            onClick={() => {
+              setLocalFilters({});
+              onClearFilters();
+            }}
+            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 
+                     transition-colors text-sm font-medium flex items-center space-x-2"
+            disabled={isLoading}
           >
-            Limpiar filtros
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            <span>Limpiar todo</span>
           </button>
         )}
       </div>
 
-      {/* Fila 1: Especialidad y Ubicación */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Filtro de Especialidad */}
-        <div className="relative">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Especialidad
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              value={localFilters.specialty}
-              onChange={(e) => updateFilter('specialty', e.target.value)}
-              onFocus={() => setShowSpecialtySuggestions(true)}
-              placeholder="Ej: Plomero, Electricista..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-            />
-            
-            {/* Sugerencias de especialidades */}
-            {showSpecialtySuggestions && specialtySuggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                {specialtySuggestions.map((specialty, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      updateFilter('specialty', specialty.name);
-                      setShowSpecialtySuggestions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg"
-                  >
-                    {specialty.name}
-                    {specialty.category && (
-                      <span className="text-xs text-gray-500 ml-2">
-                        ({specialty.category})
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* Geolocalización */}
+      <div className="mb-6 pb-4 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <span className="text-xl">📍</span>
+            <div>
+              <h4 className="text-gray-700 font-semibold">Ubicación</h4>
+              <p className="text-sm text-gray-500">Para búsquedas por distancia</p>
+            </div>
           </div>
-        </div>
-
-        {/* Filtro de Ciudad */}
-        <div className="relative">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Ciudad
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              value={localFilters.city}
-              onChange={(e) => updateFilter('city', e.target.value)}
-              onFocus={() => setShowLocationSuggestions(true)}
-              placeholder="Ej: Buenos Aires, Córdoba..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-            />
-            
-            {/* Sugerencias de ubicaciones */}
-            {showLocationSuggestions && locationSuggestions.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
-                {locationSuggestions.map((location, index) => (
-                  <button
-                    key={index}
-                    onClick={() => {
-                      updateFilter('city', location);
-                      setShowLocationSuggestions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left hover:bg-gray-50 first:rounded-t-lg last:rounded-b-lg flex items-center"
-                  >
-                    <svg className="w-4 h-4 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    {location}
-                  </button>
-                ))}
-              </div>
+          
+          <div className="flex items-center space-x-2">
+            {geoLocation ? (
+              <>
+                <div className="text-right">
+                  <span className="text-green-600 font-medium text-sm">Ubicación activada</span>
+                  <div className="text-xs text-gray-500">
+                    ({geoLocation.latitude.toFixed(4)}, {geoLocation.longitude.toFixed(4)})
+                  </div>
+                </div>
+                <button
+                  onClick={clearLocation}
+                  className="text-sm text-red-600 hover:text-red-700 underline px-2 py-1"
+                >
+                  Desactivar
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={requestLocation}
+                className="text-sm text-blue-600 hover:text-blue-700 underline px-2 py-1"
+              >
+                Activar
+              </button>
             )}
           </div>
         </div>
       </div>
 
-      {/* Fila 2: Barrio y Radio */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        {/* Filtro de Barrio */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Barrio
+      {/* Filtros principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Especialidad */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>🔧</span>
+            <span>Especialidad</span>
           </label>
-          <input
-            type="text"
-            value={localFilters.district}
-            onChange={(e) => updateFilter('district', e.target.value)}
-            placeholder="Ej: Palermo, Recoleta..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={localFilters.specialty || ''}
+              onChange={(e) => handleFilterChange('specialty', e.target.value)}
+              placeholder="Ej: Plomero, Electricista"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                       focus:border-transparent text-sm transition-all duration-200"
+              disabled={isLoading}
+            />
+            {localFilters.specialty && (
+              <button
+                onClick={() => handleClearFilter('specialty')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* Filtro de Radio */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Radio de búsqueda
-            {!userLocation && (
-              <span className="text-xs text-amber-600 ml-1">
-                (requiere ubicación)
-              </span>
+        {/* Ciudad */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>🏙️</span>
+            <span>Ciudad</span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={localFilters.city || ''}
+              onChange={(e) => handleFilterChange('city', e.target.value)}
+              placeholder="Ej: Buenos Aires, Córdoba"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                       focus:border-transparent text-sm transition-all duration-200"
+              disabled={isLoading}
+            />
+            {localFilters.city && (
+              <button
+                onClick={() => handleClearFilter('city')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
             )}
+          </div>
+        </div>
+
+        {/* Barrio */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>📍</span>
+            <span>Barrio</span>
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={localFilters.district || ''}
+              onChange={(e) => handleFilterChange('district', e.target.value)}
+              placeholder="Ej: Palermo, Recoleta"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                       focus:border-transparent text-sm transition-all duration-200"
+              disabled={isLoading}
+            />
+            {localFilters.district && (
+              <button
+                onClick={() => handleClearFilter('district')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Precio mínimo */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>💰</span>
+            <span>Precio mínimo</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={localFilters.minPrice || ''}
+              onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+              placeholder="0"
+              min="0"
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                       focus:border-transparent text-sm transition-all duration-200"
+              disabled={isLoading}
+            />
+            {localFilters.minPrice && (
+              <button
+                onClick={() => handleClearFilter('minPrice')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Precio máximo */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>💰</span>
+            <span>Precio máximo</span>
+          </label>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 text-sm">$</span>
+            <input
+              type="number"
+              value={localFilters.maxPrice || ''}
+              onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+              placeholder="10000"
+              min="0"
+              className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                       focus:border-transparent text-sm transition-all duration-200"
+              disabled={isLoading}
+            />
+            {localFilters.maxPrice && (
+              <button
+                onClick={() => handleClearFilter('maxPrice')}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Radio de distancia */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>🎯</span>
+            <span>Radio de distancia</span>
           </label>
           <select
-            value={localFilters.radius}
-            onChange={(e) => updateFilter('radius', e.target.value)}
-            disabled={!userLocation}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors disabled:bg-gray-100 disabled:cursor-not-allowed"
+            value={localFilters.radius || ''}
+            onChange={(e) => handleFilterChange('radius', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                     focus:border-transparent text-sm transition-all duration-200"
+            disabled={isLoading || !geoLocation}
           >
             <option value="">Sin límite</option>
             <option value="5">5 km</option>
             <option value="10">10 km</option>
+            <option value="15">15 km</option>
             <option value="20">20 km</option>
             <option value="30">30 km</option>
             <option value="50">50 km</option>
           </select>
+          {!geoLocation && (
+            <p className="text-xs text-amber-600 flex items-center space-x-1">
+              <span>⚠️</span>
+              <span>Activa tu ubicación para usar este filtro</span>
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Fila 3: Filtros de Precio */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Rango de precio
-        </label>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Tipo de precio */}
-          <div>
-            <select
-              value={localFilters.priceType}
-              onChange={(e) => updateFilter('priceType', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-            >
-              <option value="hora">Por hora</option>
-              <option value="servicio">Por servicio</option>
-              <option value="convenio">A convenir</option>
-            </select>
-          </div>
-          
-          {/* Precio mínimo */}
-          <div>
-            <input
-              type="number"
-              value={localFilters.minPrice}
-              onChange={(e) => updateFilter('minPrice', e.target.value)}
-              placeholder="Precio mínimo"
-              min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-            />
-          </div>
-          
-          {/* Precio máximo */}
-          <div>
-            <input
-              type="number"
-              value={localFilters.maxPrice}
-              onChange={(e) => updateFilter('maxPrice', e.target.value)}
-              placeholder="Precio máximo"
-              min="0"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Fila 4: Ordenamiento y opciones adicionales */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Segunda fila de filtros */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
         {/* Ordenamiento */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Ordenar por
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm flex items-center space-x-2">
+            <span>📊</span>
+            <span>Ordenar por</span>
           </label>
           <select
-            value={localFilters.sortBy}
-            onChange={(e) => updateFilter('sortBy', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+            value={localFilters.sortBy || 'rating'}
+            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 
+                     focus:border-transparent text-sm transition-all duration-200"
+            disabled={isLoading}
           >
             <option value="rating">⭐ Mejor calificación</option>
-            <option value="distance">📍 Más cercano</option>
-            <option value="availability">✅ Más disponible</option>
+            <option value="distance" disabled={!geoLocation}>📍 Más cercano</option>
             <option value="price">💰 Precio más bajo</option>
+            <option value="availability">✅ Más disponible</option>
           </select>
+          {localFilters.sortBy === 'distance' && !geoLocation && (
+            <p className="text-xs text-amber-600">Requiere ubicación activada</p>
+          )}
         </div>
 
-        {/* Opciones adicionales */}
+        {/* Filtro de verificación */}
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700">
-            Opciones
-          </label>
-          <div className="space-y-2">
-            <label className="flex items-center">
+          <label className="text-gray-700 font-semibold text-sm">Estado</label>
+          <div className="flex items-center space-x-3">
+            <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={localFilters.onlyVerified}
-                onChange={(e) => updateFilter('onlyVerified', e.target.checked)}
-                className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
+                checked={localFilters.onlyVerified || false}
+                onChange={(e) => handleFilterChange('onlyVerified', e.target.checked)}
+                className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded 
+                         focus:ring-emerald-500 focus:ring-2"
+                disabled={isLoading}
               />
-              <span className="ml-2 text-sm text-gray-700">Solo verificados</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={localFilters.availableOnly}
-                onChange={(e) => updateFilter('availableOnly', e.target.checked)}
-                className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500"
-              />
-              <span className="ml-2 text-sm text-gray-700">Solo disponibles</span>
+              <span className="text-sm text-gray-700">Solo verificados</span>
+              <span className="text-emerald-600">✅</span>
             </label>
           </div>
         </div>
+
+        {/* Disponibilidad */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm">Disponibilidad</label>
+          <div className="flex items-center space-x-3">
+            <label className="flex items-center space-x-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={localFilters.availableOnly || false}
+                onChange={(e) => handleFilterChange('availableOnly', e.target.checked)}
+                className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded 
+                         focus:ring-emerald-500 focus:ring-2"
+                disabled={isLoading}
+              />
+              <span className="text-sm text-gray-700">Solo disponibles</span>
+              <span className="text-green-600">✅</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Botón de aplicación */}
+        <div className="space-y-2">
+          <label className="text-gray-700 font-semibold text-sm">&nbsp;</label>
+          <button
+            onClick={() => onFiltersChange(localFilters)}
+            disabled={isLoading}
+            className="w-full px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 
+                     focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 transition-all duration-200 
+                     disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm flex items-center justify-center space-x-2"
+          >
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Buscando...</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>Aplicar filtros</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Overlay para cerrar sugerencias */}
-      {(showSpecialtySuggestions || showLocationSuggestions) && (
-        <div 
-          className="fixed inset-0 z-30" 
-          onClick={() => {
-            setShowSpecialtySuggestions(false);
-            setShowLocationSuggestions(false);
-          }}
-        />
+      {/* Resumen de filtros activos */}
+      {activeFiltersCount > 0 && (
+        <div className="mt-6 p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+          <h4 className="text-sm font-semibold text-emerald-800 mb-2">Filtros activos:</h4>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(localFilters).map(([key, value]) => {
+              if (!value) return null;
+              
+              const labels = {
+                specialty: 'Especialidad',
+                city: 'Ciudad',
+                district: 'Barrio',
+                minPrice: 'Precio mín',
+                maxPrice: 'Precio máx',
+                radius: 'Radio',
+                sortBy: 'Orden',
+                onlyVerified: 'Verificados',
+                availableOnly: 'Disponibles'
+              };
+              
+              return (
+                <span
+                  key={key}
+                  className="inline-flex items-center space-x-1 px-2 py-1 bg-emerald-100 text-emerald-800 
+                           text-xs rounded-full cursor-pointer hover:bg-emerald-200 transition-colors"
+                  onClick={() => handleClearFilter(key)}
+                >
+                  <span>{labels[key] || key}:</span>
+                  <span className="font-medium">
+                    {typeof value === 'boolean' ? (value ? 'Sí' : 'No') : value}
+                  </span>
+                  <span className="text-emerald-600">✕</span>
+                </span>
+              );
+            })}
+          </div>
+        </div>
       )}
     </div>
   );

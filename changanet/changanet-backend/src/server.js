@@ -307,7 +307,10 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/professionals', professionalsRoutes);
 
 // Rutas de búsqueda de profesionales (REQ-11 a REQ-15)
+// Importar rutas de búsqueda avanzada
+const advancedSearchRoutes = require('./routes/advancedSearchRoutes');
 app.use('/api/search', searchRoutes);
+app.use('/api', advancedSearchRoutes); // Rutas avanzadas con métricas
 
 // Rutas de mensajería con autenticación requerida
 app.use('/api/messages', authenticateToken, messageRoutes);

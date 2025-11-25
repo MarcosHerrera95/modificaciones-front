@@ -1,5 +1,5 @@
 /**
- * Controlador de reseñas y valoraciones
+ * Controlador de reseñas y valoraciones - Optimizado
  * Implementa sección 7.5 del PRD: Sistema de Reseñas y Valoraciones
  *
  * REQUERIMIENTOS FUNCIONALES IMPLEMENTADOS:
@@ -9,20 +9,12 @@
  * ✅ REQ-24: Calcular calificación promedio - Actualización automática + endpoint de estadísticas
  * ✅ REQ-25: Solo usuarios que completaron servicio pueden reseñar - Validación completa
  *
- * FUNCIONES ADICIONALES IMPLEMENTADAS:
- * - Validación de elegibilidad para reseñar
- * - Estadísticas detalladas de reseñas por profesional
- * - Distribución de calificaciones por estrellas
- * - Porcentaje de reseñas positivas
- * - Notificaciones push y email automáticas
- * - Manejo robusto de errores en subida de imágenes
- *
- * ENDPOINTS DISPONIBLES:
- * POST /api/reviews - Crear reseña (con imagen opcional)
- * GET /api/reviews/professional/:id - Obtener reseñas de profesional
- * GET /api/reviews/professional/:id/stats - Estadísticas de reseñas
- * GET /api/reviews/check/:servicioId - Verificar elegibilidad para reseñar
- * GET /api/reviews/client - Obtener reseñas del cliente autenticado
+ * OPTIMIZACIONES IMPLEMENTADAS:
+ * - Caché de estadísticas y listas de reseñas
+ * - Consultas SQL agregadas para estadísticas
+ * - Paginación optimizada
+ * - Manejo de errores mejorado
+ * - Validación de duplicados mejorada
  */
 
 // src/controllers/reviewController.js
@@ -30,6 +22,17 @@ const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
 const { createNotification, NOTIFICATION_TYPES } = require('../services/notificationService');
 const { sendPushNotification } = require('../services/pushNotificationService');
+const { 
+  getCachedReviewStats, 
+  cacheReviewStats, 
+  invalidateReviewStatsCache,
+  getCachedReviewsList,
+  cacheReviewsList,
+  invalidateReviewsListCache,
+  invalidateAllProfessionalCaches
+} = require('../services/cacheService');
+const { logger } = require('../middleware/performanceLogger');
+
 const prisma = new PrismaClient();
 
 /**
@@ -41,6 +44,7 @@ const prisma = new PrismaClient();
  * REQ-25: Solo para servicios completados por el cliente
  */
 exports.createReview = async (req, res) => {
+  const startTime = Date.now();
   const { id: userId } = req.user;
   const { servicio_id, calificacion, comentario } = req.body;
 
@@ -51,20 +55,43 @@ exports.createReview = async (req, res) => {
   }
 
   try {
-    const service = await prisma.servicios.findUnique({
-      where: { id: servicio_id },
+    logger.info('Creating review', { userId, servicio_id, rating });
+
+    // Verificar que el servicio existe y está completado, y que el usuario es el cliente
+    const service = await prisma.servicios.findFirst({
+      where: {
+        id: servicio_id,
+        cliente_id: userId,
+        estado: 'completado'
+      },
       include: { cliente: true, profesional: true }
     });
 
-    if (!service || service.estado !== 'completado' || service.cliente_id !== userId) {
-      return res.status(403).json({ error: 'No puedes dejar una reseña para este servicio.' });
+    if (!service) {
+      const notFoundService = await prisma.servicios.findUnique({ where: { id: servicio_id } });
+      if (!notFoundService) {
+        logger.warn('Service not found', { servicio_id });
+        return res.status(404).json({ error: 'Servicio no encontrado.' });
+      }
+      
+      if (notFoundService.cliente_id !== userId) {
+        logger.warn('User not authorized to review service', { userId, servicio_id });
+        return res.status(403).json({ error: 'No tienes permiso para reseñar este servicio.' });
+      }
+      
+      if (notFoundService.estado !== 'completado') {
+        logger.warn('Service not completed', { servicio_id, estado: notFoundService.estado });
+        return res.status(400).json({ error: 'Solo se pueden reseñar servicios completados.' });
+      }
     }
 
-    // Check if review already exists - RB-02: Solo 1 reseña por servicio
+    // Verificar si ya existe una reseña para este servicio
     const existingReview = await prisma.resenas.findUnique({
       where: { servicio_id: servicio_id }
     });
+    
     if (existingReview) {
+      logger.warn('Review already exists for service', { servicio_id });
       return res.status(400).json({ error: 'Ya se ha dejado una reseña para este servicio. Solo se permite una reseña por servicio.' });
     }
 
@@ -81,107 +108,148 @@ exports.createReview = async (req, res) => {
         // Subir imagen a Cloudinary
         const result = await uploadImage(req.file.buffer, { folder: 'changanet/reviews' });
         url_foto = result.secure_url;
-        console.log('Imagen subida exitosamente:', url_foto);
+        logger.info('Image uploaded successfully', { url_foto });
       } catch (uploadError) {
-        console.error('Error uploading image:', uploadError);
+        logger.error('Error uploading image', { error: uploadError.message });
         return res.status(500).json({ error: 'Error al subir la imagen. Inténtalo de nuevo.' });
       }
     }
 
-    const review = await prisma.resenas.create({
-      data: {
-        servicio_id,
-        cliente_id: userId,
-        calificacion: parseInt(calificacion),
-        comentario,
-        url_foto
-      }
+    // Crear la reseña en una transacción
+    const review = await prisma.$transaction(async (tx) => {
+      // Crear la reseña
+      const newReview = await tx.resenas.create({
+        data: {
+          servicio_id,
+          cliente_id: userId,
+          calificacion: rating,
+          comentario,
+          url_foto
+        }
+      });
+
+      // Actualizar calificación promedio del profesional usando agregación SQL
+      const { _avg: { calificacion: avgRating } } = await tx.resenas.aggregate({
+        where: { servicio: { profesional_id: service.profesional_id } },
+        _avg: { calificacion: true }
+      });
+
+      // Actualizar el perfil del profesional
+      await tx.perfiles_profesionales.update({
+        where: { usuario_id: service.profesional_id },
+        data: { calificacion_promedio: avgRating || 0 }
+      });
+
+      return newReview;
     });
 
-    // ACTUALIZAR CALIFICACIÓN PROMEDIO DEL PROFESIONAL
-    const reviews = await prisma.resenas.findMany({
-      where: { servicio: { profesional_id: service.profesional_id } }
+    logger.info('Review created successfully', { 
+      reviewId: review.id, 
+      professionalId: service.profesional_id,
+      duration: `${Date.now() - startTime}ms`
     });
-    const avgRating = reviews.length > 0 ? reviews.reduce((sum, r) => sum + r.calificacion, 0) / reviews.length : 0;
 
-    await prisma.perfiles_profesionales.update({
-      where: { usuario_id: service.profesional_id },
-      data: { calificacion_promedio: avgRating }
-    });
+    // Invalidar caché relacionado con el profesional
+    invalidateAllProfessionalCaches(service.profesional_id);
 
     // Enviar notificación push al profesional
     try {
       await sendPushNotification(
         service.profesional_id,
         'Nueva reseña recibida',
-        `Has recibido una nueva reseña de ${service.cliente.nombre} (${calificacion}⭐)`,
+        `Has recibido una nueva reseña de ${service.cliente.nombre} (${rating}⭐)`,
         {
           type: 'resena_recibida',
           servicio_id: servicio_id,
-          calificacion: calificacion,
+          calificacion: rating,
           cliente_id: userId
         }
       );
     } catch (pushError) {
-      console.warn('Error enviando push notification de reseña:', pushError.message);
+      logger.warn('Error sending push notification', { error: pushError.message });
     }
 
     // Enviar notificación en base de datos al profesional
-    await createNotification(
-      service.profesional_id,
-      NOTIFICATION_TYPES.RESENA_RECIBIDA,
-      `Has recibido una nueva reseña de ${service.cliente.nombre} (${calificacion}⭐)`,
-      {
-        servicio_id: servicio_id,
-        calificacion: calificacion,
-        cliente_id: userId
-      }
-    );
+    try {
+      await createNotification(
+        service.profesional_id,
+        NOTIFICATION_TYPES.RESENA_RECIBIDA,
+        `Has recibido una nueva reseña de ${service.cliente.nombre} (${rating}⭐)`,
+        {
+          servicio_id: servicio_id,
+          calificacion: rating,
+          cliente_id: userId
+        }
+      );
+    } catch (notificationError) {
+      logger.warn('Error creating notification', { error: notificationError.message });
+    }
 
     res.status(201).json(review);
   } catch (error) {
-    console.error('Error creating review:', error);
+    logger.error('Error creating review', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Error al crear la reseña.' });
   }
 };
 
-// Nuevo endpoint para verificar si un usuario puede reseñar un servicio
+/**
+ * Verificar si un usuario puede reseñar un servicio
+ * Optimizado con una sola consulta en lugar de múltiples
+ */
 exports.checkReviewEligibility = async (req, res) => {
+  const startTime = Date.now();
   const { id: userId } = req.user;
   const { servicioId } = req.params;
 
   try {
-    const service = await prisma.servicios.findUnique({
-      where: { id: servicioId },
-      include: { cliente: true, profesional: true }
+    logger.info('Checking review eligibility', { userId, servicioId });
+
+    // Usar una sola consulta para verificar todo
+    const service = await prisma.servicios.findFirst({
+      where: {
+        id: servicioId,
+        cliente_id: userId,
+        estado: 'completado'
+      },
+      include: {
+        resenas: {
+          select: { id: true }
+        }
+      }
     });
 
+    // Determinar el motivo de no elegibilidad si aplica
     if (!service) {
-      return res.status(404).json({ error: 'Servicio no encontrado.' });
-    }
-
-    // Verificar si el usuario es el cliente del servicio
-    if (service.cliente_id !== userId) {
-      return res.status(403).json({ error: 'No tienes permiso para reseñar este servicio.' });
-    }
-
-    // Verificar si el servicio está completado
-    if (service.estado !== 'completado') {
+      const notFoundService = await prisma.servicios.findUnique({ where: { id: servicioId } });
+      if (!notFoundService) {
+        logger.warn('Service not found for eligibility check', { servicioId });
+        return res.status(404).json({ error: 'Servicio no encontrado.' });
+      }
+      
+      if (notFoundService.cliente_id !== userId) {
+        logger.warn('User not authorized to review service', { userId, servicioId });
+        return res.status(403).json({ error: 'No tienes permiso para reseñar este servicio.' });
+      }
+      
+      logger.info('Service not completed', { servicioId, estado: notFoundService.estado });
       return res.json({ canReview: false, reason: 'El servicio debe estar completado para poder reseñar.' });
     }
 
-    // Verificar si ya existe una reseña para este servicio (RB-02)
-    const existingReview = await prisma.resenas.findUnique({
-      where: { servicio_id: servicioId }
-    });
-
-    if (existingReview) {
+    // Verificar si ya existe una reseña para este servicio
+    if (service.resenas.length > 0) {
+      logger.info('Review already exists for service', { servicioId });
       return res.json({ canReview: false, reason: 'Ya se ha dejado una reseña para este servicio.' });
     }
 
+    logger.info('User eligible to review service', { 
+      userId, 
+      servicioId, 
+      duration: `${Date.now() - startTime}ms` 
+    });
+    
     res.json({ canReview: true });
   } catch (error) {
-    console.error('Error checking review eligibility:', error);
+    logger.error('Error checking review eligibility', { error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Error al verificar elegibilidad para reseña.' });
   }
 };
@@ -189,82 +257,173 @@ exports.checkReviewEligibility = async (req, res) => {
 /**
  * Obtiene estadísticas de reseñas de un profesional
  * REQ-24: Calcular y mostrar calificación promedio
+ * Optimizado con caché y agregación SQL
  */
 exports.getReviewStats = async (req, res) => {
+  const startTime = Date.now();
   const { professionalId } = req.params;
 
   try {
-    const reviews = await prisma.resenas.findMany({
-      where: {
-        servicio: {
-          profesional_id: professionalId
-        }
-      },
-      select: {
-        calificacion: true,
-        creado_en: true
-      }
-    });
+    logger.info('Getting review stats', { professionalId });
 
-    const totalReviews = reviews.length;
-    const averageRating = totalReviews > 0
-      ? reviews.reduce((sum, review) => sum + review.calificacion, 0) / totalReviews
-      : 0;
+    // Intentar obtener desde caché primero
+    const stats = await getCachedReviewStats(professionalId);
+    
+    // Si no está en caché, calcular y almacenar
+    if (!stats) {
+      logger.info('Cache miss for review stats', { professionalId });
+      
+      // Usar agregación SQL para calcular estadísticas eficientemente
+      const statsResult = await prisma.$queryRaw`
+        SELECT 
+          COUNT(*) as total_reviews,
+          AVG(calificacion) as average_rating,
+          SUM(CASE WHEN calificacion = 1 THEN 1 ELSE 0 END) as star_1,
+          SUM(CASE WHEN calificacion = 2 THEN 1 ELSE 0 END) as star_2,
+          SUM(CASE WHEN calificacion = 3 THEN 1 ELSE 0 END) as star_3,
+          SUM(CASE WHEN calificacion = 4 THEN 1 ELSE 0 END) as star_4,
+          SUM(CASE WHEN calificacion = 5 THEN 1 ELSE 0 END) as star_5,
+          SUM(CASE WHEN calificacion >= 4 THEN 1 ELSE 0 END) as positive_reviews,
+          MAX(creado_en) as last_review_date
+        FROM resenas 
+        WHERE servicio_id IN (
+          SELECT id FROM servicios WHERE profesional_id = ${professionalId}
+        )
+      `;
 
-    // Calcular distribución por estrellas
-    const ratingDistribution = {
-      1: reviews.filter(r => r.calificacion === 1).length,
-      2: reviews.filter(r => r.calificacion === 2).length,
-      3: reviews.filter(r => r.calificacion === 3).length,
-      4: reviews.filter(r => r.calificacion === 4).length,
-      5: reviews.filter(r => r.calificacion === 5).length
-    };
+      const statsData = statsResult[0];
+      const averageRating = statsData.average_rating || 0;
+      const ratingDistribution = {
+        1: parseInt(statsData.star_1) || 0,
+        2: parseInt(statsData.star_2) || 0,
+        3: parseInt(statsData.star_3) || 0,
+        4: parseInt(statsData.star_4) || 0,
+        5: parseInt(statsData.star_5) || 0
+      };
+      
+      const positivePercentage = statsData.total_reviews > 0 
+        ? (statsData.positive_reviews / statsData.total_reviews) * 100 
+        : 0;
 
-    // Calcular porcentaje de reseñas positivas (4-5 estrellas)
-    const positiveReviews = reviews.filter(r => r.calificacion >= 4).length;
-    const positivePercentage = totalReviews > 0 ? (positiveReviews / totalReviews) * 100 : 0;
+      const stats = {
+        professionalId,
+        totalReviews: parseInt(statsData.total_reviews) || 0,
+        averageRating: Math.round(averageRating * 10) / 10,
+        ratingDistribution,
+        positivePercentage: Math.round(positivePercentage),
+        lastReviewDate: statsData.last_review_date
+      };
+      
+      // Almacenar en caché
+      cacheReviewStats(professionalId, stats);
+      logger.info('Review stats cached', { professionalId });
+    } else {
+      logger.info('Cache hit for review stats', { professionalId });
+    }
 
-    res.status(200).json({
-      professionalId,
-      totalReviews,
-      averageRating: Math.round(averageRating * 10) / 10, // Redondear a 1 decimal
-      ratingDistribution,
-      positivePercentage: Math.round(positivePercentage),
-      lastReviewDate: reviews.length > 0 ? reviews[0].creado_en : null
-    });
+    res.status(200).json(stats);
   } catch (error) {
-    console.error('Error obteniendo estadísticas de reseñas:', error);
+    logger.error('Error getting review stats', { professionalId, error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Error al obtener estadísticas de reseñas.' });
+  } finally {
+    logger.info('Review stats request completed', { 
+      professionalId, 
+      duration: `${Date.now() - startTime}ms` 
+    });
   }
 };
 
+/**
+ * Obtiene las reseñas de un profesional con paginación
+ * Optimizado con caché y paginación
+ */
 exports.getReviewsByProfessional = async (req, res) => {
+  const startTime = Date.now();
   const { professionalId } = req.params;
+  const { page = 1, limit = 10 } = req.query;
 
   try {
-    const reviews = await prisma.resenas.findMany({
-      where: {
-        servicio: {
-          profesional_id: professionalId
-        }
-      },
-      include: {
-        servicio: true,
-        cliente: {
-          select: {
-            nombre: true,
-            email: true
+    logger.info('Getting reviews by professional', { professionalId, page, limit });
+    
+    // Validar parámetros de paginación
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(50, Math.max(1, parseInt(limit) || 10)); // Máximo 50 items por página
+    
+    // Intentar obtener desde caché primero
+    let reviewsData = await getCachedReviewsList(professionalId, pageNum, limitNum);
+    
+    if (!reviewsData) {
+      logger.info('Cache miss for reviews list', { professionalId, page: pageNum, limit: limitNum });
+      
+      const offset = (pageNum - 1) * limitNum;
+      
+      // Obtener reseñas con paginación
+      const reviews = await prisma.resenas.findMany({
+        where: {
+          servicio: {
+            profesional_id: professionalId
+          }
+        },
+        include: {
+          servicio: {
+            select: {
+              id: true,
+              descripcion: true,
+              completado_en: true
+            }
+          },
+          cliente: {
+            select: {
+              nombre: true,
+              email: true,
+              url_foto_perfil: true
+            }
+          }
+        },
+        orderBy: {
+          creado_en: 'desc'
+        },
+        skip: offset,
+        take: limitNum
+      });
+      
+      // Obtener el total para la paginación
+      const totalReviews = await prisma.resenas.count({
+        where: {
+          servicio: {
+            profesional_id: professionalId
           }
         }
-      },
-      orderBy: {
-        creado_en: 'desc'
-      }
-    });
+      });
+      
+      const totalPages = Math.ceil(totalReviews / limitNum);
+      
+      reviewsData = {
+        reviews,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalReviews,
+          hasNextPage: pageNum < totalPages,
+          hasPreviousPage: pageNum > 1
+        }
+      };
+      
+      // Almacenar en caché
+      cacheReviewsList(professionalId, pageNum, limitNum, reviewsData);
+      logger.info('Reviews list cached', { professionalId, page: pageNum, limit: limitNum });
+    } else {
+      logger.info('Cache hit for reviews list', { professionalId, page: pageNum, limit: limitNum });
+    }
 
-    res.status(200).json(reviews);
+    res.status(200).json(reviewsData);
   } catch (error) {
-    console.error(error);
+    logger.error('Error getting reviews', { professionalId, error: error.message, stack: error.stack });
     res.status(500).json({ error: 'Error al obtener las reseñas.' });
+  } finally {
+    logger.info('Reviews request completed', { 
+      professionalId, 
+      duration: `${Date.now() - startTime}ms` 
+    });
   }
 };

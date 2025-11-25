@@ -1,238 +1,283 @@
 /**
- * PasswordStrengthMeter - Componente para mostrar el nivel de fortaleza de contraseñas
- * Proporciona feedback visual en tiempo real para mejorar la seguridad
+ * PasswordStrengthMeter - Componente React para validación visual de fortaleza de contraseñas
+ * Proporciona feedback en tiempo real con barra de progreso y sugerencias específicas
+ * 
+ * Características:
+ * - Barra de progreso con código de colores
+ * - Feedback en tiempo real
+ * - Sugerencias contextuales
+ * - Integración perfecta con formularios
+ * - Validación avanzada basada en múltiples factores
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-const PasswordStrengthMeter = ({ password, showDetails = true }) => {
-  // Validación de contraseña (igual que la del backend)
-  const validatePassword = (password) => {
-    const feedback = {
-      score: 0,
-      label: '',
-      color: '',
-      bgColor: '',
-      suggestions: [],
-      warnings: []
-    };
-
-    if (!password) {
-      feedback.label = 'Escribe una contraseña';
-      feedback.color = 'text-gray-400';
-      feedback.bgColor = 'bg-gray-200';
-      return feedback;
-    }
-
-    // Validación básica de longitud
-    if (password.length < 8) {
-      feedback.warnings.push('Debe tener al menos 8 caracteres');
-    }
-
-    if (password.length < 6) {
-      feedback.label = 'Muy débil';
-      feedback.color = 'text-red-600';
-      feedback.bgColor = 'bg-red-100';
-      return feedback;
-    }
-
-    // Verificar presencia de diferentes tipos de caracteres
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumbers = /\d/.test(password);
-    const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-    const hasSpaces = /\s/.test(password);
-
-    // Validaciones específicas
-    if (hasSpaces) {
-      feedback.warnings.push('No debe contener espacios');
-    }
-
-    // Detectar contraseñas comunes
-    const commonPasswords = [
-      'password', '123456', '123456789', 'qwerty', 'abc123',
-      'password123', 'admin', 'letmein', 'welcome', 'monkey',
-      'dragon', 'master', 'sunshine', 'flower', 'iloveyou'
-    ];
-
-    if (commonPasswords.includes(password.toLowerCase())) {
-      feedback.warnings.push('Contraseña muy común');
-    }
-
-    // Verificar patrones comunes
-    const patterns = [
-      /(.)\1{2,}/, // Caracteres repetidos 3+ veces
-      /\d{4,}/, // 4+ dígitos consecutivos
-      /[a-zA-Z]{4,}/ // 4+ letras consecutivas
-    ];
-
-    patterns.forEach((pattern, index) => {
-      if (pattern.test(password)) {
-        switch (index) {
-          case 0:
-            feedback.warnings.push('Evita caracteres repetidos');
-            break;
-          case 1:
-            feedback.warnings.push('Evita secuencias numéricas');
-            break;
-          case 2:
-            feedback.warnings.push('Evita secuencias de letras');
-            break;
-        }
-      }
-    });
-
-    // Calcular puntuación
-    let score = 0;
-
-    // Longitud (máximo 40 puntos)
-    if (password.length >= 8) score += 10;
-    if (password.length >= 10) score += 10;
-    if (password.length >= 12) score += 10;
-    if (password.length >= 16) score += 10;
-
-    // Variedad de caracteres (máximo 40 puntos)
-    if (hasLowerCase) score += 10;
-    if (hasUpperCase) score += 10;
-    if (hasNumbers) score += 10;
-    if (hasSpecialChars) score += 10;
-
-    // Complejidad adicional (máximo 20 puntos)
-    if (password.length >= 12 && hasLowerCase && hasUpperCase && hasNumbers && hasSpecialChars) {
-      score += 20;
-    }
-
-    feedback.score = Math.min(score, 100);
-
-    // Determinar nivel de fortaleza
-    if (score < 30) {
-      feedback.label = 'Muy débil';
-      feedback.color = 'text-red-600';
-      feedback.bgColor = 'bg-red-100';
-      feedback.suggestions.push('Usa al menos 8 caracteres');
-      feedback.suggestions.push('Agrega números y símbolos');
-    } else if (score < 50) {
-      feedback.label = 'Débil';
-      feedback.color = 'text-orange-600';
-      feedback.bgColor = 'bg-orange-100';
-      feedback.suggestions.push('Aumenta la longitud');
-      if (!hasSpecialChars) {
-        feedback.suggestions.push('Agrega símbolos especiales');
-      }
-    } else if (score < 70) {
-      feedback.label = 'Regular';
-      feedback.color = 'text-yellow-600';
-      feedback.bgColor = 'bg-yellow-100';
-      feedback.suggestions.push('Considera una passphrase más larga');
-    } else if (score < 85) {
-      feedback.label = 'Buena';
-      feedback.color = 'text-blue-600';
-      feedback.bgColor = 'bg-blue-100';
-      feedback.suggestions.push('¡Muy bien! Es segura');
-    } else {
-      feedback.label = 'Excelente';
-      feedback.color = 'text-green-600';
-      feedback.bgColor = 'bg-green-100';
-      feedback.suggestions.push('¡Contraseña muy segura!');
-    }
-
-    return feedback;
+/**
+ * Calcula la fortaleza de la contraseña con scoring avanzado
+ * @param {string} password - Contraseña a evaluar
+ * @returns {Object} Objeto con score, nivel, color y sugerencias
+ */
+function calculatePasswordStrength(password) {
+  const feedback = {
+    score: 0,
+    level: 0, // 0-4 (Muy débil a Excelente)
+    color: '#dc2626', // Rojo por defecto
+    bgColor: '#fee2e2',
+    borderColor: '#dc2626',
+    label: 'Muy Débil',
+    suggestions: [],
+    warnings: []
   };
 
-  const validation = validatePassword(password);
+  if (!password) {
+    return feedback;
+  }
+
+  let score = 0;
+  const suggestions = [];
+  const warnings = [];
+
+  // Longitud (máximo 25 puntos)
+  if (password.length >= 8) score += 5;
+  if (password.length >= 10) score += 10;
+  if (password.length >= 12) score += 10;
+
+  // Variedad de caracteres (máximo 30 puntos)
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasNumbers = /\d/.test(password);
+  const hasSpecialChars = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+  const hasSpaces = /\s/.test(password);
+
+  if (hasLowerCase) score += 5;
+  if (hasUpperCase) score += 5;
+  if (hasNumbers) score += 5;
+  if (hasSpecialChars) score += 15; // Los especiales valen más
+
+  // Validaciones específicas
+  if (hasSpaces) {
+    warnings.push('La contraseña no debe contener espacios');
+  }
+
+  // Detectar contraseñas comunes
+  const commonPasswords = [
+    'password', '123456', '123456789', 'qwerty', 'abc123',
+    'password123', 'admin', 'letmein', 'welcome', 'monkey',
+    'dragon', 'master', 'sunshine', 'flower', 'iloveyou',
+    'football', 'baseball', 'starwars', 'trustno1', 'hello'
+  ];
+
+  if (commonPasswords.includes(password.toLowerCase())) {
+    warnings.push('Esta contraseña es muy común y fácilmente adivinable');
+    return { ...feedback, score: 0, warnings };
+  }
+
+  // Verificar patrones peligrosos
+  const patterns = [
+    { pattern: /(.)\1{2,}/, warning: 'Evita caracteres repetidos consecutivamente' },
+    { pattern: /\d{4,}/, warning: 'Evita secuencias numéricas largas' },
+    { pattern: /[a-zA-Z]{4,}/, warning: 'Evita secuencias de letras largas' },
+    { pattern: /^[A-Z]/, warning: 'No comenzar con mayúscula' },
+    { pattern: /[a-z]$/, warning: 'No terminar con minúscula' },
+    { pattern: /012|123|234|345|456|567|678|789/, warning: 'Evita secuencias numéricas consecutivas' },
+    { pattern: /abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz/, warning: 'Evita secuencias alfabéticas consecutivas' }
+  ];
+
+  patterns.forEach(({ pattern, warning }) => {
+    if (pattern.test(password)) {
+      warnings.push(warning);
+    }
+  });
+
+  // Complejidad adicional (máximo 45 puntos)
+  if (password.length >= 12 && hasLowerCase && hasUpperCase && hasNumbers && hasSpecialChars) {
+    score += 25; // Bonus por contraseña muy fuerte
+  }
+
+  // Penalización por patrones débiles
+  if (password.length < 8) {
+    warnings.push('La contraseña es muy corta');
+  }
+
+  // Determinar nivel basado en score
+  let level;
+  let color, bgColor, borderColor, label;
+
+  if (score < 20) {
+    level = 0;
+    color = '#dc2626'; // Rojo
+    bgColor = '#fee2e2';
+    borderColor = '#dc2626';
+    label = 'Muy Débil';
+    suggestions.push('Usa una combinación de letras, números y símbolos');
+    suggestions.push('Aumenta la longitud a al menos 8 caracteres');
+  } else if (score < 40) {
+    level = 1;
+    color = '#ea580c'; // Naranja
+    bgColor = '#fed7aa';
+    borderColor = '#ea580c';
+    label = 'Débil';
+    suggestions.push('Agrega más variedad de caracteres');
+    suggestions.push('Considera usar una passphrase más larga');
+  } else if (score < 60) {
+    level = 2;
+    color = '#d97706'; // Amarillo
+    bgColor = '#fef3c7';
+    borderColor = '#d97706';
+    label = 'Regular';
+    if (!hasSpecialChars) {
+      suggestions.push('Agrega símbolos especiales para mayor seguridad');
+    }
+    if (password.length < 12) {
+      suggestions.push('Aumenta la longitud a 12+ caracteres');
+    }
+  } else if (score < 80) {
+    level = 3;
+    color = '#16a34a'; // Verde
+    bgColor = '#dcfce7';
+    borderColor = '#16a34a';
+    label = 'Buena';
+    suggestions.push('Tu contraseña es buena, pero podría ser mejor');
+  } else {
+    level = 4;
+    color = '#15803d'; // Verde oscuro
+    bgColor = '#bbf7d0';
+    borderColor = '#15803d';
+    label = 'Excelente';
+    suggestions.push('¡Excelente! Tu contraseña es muy segura');
+  }
+
+  feedback.score = Math.min(score, 100);
+  feedback.level = level;
+  feedback.color = color;
+  feedback.bgColor = bgColor;
+  feedback.borderColor = borderColor;
+  feedback.label = label;
+  feedback.suggestions = suggestions;
+  feedback.warnings = warnings;
+
+  return feedback;
+}
+
+/**
+ * Componente PasswordStrengthMeter
+ * @param {Object} props - Propiedades del componente
+ * @param {string} props.password - Contraseña a evaluar
+ * @param {Function} props.onStrengthChange - Callback cuando cambia la fortaleza
+ * @param {boolean} props.showSuggestions - Mostrar sugerencias
+ * @param {boolean} props.showWarnings - Mostrar advertencias
+ * @param {string} props.className - Clases CSS adicionales
+ */
+const PasswordStrengthMeter = ({
+  password = '',
+  onStrengthChange,
+  showSuggestions = true,
+  showWarnings = true,
+  className = ''
+}) => {
+  const [strength, setStrength] = useState({
+    score: 0,
+    level: 0,
+    color: '#dc2626',
+    bgColor: '#fee2e2',
+    borderColor: '#dc2626',
+    label: 'Muy Débil',
+    suggestions: [],
+    warnings: []
+  });
+
+  // Recalcular fortaleza cuando cambia la contraseña
+  useEffect(() => {
+    const newStrength = calculatePasswordStrength(password);
+    setStrength(newStrength);
+    
+    // Notificar al componente padre si hay callback
+    if (onStrengthChange) {
+      onStrengthChange(newStrength);
+    }
+  }, [password, onStrengthChange]);
+
+  const percentage = Math.min((strength.score / 100) * 100, 100);
 
   return (
-    <div className="space-y-2">
-      {/* Barra de fortaleza */}
-      <div className="w-full bg-gray-200 rounded-full h-2.5">
+    <div className={`password-strength-meter ${className}`}>
+      {/* Barra de progreso */}
+      <div className="relative w-full h-2 bg-gray-200 rounded-full overflow-hidden">
         <div
-          className={`h-2.5 rounded-full transition-all duration-300 ${
-            validation.score < 30
-              ? 'bg-red-500'
-              : validation.score < 50
-              ? 'bg-orange-500'
-              : validation.score < 70
-              ? 'bg-yellow-500'
-              : validation.score < 85
-              ? 'bg-blue-500'
-              : 'bg-green-500'
-          }`}
-          style={{ width: `${validation.score}%` }}
-        ></div>
+          className="absolute top-0 left-0 h-full transition-all duration-300 ease-out rounded-full"
+          style={{
+            width: `${percentage}%`,
+            backgroundColor: strength.color,
+            boxShadow: `0 0 8px ${strength.color}40`
+          }}
+        />
       </div>
 
-      {/* Indicador de nivel */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div
-            className={`w-3 h-3 rounded-full ${validation.bgColor} ${
-              validation.score > 0 ? 'animate-pulse' : ''
-            }`}
-          ></div>
-          <span className={`text-sm font-medium ${validation.color}`}>
-            {validation.label}
-          </span>
-        </div>
-        
-        {validation.score > 0 && (
-          <span className="text-xs text-gray-500">
-            {validation.score}/100
-          </span>
-        )}
+      {/* Etiqueta de nivel */}
+      <div className="flex justify-between items-center mt-1">
+        <span
+          className="text-sm font-medium"
+          style={{ color: strength.color }}
+        >
+          {strength.label}
+        </span>
+        <span className="text-xs text-gray-500">
+          {strength.score}/100
+        </span>
       </div>
 
-      {/* Detalles de feedback */}
-      {showDetails && password && (
-        <div className="space-y-2 text-xs">
-          {/* Advertencias */}
-          {validation.warnings.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded p-2">
-              <div className="flex items-center mb-1">
-                <span className="text-red-500 mr-1">⚠️</span>
-                <span className="text-red-700 font-medium">Advertencias:</span>
-              </div>
-              <ul className="text-red-600 space-y-1">
-                {validation.warnings.map((warning, index) => (
-                  <li key={index} className="flex items-start">
-                    <span className="mr-1">•</span>
-                    <span>{warning}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Sugerencias */}
-          {validation.suggestions.length > 0 && validation.score < 85 && (
-            <div className="bg-blue-50 border border-blue-200 rounded p-2">
-              <div className="flex items-center mb-1">
-                <span className="text-blue-500 mr-1">💡</span>
-                <span className="text-blue-700 font-medium">Sugerencias:</span>
-              </div>
-              <ul className="text-blue-600 space-y-1">
-                {validation.suggestions.map((suggestion, index) => (
-                  <li key={index} className="flex items-start">
-                    <span className="mr-1">•</span>
-                    <span>{suggestion}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {/* Éxito */}
-          {validation.score >= 85 && (
-            <div className="bg-green-50 border border-green-200 rounded p-2">
-              <div className="flex items-center">
-                <span className="text-green-500 mr-1">✅</span>
-                <span className="text-green-700 font-medium">
-                  ¡Excelente! Tu contraseña es muy segura
-                </span>
-              </div>
-            </div>
-          )}
+      {/* Sugerencias */}
+      {showSuggestions && strength.suggestions.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-medium text-gray-700 mb-1">Sugerencias:</p>
+          <ul className="text-xs text-gray-600 space-y-1">
+            {strength.suggestions.map((suggestion, index) => (
+              <li key={index} className="flex items-start">
+                <span className="text-blue-500 mr-1">•</span>
+                {suggestion}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
+
+      {/* Advertencias */}
+      {showWarnings && strength.warnings.length > 0 && (
+        <div className="mt-2">
+          <p className="text-xs font-medium text-red-700 mb-1">Advertencias:</p>
+          <ul className="text-xs text-red-600 space-y-1">
+            {strength.warnings.map((warning, index) => (
+              <li key={index} className="flex items-start">
+                <span className="text-red-500 mr-1">⚠</span>
+                {warning}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Requisitos mínimos */}
+      <div className="mt-3 p-2 bg-gray-50 rounded-md">
+        <p className="text-xs font-medium text-gray-700 mb-2">Requisitos mínimos:</p>
+        <div className="grid grid-cols-2 gap-1 text-xs">
+          <div className={`flex items-center ${password.length >= 8 ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className="mr-1">{password.length >= 8 ? '✓' : '○'}</span>
+            8+ caracteres
+          </div>
+          <div className={`flex items-center ${/[A-Z]/.test(password) ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className="mr-1">{/[A-Z]/.test(password) ? '✓' : '○'}</span>
+            Mayúscula
+          </div>
+          <div className={`flex items-center ${/[a-z]/.test(password) ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className="mr-1">{/[a-z]/.test(password) ? '✓' : '○'}</span>
+            Minúscula
+          </div>
+          <div className={`flex items-center ${/\d/.test(password) ? 'text-green-600' : 'text-gray-400'}`}>
+            <span className="mr-1">{/[\d]/.test(password) ? '✓' : '○'}</span>
+            Número
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

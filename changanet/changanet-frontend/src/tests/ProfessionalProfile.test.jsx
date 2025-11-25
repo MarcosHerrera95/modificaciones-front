@@ -13,7 +13,7 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
-import ProfessionalProfileForm from '../components/ProfessionalProfileForm';
+import ProfessionalProfileForm from '../components/professional/ProfessionalProfileForm';
 import ImageUploader from '../components/ImageUploader';
 import SpecialtySelector from '../components/SpecialtySelector';
 import ZoneSelector from '../components/ZoneSelector';

@@ -96,7 +96,11 @@ class TestSuiteMensajeria {
 
   // Utilidad para crear usuarios de prueba
   async createTestUser(role = 'cliente') {
+    const { nanoid } = require('nanoid');
+    const userId = nanoid();
+    
     const userData = {
+      id: userId,
       email: `test_${Date.now()}_${role}@changanet.test`,
       nombre: `Usuario Test ${role.charAt(0).toUpperCase() + role.slice(1)}`,
       telefono: `+54911234567${Math.floor(Math.random() * 10)}`,
@@ -143,7 +147,7 @@ class TestSuiteMensajeria {
         PRAGMA table_info(mensajes)
       `;
       
-      const requiredFields = ['id', 'remitente_id', 'destinatario_id', 'contenido', 'url_imagen', 'esta_leido', 'creado_en'];
+      const requiredFields = ['id', 'conversation_id', 'sender_id', 'message', 'image_url', 'status', 'created_at'];
       const existingFields = messageFields.map(field => field.name);
       
       const missingFields = requiredFields.filter(field => !existingFields.includes(field));
@@ -240,40 +244,52 @@ class TestSuiteMensajeria {
 
     // Test envío de mensaje (simulando autenticación)
     try {
-      const messageData = {
-        destinatario_id: user2.id,
-        contenido: 'Mensaje de prueba desde test suite'
-      };
+      // First create a conversation between the users
+      const conversation = await this.prisma.conversations.create({
+        data: {
+          id: nanoid(),
+          client_id: user1.id,
+          professional_id: user2.id
+        }
+      });
 
       // Simular mensaje directo en BD para testing
       const message = await this.prisma.mensajes.create({
         data: {
-          remitente_id: user1.id,
-          destinatario_id: user2.id,
-          contenido: messageData.contenido,
-          esta_leido: false
+          conversation_id: conversation.id,
+          sender_id: user1.id,
+          message: 'Mensaje de prueba desde test suite',
+          status: 'sent'
         },
         include: {
-          remitente: { select: { nombre: true } },
-          destinatario: { select: { nombre: true } }
+          sender: { select: { nombre: true } },
+          conversations: {
+            select: {
+              client: { select: { nombre: true } },
+              professional: { select: { nombre: true } }
+            }
+          }
         }
       });
 
       this.logTest(
+        'Creación de Conversación', 
+        'PASS', 
+        `Conversación creada: ${conversation.id}`
+      );
+
+      this.logTest(
         'Creación de Mensaje', 
         'PASS', 
-        `Mensaje creado: "${message.contenido}"`
+        `Mensaje creado: "${message.message}"`
       );
 
       // Test recuperación de historial
       const messages = await this.prisma.mensajes.findMany({
         where: {
-          OR: [
-            { remitente_id: user1.id, destinatario_id: user2.id },
-            { remitente_id: user2.id, destinatario_id: user1.id }
-          ]
+          conversation_id: conversation.id
         },
-        orderBy: { creado_en: 'asc' }
+        orderBy: { created_at: 'asc' }
       });
 
       if (messages.length > 0) {
@@ -289,18 +305,18 @@ class TestSuiteMensajeria {
       // Test marcado como leído
       await this.prisma.mensajes.updateMany({
         where: {
-          remitente_id: user1.id,
-          destinatario_id: user2.id,
-          esta_leido: false
+          conversation_id: conversation.id,
+          sender_id: user1.id,
+          read_at: null
         },
-        data: { esta_leido: true }
+        data: { read_at: new Date() }
       });
 
       const unreadCount = await this.prisma.mensajes.count({
         where: {
-          remitente_id: user1.id,
-          destinatario_id: user2.id,
-          esta_leido: false
+          conversation_id: conversation.id,
+          sender_id: user1.id,
+          read_at: null
         }
       });
 
@@ -448,10 +464,22 @@ class TestSuiteMensajeria {
     try {
       // Limpiar datos de prueba
       if (this.testUsers.length > 0) {
+        // First delete all test messages and conversations
         await this.prisma.mensajes.deleteMany({
           where: {
             OR: this.testUsers.map(user => ({
-              remitente_id: user.id
+              sender_id: user.id
+            }))
+          }
+        });
+
+        await this.prisma.conversations.deleteMany({
+          where: {
+            OR: this.testUsers.map(user => ({
+              OR: [
+                { client_id: user.id },
+                { professional_id: user.id }
+              ]
             }))
           }
         });

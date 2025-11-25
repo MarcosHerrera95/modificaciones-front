@@ -30,32 +30,23 @@ const rateLimit = require('rate-limiter-flexible');
 
 const prisma = new PrismaClient();
 
-// Rate limiting específico para chat (TEMPORALMENTE DESHABILITADO)
-// const chatRateLimiter = new rateLimit.RateLimiterFlexible({
-//   storeClient: prisma,
-//   keyPrefix: 'chat_rl',
-//   points: 30, // Número de puntos
-//   duration: 60, // Por minuto (60 segundos)
-//   execEvenly: true, // Distribuir evenly
-// });
+// Rate limiting específico para chat (HABILITADO)
+const chatRateLimiter = new rateLimit.RateLimiterFlexible({
+  storeClient: prisma,
+  keyPrefix: 'chat_rl',
+  points: 30, // Número de puntos
+  duration: 60, // Por minuto (60 segundos)
+  execEvenly: true, // Distribuir evenly
+});
 
-// Antiflood - límite más estricto (TEMPORALMENTE DESHABILITADO)
-// const chatFloodLimiter = new rateLimit.RateLimiterFlexible({
-//   storeClient: prisma,
-//   keyPrefix: 'chat_flood',
-//   points: 5, // Solo 5 mensajes
-//   duration: 10, // Por 10 segundos
-//   blockDuration: 30, // Bloquear por 30 segundos si se excede
-// });
-
-// Funciones placeholder para rate limiting (temporales)
-const chatRateLimiter = {
-  consume: async () => {} // No-op function
-};
-
-const chatFloodLimiter = {
-  consume: async () => {} // No-op function
-};
+// Antiflood - límite más estricto (HABILITADO)
+const chatFloodLimiter = new rateLimit.RateLimiterFlexible({
+  storeClient: prisma,
+  keyPrefix: 'chat_flood',
+  points: 5, // Solo 5 mensajes
+  duration: 10, // Por 10 segundos
+  blockDuration: 30, // Bloquear por 30 segundos si se excede
+});
 
 /**
  * POST /api/chat/conversations

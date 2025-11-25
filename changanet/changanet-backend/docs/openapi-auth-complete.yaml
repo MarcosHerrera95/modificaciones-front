@@ -1,0 +1,963 @@
+openapi: 3.0.3
+info:
+  title: CHANGANET - API de Autenticación y Registro
+  description: |
+    API completa para el sistema de Registro y Autenticación de Usuarios de CHANGANET.
+    
+    ## Funcionalidades Principales
+    
+    ### 🔐 Autenticación
+    - **Registro de usuarios** cliente y profesional
+    - **Login con email y contraseña** con validación robusta
+    - **OAuth con Google y Facebook** para autenticación social
+    - **Verificación de email** mediante tokens únicos
+    - **Recuperación de contraseña** con tokens temporales
+    - **Refresh tokens** para sesiones duraderas
+    - **Logout seguro** con revocación de tokens
+    
+    ### 🛡️ Seguridad
+    - **Validación avanzada de contraseñas** con scoring 0-100
+    - **Rate limiting inteligente** por endpoint y IP
+    - **Bloqueo temporal** tras intentos fallidos
+    - **bcrypt hash** con cost 12 para contraseñas
+    - **JWT tokens** con expiración configurada
+    - **Sanitización de inputs** para prevenir inyecciones
+    
+    ### 📊 Monitoreo
+    - **Logging estructurado** para auditoría
+    - **Métricas de autenticación** en tiempo real
+    - **Alertas de seguridad** automáticas
+    
+    ## Autenticación
+    
+    La API utiliza JWT tokens para autenticación. Incluye:
+    - **Access Token**: Válido por 15 minutos
+    - **Refresh Token**: Válido por 30 días con rotación automática
+    
+    ## Rate Limiting
+    
+    Implementamos rate limiting para proteger contra ataques:
+    - **Login**: 5 intentos por 15 minutos
+    - **Registro**: 3 registros por hora  
+    - **Recuperación contraseña**: 3 solicitudes por hora
+    - **OAuth**: 5 intentos por 15 minutos
+    
+    ## Códigos de Estado
+    
+    - `200`: Operación exitosa
+    - `201`: Recurso creado exitosamente
+    - `400`: Error en los datos de entrada
+    - `401`: No autenticado o token inválido
+    - `403`: Sin permisos suficientes
+    - `409`: Conflicto (email duplicado)
+    - `429`: Rate limit excedido
+    - `500`: Error interno del servidor
+    
+  version: 3.0.0
+  contact:
+    name: Equipo de Desarrollo CHANGANET
+    email: dev@changanet.com.ar
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.changanet.com/v1
+    description: Servidor de producción
+  - url: https://staging-api.changanet.com/v1
+    description: Servidor de staging
+  - url: http://localhost:3004/api
+    description: Servidor de desarrollo
+
+security:
+  - BearerAuth: []
+  - RefreshTokenAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Access Token para autenticación
+    RefreshTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Refresh-Token
+      description: Refresh Token para renovación de sesión
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador único del usuario
+        nombre:
+          type: string
+          description: Nombre completo del usuario
+        email:
+          type: string
+          format: email
+          description: Email del usuario (único)
+        rol:
+          type: string
+          enum: [cliente, profesional]
+          description: Rol del usuario en la plataforma
+        esta_verificado:
+          type: boolean
+          description: Estado de verificación del email
+        url_foto_perfil:
+          type: string
+          format: uri
+          description: URL de la foto de perfil (OAuth)
+        telefono:
+          type: string
+          description: Número de teléfono
+        created_at:
+          type: string
+          format: date-time
+          description: Fecha de creación del usuario
+        last_login_at:
+          type: string
+          format: date-time
+          description: Último inicio de sesión
+
+    UserRegistration:
+      type: object
+      required:
+        - name
+        - email
+        - password
+        - rol
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Nombre completo del usuario
+        email:
+          type: string
+          format: email
+          description: Email del usuario (único)
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+          description: Contraseña con validación avanzada
+        rol:
+          type: string
+          enum: [cliente, profesional]
+          description: Rol del usuario
+
+    UserLogin:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email del usuario
+        password:
+          type: string
+          description: Contraseña del usuario
+
+    GoogleOAuth:
+      type: object
+      required:
+        - uid
+        - email
+        - nombre
+      properties:
+        uid:
+          type: string
+          description: UID único de Google
+        email:
+          type: string
+          format: email
+          description: Email de Google
+        nombre:
+          type: string
+          description: Nombre completo de Google
+        photo:
+          type: string
+          format: uri
+          description: URL de foto de Google
+        rol:
+          type: string
+          enum: [cliente, profesional]
+          description: Rol del usuario (default: cliente)
+
+    PasswordValidation:
+      type: object
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Puntuación de fortaleza (0-100)
+        isValid:
+          type: boolean
+          description: Si la contraseña cumple requisitos mínimos
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Sugerencias para mejorar la contraseña
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Advertencias sobre la contraseña
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Mensaje de respuesta
+        token:
+          type: string
+          description: JWT Access Token (15 min validez)
+        refreshToken:
+          type: string
+          description: Refresh Token (30 días validez)
+        user:
+          $ref: '#/components/schemas/User'
+        requiresVerification:
+          type: boolean
+          description: Si requiere verificación de email
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email del usuario para recuperación
+
+    PasswordReset:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+          description: Token de recuperación de contraseña
+        newPassword:
+          type: string
+          minLength: 10
+          description: Nueva contraseña con validación avanzada
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Mensaje de error
+        details:
+          type: object
+          description: Detalles adicionales del error
+        code:
+          type: string
+          description: Código de error específico
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp del error
+
+    RateLimitError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            retryAfter:
+              type: integer
+              description: Segundos para esperar antes del próximo intento
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Registro de nuevo usuario
+      description: |
+        Registra un nuevo usuario en la plataforma con email y contraseña.
+        
+        ### Validaciones implementadas:
+        - **Email único**: No puede estar previamente registrado
+        - **Fortaleza de contraseña**: Sistema de scoring 0-100
+        - **Formato de email**: Validación con regex robusta
+        - **Rate limiting**: 3 registros por hora por IP
+        
+        ### Proceso post-registro:
+        1. Envío automático de email de verificación
+        2. Generación de tokens JWT (access + refresh)
+        3. Creación de usuario en base de datos
+        4. Login automático (requiere verificación)
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+            example:
+              name: "Juan Pérez"
+              email: "juan.perez@ejemplo.com"
+              password: "MiContraseñaSegura123!"
+              rol: "cliente"
+      responses:
+        '201':
+          description: Usuario registrado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "Usuario registrado exitosamente. Revisa tu email para verificar la cuenta."
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "a1b2c3d4e5f6..."
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  nombre: "Juan Pérez"
+                  email: "juan.perez@ejemplo.com"
+                  rol: "cliente"
+                  esta_verificado: false
+                requiresVerification: true
+        '400':
+          description: Error en validación de datos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "La contraseña no cumple con los requisitos de seguridad."
+                details:
+                  score: 25
+                  warnings: ["La contraseña debe tener al menos 10 caracteres"]
+                  suggestions: ["Usa una combinación de letras, números y símbolos"]
+        '409':
+          description: Email ya registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "El email ya está registrado."
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              example:
+                error: "Demasiados intentos"
+                message: "Demasiados intentos. Inténtalo de nuevo en 3600 segundos."
+                retryAfter: 3600
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Iniciar sesión con email y contraseña
+      description: |
+        Autentica un usuario con email y contraseña.
+        
+        ### Características de seguridad:
+        - **Bloqueo temporal**: 5 intentos fallidos = 15 min bloqueo
+        - **Rate limiting**: 5 intentos por 15 minutos
+        - **Validación robusta**: Contraseñas hasheadas con bcrypt cost 12
+        - **Usuarios Google**: Detecta usuarios de OAuth y redirige apropiadamente
+        
+        ### Respuesta exitosa:
+        - Tokens JWT (access + refresh)
+        - Datos del usuario autenticado
+        - Mensaje de bienvenida
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+            example:
+              email: "juan.perez@ejemplo.com"
+              password: "MiContraseñaSegura123!"
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "Login exitoso."
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "a1b2c3d4e5f6..."
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  nombre: "Juan Pérez"
+                  email: "juan.perez@ejemplo.com"
+                  rol: "cliente"
+                  esta_verificado: true
+        '401':
+          description: Credenciales inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidCredentials:
+                  summary: "Credenciales incorrectas"
+                  value:
+                    error: "Credenciales inválidas."
+                googleUser:
+                  summary: "Usuario de Google sin contraseña local"
+                  value:
+                    error: "Credenciales inválidas."
+                    isGoogleUser: true
+        '429':
+          description: Rate limit o bloqueo temporal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              examples:
+                rateLimit:
+                  summary: "Rate limit excedido"
+                  value:
+                    error: "Demasiados intentos"
+                    message: "Demasiados intentos. Inténtalo de nuevo en 900 segundos."
+                    retryAfter: 900
+                accountBlocked:
+                  summary: "Cuenta bloqueada temporalmente"
+                  value:
+                    error: "Cuenta bloqueada temporalmente por múltiples intentos fallidos."
+                    retryAfter: 900
+
+  /auth/google-login:
+    post:
+      tags:
+        - OAuth
+      summary: Autenticación con Google OAuth
+      description: |
+        Autentica o registra un usuario usando Google OAuth.
+        
+        ### Funcionalidades:
+        - **Registro automático** de usuarios nuevos
+        - **Actualización** de usuarios existentes
+        - **Gestión de fotos** de perfil de Google
+        - **Verificación automática** de usuarios Google
+        - **Vinculación** con cuentas existentes por email
+        
+        ### Datos de Google utilizados:
+        - UID único de Google
+        - Email verificado de Google
+        - Nombre completo
+        - Foto de perfil (si está disponible)
+      operationId: googleOAuth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleOAuth'
+            example:
+              uid: "google_123456789"
+              email: "usuario@ejemplo.com"
+              nombre: "Usuario Google"
+              photo: "https://lh3.googleusercontent.com/a/..."
+              rol: "cliente"
+      responses:
+        '200':
+          description: Autenticación con Google exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                message: "Login exitoso con Google"
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "a1b2c3d4e5f6..."
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  nombre: "Usuario Google"
+                  email: "usuario@ejemplo.com"
+                  rol: "cliente"
+                  esta_verificado: true
+                  url_foto_perfil: "https://lh3.googleusercontent.com/a/..."
+        '400':
+          description: Datos de Google inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingFields:
+                  summary: "Campos requeridos faltantes"
+                  value:
+                    error: "Campos requeridos faltantes: uid, email, nombre son obligatorios"
+                invalidEmail:
+                  summary: "Formato de email inválido"
+                  value:
+                    error: "Formato de email inválido"
+                invalidRole:
+                  summary: "Rol inválido"
+                  value:
+                    error: "Rol inválido para registro social."
+
+  /auth/verify-email:
+    get:
+      tags:
+        - Email Verification
+      summary: Verificar email mediante token
+      description: |
+        Verifica el email del usuario usando el token enviado por correo.
+        
+        ### Proceso:
+        1. Valida token único de verificación
+        2. Verifica que no ha expirado (24 horas)
+        3. Marca email como verificado
+        4. Limpia tokens temporales
+        5. Permite acceso completo a la cuenta
+        
+        ### Tokens:
+        - **Generados automáticamente** en registro
+        - **Expires**: 24 horas después de generación
+        - **Uso único**: Se invalidan tras verificación exitosa
+      operationId: verifyEmail
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 32
+            maxLength: 64
+          description: Token de verificación enviado por email
+          example: "abc123def456ghi789jkl012mno345pqr678stu901vwx234yz567"
+      responses:
+        '200':
+          description: Email verificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email verificado exitosamente"
+                  user:
+                    $ref: '#/components/schemas/User'
+                    example:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      nombre: "Juan Pérez"
+                      email: "juan.perez@ejemplo.com"
+                      rol: "cliente"
+                      esta_verificado: true
+        '400':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidToken:
+                  summary: "Token inválido"
+                  value:
+                    error: "Token de verificación inválido"
+                expiredToken:
+                  summary: "Token expirado"
+                  value:
+                    error: "Token de verificación expirado"
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Password Recovery
+      summary: Solicitar recuperación de contraseña
+      description: |
+        Solicita el envío de un email para recuperación de contraseña.
+        
+        ### Características de seguridad:
+        - **Rate limiting**: 3 solicitudes por hora por IP
+        - **Respuesta genérica**: No revela si el email existe
+        - **Token único**: Generado cryptográficamente seguro
+        - **Expiración corta**: 1 hora para mayor seguridad
+        
+        ### Proceso:
+        1. Valida formato de email
+        2. Busca usuario por email
+        3. Genera token único de recuperación
+        4. Envía email con enlace de recuperación
+        5. Responde con mensaje genérico
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+            example:
+              email: "juan.perez@ejemplo.com"
+      responses:
+        '200':
+          description: Email de recuperación enviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Si el email existe, se enviará un enlace de recuperación."
+        '400':
+          description: Email requerido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Email requerido"
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitError'
+              example:
+                error: "Demasiados intentos"
+                message: "Demasiados intentos. Inténtalo de nuevo en 3600 segundos."
+                retryAfter: 3600
+
+  /auth/reset-password:
+    post:
+      tags:
+        - Password Recovery
+      summary: Restablecer contraseña con token
+      description: |
+        Restablece la contraseña usando el token de recuperación.
+        
+        ### Validaciones:
+        - **Token válido**: Debe existir y no estar expirado
+        - **Nueva contraseña**: Validación avanzada con scoring
+        - **Seguridad**: Contraseña hasheada con bcrypt cost 12
+        - **Limpieza**: Tokens de recuperación se invalidan
+        
+        ### Proceso:
+        1. Valida token de recuperación
+        2. Verifica expiración (1 hora)
+        3. Valida nueva contraseña
+        4. Actualiza contraseña en BD
+        5. Invalida tokens de recuperación
+        6. Respuesta de éxito
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+            example:
+              token: "recovery_token_123"
+              newPassword: "NuevaContraseñaSegura456!"
+      responses:
+        '200':
+          description: Contraseña restablecida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Contraseña restablecida exitosamente"
+        '400':
+          description: Token inválido, expirado o contraseña débil
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidToken:
+                  summary: "Token inválido"
+                  value:
+                    error: "Token inválido"
+                expiredToken:
+                  summary: "Token expirado"
+                  value:
+                    error: "Token expirado"
+                weakPassword:
+                  summary: "Contraseña débil"
+                  value:
+                    error: "La nueva contraseña no cumple con los requisitos de seguridad."
+                    details:
+                      score: 25
+                      warnings: ["La contraseña debe tener al menos 10 caracteres"]
+                      suggestions: ["Usa una combinación de letras, números y símbolos"]
+
+  /auth/refresh:
+    post:
+      tags:
+        - Token Management
+      summary: Renovar access token con refresh token
+      description: |
+        Renueva el access token usando un refresh token válido.
+        
+        ### Características de seguridad:
+        - **Rotación automática**: Genera nuevo refresh token
+        - **Invalidación anterior**: Revoca refresh token usado
+        - **Validación robusta**: Verifica expiración y estado
+        - **Trazabilidad**: Logging de renovaciones
+        
+        ### Proceso:
+        1. Valida refresh token (formato y firma)
+        2. Busca token en base de datos
+        3. Verifica que no esté expirado o revocado
+        4. Genera nuevo access token
+        5. Genera nuevo refresh token
+        6. Revoca refresh token anterior
+        7. Almacena nuevo refresh token en BD
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token válido
+                  example: "a1b2c3d4e5f6g7h8i9j0..."
+      responses:
+        '200':
+          description: Token renovado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Token refrescado exitosamente"
+                  token:
+                    type: string
+                    description: Nuevo JWT Access Token (15 min validez)
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken:
+                    type: string
+                    description: Nuevo Refresh Token (30 días validez)
+                    example: "z9y8x7w6v5u4t3s2r1q0..."
+        '401':
+          description: Refresh token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidToken:
+                  summary: "Token inválido"
+                  value:
+                    error: "Refresh token inválido"
+                expiredToken:
+                  summary: "Token expirado o revocado"
+                  value:
+                    error: "Refresh token inválido o expirado"
+
+  /auth/me:
+    get:
+      tags:
+        - User Management
+      summary: Obtener datos del usuario autenticado
+      description: |
+        Obtiene los datos del usuario actualmente autenticado.
+        
+        ### Información retornada:
+        - Datos básicos del usuario (ID, nombre, email, rol)
+        - Estado de verificación del email
+        - URL de foto de perfil (si disponible)
+        - Metadatos (fechas de creación, último login)
+        
+        ### Autenticación requerida:
+        - JWT Access Token en header Authorization
+        - Token válido y no expirado
+        - Usuario existente en base de datos
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Datos del usuario obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+              example:
+                user:
+                  id: "550e8400-e29b-41d4-a716-446655440000"
+                  nombre: "Juan Pérez"
+                  email: "juan.perez@ejemplo.com"
+                  rol: "cliente"
+                  esta_verificado: true
+                  url_foto_perfil: "https://example.com/photo.jpg"
+        '401':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Token inválido o expirado"
+        '403':
+          description: Token malformado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Token malformado"
+
+  /auth/logout:
+    post:
+      tags:
+        - Token Management
+      summary: Cerrar sesión y revocar tokens
+      description: |
+        Cierra la sesión del usuario y revoca todos los refresh tokens asociados.
+        
+        ### Proceso de logout:
+        1. Valida JWT Access Token
+        2. Identifica usuario autenticado
+        3. Revoca todos los refresh tokens activos
+        4. Limpia tokens locales del cliente
+        5. Logging de evento de logout
+        6. Respuesta de confirmación
+        
+        ### Seguridad:
+        - **Revocación masiva**: Todos los refresh tokens del usuario
+        - **Cleanup**: Tokens no pueden reutilizarse
+        - **Audit trail**: Log de eventos de seguridad
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Logout exitoso, tokens revocados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Logout exitoso"
+        '401':
+          description: Token inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Token inválido o expirado"
+
+  /auth/resend-verification:
+    post:
+      tags:
+        - Email Verification
+      summary: Reenviar email de verificación
+      description: |
+        Reenvía el email de verificación a usuarios no verificados.
+        
+        ### Restricciones:
+        - Usuario debe existir
+        - Email no debe estar verificado
+        - Genera nuevo token de verificación
+        - Resetea tiempo de expiración
+        
+        ### Proceso:
+        1. Busca usuario por email
+        2. Verifica que no esté verificado
+        3. Genera nuevo token único
+        4. Establece nueva expiración (24h)
+        5. Envía email de verificación
+        6. Respuesta de confirmación
+      operationId: resendVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email del usuario a verificar
+                  example: "juan.perez@ejemplo.com"
+      responses:
+        '200':
+          description: Email de verificación reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Email de verificación reenviado exitosamente"
+        '400':
+          description: Usuario no encontrado o ya verificado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                userNotFound:
+                  summary: "Usuario no encontrado"
+                  value:
+                    error: "Usuario no encontrado"
+                alreadyVerified:
+                  summary: "Email ya verificado"
+                  value:
+                    error: "El email ya está verificado"
+        '500':
+          description: Error al enviar email de verificación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Error al enviar email de verificación"
+
+tags:
+  - name: Authentication
+    description: Endpoints principales de autenticación
+  - name: OAuth
+    description: Autenticación con redes sociales
+  - name: Email Verification
+    description: Verificación y reenvío de emails
+  - name: Password Recovery
+    description: Recuperación y restablecimiento de contraseñas
+  - name: Token Management
+    description: Gestión de tokens JWT y refresh
+  - name: User Management
+    description: Gestión de datos de usuario
+
+externalDocs:
+  description: Documentación completa del proyecto CHANGANET
+  url: https://docs.changanet.com.ar

@@ -12,6 +12,8 @@ import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import ProfilePicture from '../components/ProfilePicture';
 import Achievements from '../components/Achievements';
+import ReviewStats from '../components/ReviewStats';
+import PaginatedReviewsList from '../components/PaginatedReviewsList';
 import '../styles/onboarding.css';
 
 const ProfessionalDashboard = () => {
@@ -149,6 +151,7 @@ const ProfessionalDashboard = () => {
     { id: 'profile', name: 'Mi Perfil', icon: '👤' },
     { id: 'services', name: 'Mis Servicios', icon: '🔧' },
     { id: 'quotes', name: 'Cotizaciones', icon: '💰' },
+    { id: 'reviews', name: 'Reseñas', icon: '⭐' },
     { id: 'messages', name: 'Mensajes', icon: '💬' },
     { id: 'schedule', name: 'Mi Agenda', icon: '📅' },
     { id: 'achievements', name: 'Logros', icon: '🏆' },
@@ -286,6 +289,35 @@ const ProfessionalDashboard = () => {
             >
               Gestionar Cotizaciones
             </button>
+          </div>
+        );
+
+      case 'reviews':
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900 mb-6">Estadísticas de Reseñas</h3>
+              {user?.id ? (
+                <ReviewStats professionalId={user.id} />
+              ) : (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div>
+                  <p className="text-gray-600 mt-2">Cargando estadísticas...</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-medium text-gray-900 mb-6">Reseñas de Clientes</h3>
+              {user?.id ? (
+                <PaginatedReviewsList professionalId={user.id} />
+              ) : (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500 mx-auto"></div>
+                  <p className="text-gray-600 mt-2">Cargando reseñas...</p>
+                </div>
+              )}
+            </div>
           </div>
         );
 
