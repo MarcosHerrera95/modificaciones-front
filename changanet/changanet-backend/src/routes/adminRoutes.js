@@ -6,21 +6,11 @@
 const express = require('express');
 const adminController = require('../controllers/adminController');
 const { authenticateToken } = require('../middleware/authenticate');
+const { requireAdmin, requirePermission, requireRole } = require('../middleware/rbac');
 
 const router = express.Router();
 
-// Middleware para verificar rol de administrador
-const requireAdmin = (req, res, next) => {
-  if (req.user.rol !== 'admin') {
-    return res.status(403).json({
-      success: false,
-      error: 'Acceso denegado. Se requieren permisos de administrador.'
-    });
-  }
-  next();
-};
-
-// Aplicar middleware de admin a todas las rutas
+// Aplicar middleware de autenticación y RBAC a todas las rutas
 router.use(authenticateToken);
 router.use(requireAdmin);
 
@@ -44,5 +34,41 @@ router.post('/payments/:paymentId/release-funds', adminController.manualReleaseF
 // Gestión de servicios
 router.get('/services', adminController.getServicesList);
 router.put('/services/:serviceId/status', adminController.updateServiceStatus);
+
+// Moderación de contenido
+router.get('/moderation/reports', requirePermission('moderation.view'), adminController.getModerationReports);
+router.post('/moderation/reports/:reportId/assign', requirePermission('moderation.manage'), adminController.assignModerationReport);
+router.post('/moderation/reports/:reportId/resolve', requirePermission('moderation.manage'), adminController.resolveModerationReport);
+router.delete('/reviews/:reviewId', requirePermission('moderation.delete'), adminController.deleteReview);
+
+// Gestión de disputas
+router.get('/disputes', requirePermission('disputes.view'), adminController.getDisputes);
+router.get('/disputes/:disputeId', requirePermission('disputes.view'), adminController.getDisputeDetails);
+router.post('/disputes/:disputeId/resolve', requirePermission('disputes.resolve'), adminController.resolveDispute);
+router.post('/disputes/:disputeId/refund', requirePermission('disputes.refund'), adminController.processRefund);
+
+// Configuración y comisiones
+router.get('/settings', requirePermission('settings.view'), adminController.getSettings);
+router.put('/settings', requirePermission('settings.edit'), adminController.updateSettings);
+router.get('/commissions/history', requirePermission('commissions.view'), adminController.getCommissionHistory);
+router.put('/commissions/update', requirePermission('commissions.edit'), adminController.updateCommissionSettings);
+
+// Logs de auditoría
+router.get('/audit-logs', requirePermission('audit.view'), adminController.getAuditLogs);
+
+// Métricas avanzadas
+router.get('/metrics/detailed', requirePermission('reports.view'), adminController.getDetailedMetrics);
+router.get('/metrics/export', requirePermission('reports.export'), adminController.exportMetrics);
+
+// Gestión de administradores (solo superadmin)
+router.get('/admins', requireRole('superadmin'), adminController.getAdmins);
+router.post('/admins', requireRole('superadmin'), adminController.createAdmin);
+router.put('/admins/:adminId/role', requireRole('superadmin'), adminController.updateAdminRole);
+router.put('/admins/:adminId/status', requireRole('superadmin'), adminController.toggleAdminStatus);
+
+// Reportes y exportación
+router.get('/reports/users', requirePermission('reports.view'), adminController.generateUserReport);
+router.get('/reports/services', requirePermission('reports.view'), adminController.generateServiceReport);
+router.get('/reports/financial', requirePermission('reports.view'), adminController.generateFinancialReport);
 
 module.exports = router;

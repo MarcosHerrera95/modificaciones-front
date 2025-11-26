@@ -1,0 +1,577 @@
+openapi: 3.0.3
+info:
+  title: Changánet Admin API
+  description: API de administración para el Panel de Control de Changánet
+  version: 1.0.0
+  contact:
+    name: Changánet Support
+    email: soporte@changanet.com
+
+servers:
+  - url: http://localhost:3002/api
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /admin/stats:
+    get:
+      summary: Obtener estadísticas generales del sistema
+      tags: [Admin]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Estadísticas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      users:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          verified:
+                            type: integer
+                          pendingVerifications:
+                            type: integer
+                      services:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+                          completed:
+                            type: integer
+                          completionRate:
+                            type: number
+                      payments:
+                        type: object
+                        properties:
+                          totalProcessed:
+                            type: integer
+                          totalRevenue:
+                            type: number
+                      moderation:
+                        type: object
+                        properties:
+                          activeDisputes:
+                            type: integer
+                          pendingReports:
+                            type: integer
+                      reviews:
+                        type: object
+                        properties:
+                          averageRating:
+                            type: number
+                          totalReviews:
+                            type: integer
+                      admins:
+                        type: object
+                        properties:
+                          total:
+                            type: integer
+
+  /admin/verifications/pending:
+    get:
+      summary: Obtener solicitudes de verificación pendientes
+      tags: [Admin, Verifications]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Lista de verificaciones pendientes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        usuario:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                            nombre:
+                              type: string
+                            email:
+                              type: string
+                        fecha_solicitud:
+                          type: string
+                          format: date-time
+                        documento_url:
+                          type: string
+
+  /admin/verifications/{requestId}/approve:
+    post:
+      summary: Aprobar solicitud de verificación
+      tags: [Admin, Verifications]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Verificación aprobada exitosamente
+
+  /admin/verifications/{requestId}/reject:
+    post:
+      summary: Rechazar solicitud de verificación
+      tags: [Admin, Verifications]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                motivo_rechazo:
+                  type: string
+                  example: "Documentación insuficiente"
+      responses:
+        200:
+          description: Verificación rechazada
+
+  /admin/moderation/reports:
+    get:
+      summary: Obtener reportes de moderación
+      tags: [Admin, Moderation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, resolved, dismissed]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [low, medium, high, urgent]
+        - name: targetType
+          in: query
+          schema:
+            type: string
+            enum: [review, user, content, service]
+      responses:
+        200:
+          description: Lista de reportes de moderación
+
+  /admin/moderation/reports/{reportId}/assign:
+    post:
+      summary: Asignar reporte de moderación a un admin
+      tags: [Admin, Moderation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adminId:
+                  type: string
+      responses:
+        200:
+          description: Reporte asignado exitosamente
+
+  /admin/moderation/reports/{reportId}/resolve:
+    post:
+      summary: Resolver reporte de moderación
+      tags: [Admin, Moderation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Reporte resuelto exitosamente
+
+  /admin/reviews/{reviewId}:
+    delete:
+      summary: Eliminar reseña (moderación)
+      tags: [Admin, Moderation]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Reseña eliminada exitosamente
+
+  /admin/disputes:
+    get:
+      summary: Obtener disputas de pago
+      tags: [Admin, Disputes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [abierta, resuelta]
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        200:
+          description: Lista de disputas
+
+  /admin/disputes/{disputeId}/resolve:
+    post:
+      summary: Resolver disputa
+      tags: [Admin, Disputes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: disputeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        200:
+          description: Disputa resuelta exitosamente
+
+  /admin/disputes/{disputeId}/refund:
+    post:
+      summary: Procesar reembolso
+      tags: [Admin, Disputes]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: disputeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: number
+                reason:
+                  type: string
+      responses:
+        200:
+          description: Reembolso procesado exitosamente
+
+  /admin/audit-logs:
+    get:
+      summary: Obtener logs de auditoría
+      tags: [Admin, Audit]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: adminId
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: targetType
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        200:
+          description: Logs de auditoría obtenidos exitosamente
+
+  /admin/settings:
+    get:
+      summary: Obtener configuración del sistema
+      tags: [Admin, Settings]
+      security:
+        - bearerAuth: []
+      responses:
+        200:
+          description: Configuración obtenida exitosamente
+
+    put:
+      summary: Actualizar configuración del sistema
+      tags: [Admin, Settings]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        200:
+          description: Configuración actualizada exitosamente
+
+  /admin/commissions/update:
+    put:
+      summary: Actualizar configuración de comisiones
+      tags: [Admin, Commissions]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commission_percentage:
+                  type: number
+                  minimum: 5
+                  maximum: 10
+                minimum_fee:
+                  type: number
+                  minimum: 0
+      responses:
+        200:
+          description: Configuración de comisiones actualizada
+
+  /admin/metrics/detailed:
+    get:
+      summary: Obtener métricas detalladas
+      tags: [Admin, Metrics]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [7d, 30d, 90d]
+            default: 30d
+      responses:
+        200:
+          description: Métricas detalladas obtenidas
+
+  /admin/metrics/export:
+    get:
+      summary: Exportar métricas
+      tags: [Admin, Metrics]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [users, services, financial]
+      responses:
+        200:
+          description: Datos exportados
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AdminProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        role:
+          type: string
+          enum: [superadmin, manager, support]
+        permissions:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        last_login:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ModerationReport:
+      type: object
+      properties:
+        id:
+          type: string
+        reporter_id:
+          type: string
+        target_type:
+          type: string
+          enum: [review, user, content, service]
+        target_id:
+          type: string
+        reason:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [open, in_progress, resolved, dismissed]
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        assigned_to:
+          type: string
+        assigned_at:
+          type: string
+          format: date-time
+        resolved_at:
+          type: string
+          format: date-time
+        resolution_notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+        admin_id:
+          type: string
+        action:
+          type: string
+        target_type:
+          type: string
+        target_id:
+          type: string
+        details:
+          type: string
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+        created_at:
+          type: string
+          format: date-time

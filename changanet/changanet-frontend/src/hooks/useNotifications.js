@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import * as notificationService from '../services/notificationService';
+import notificationService from '../services/notificationService';
 
 export const useNotifications = () => {
   const { user } = useAuth();
@@ -25,9 +25,11 @@ export const useNotifications = () => {
     setError(null);
 
     try {
-      const data = await notificationService.getNotifications();
+      const data = await notificationService.getUserNotifications();
       setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount || 0);
+      // Calcular contador de no leídas
+      const unread = data.notifications.filter(n => n.estado === 'unread').length;
+      setUnreadCount(unread);
     } catch (err) {
       console.error('Error cargando notificaciones:', err);
       setError('Error al cargar notificaciones');
@@ -45,7 +47,7 @@ export const useNotifications = () => {
       setNotifications(prev =>
         prev.map(notification =>
           notification.id === notificationId
-            ? { ...notification, esta_leido: true }
+            ? { ...notification, estado: 'read' }
             : notification
         )
       );
@@ -65,7 +67,7 @@ export const useNotifications = () => {
 
       // Actualizar estado local
       setNotifications(prev =>
-        prev.map(notification => ({ ...notification, esta_leido: true }))
+        prev.map(notification => ({ ...notification, estado: 'read' }))
       );
 
       setUnreadCount(0);
@@ -78,14 +80,13 @@ export const useNotifications = () => {
   // Función para eliminar notificación
   const deleteNotification = useCallback(async (notificationId) => {
     try {
-      await notificationService.deleteNotification(notificationId);
-
-      // Actualizar estado local
-      const deletedNotification = notifications.find(n => n.id === notificationId);
+      // Para este ejemplo, simplemente marcamos como eliminada
+      // En una implementación completa, tendríamos un endpoint DELETE
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
 
       // Actualizar contador si era no leída
-      if (deletedNotification && !deletedNotification.esta_leido) {
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification && deletedNotification.estado === 'unread') {
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (err) {

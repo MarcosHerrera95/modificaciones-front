@@ -97,8 +97,9 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const smsRoutes = require('./routes/smsRoutes');
 const favoritesRoutes = require('./routes/favoritesRoutes');
 const achievementsRoutes = require('./routes/achievementsRoutes');
+const urgentRoutes = require('./routes/urgentRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
-const { sendNotification } = require('./services/notificationService');
+const { sendNotification, setWebSocketService } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
 const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
 const { scheduleRecurringServiceGeneration, scheduleAutomaticFundReleases } = require('./services/recurringServiceScheduler');
@@ -386,10 +387,22 @@ app.use('/api/favorites', favoritesRoutes);
 // Rutas de logros y gamificación
 app.use('/api/achievements', achievementsRoutes);
 
+// Rutas de servicios urgentes con autenticación requerida
+app.use('/api', urgentRoutes);
+
 // ✅ INICIALIZACIÓN DEL WEBSOCKET UNIFICADO (REQUERIMIENTOS REQ-16 a REQ-20)
 // Implementa chat en tiempo real según especificaciones PRD
 const webSocketService = new UnifiedWebSocketService(io);
 console.log('📡 WebSocket Unificado inicializado - Chat en tiempo real activo');
+
+// Inyectar WebSocket service en servicios de notificaciones
+setWebSocketService(webSocketService);
+console.log('🔔 Servicio WebSocket inyectado en notificaciones');
+
+// Inyectar servicio WebSocket en controlador de urgencias
+const { setWebSocketService: setUrgentWebSocketService } = require('./controllers/urgentController');
+setUrgentWebSocketService(webSocketService);
+console.log('🚨 Servicio WebSocket inyectado en controlador de urgencias');
 
 // Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error) - Monitoreo de errores (REQ-40)
 app.use(sentryErrorHandler());

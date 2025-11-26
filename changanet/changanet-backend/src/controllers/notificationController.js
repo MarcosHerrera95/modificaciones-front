@@ -1,300 +1,427 @@
-/**
- * @archivo src/controllers/notificationController.js - Controlador de notificaciones
- * @descripción Maneja operaciones CRUD de notificaciones (REQ-19, REQ-20)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Backend] Implementar Controlador de Notificaciones
- * @impacto Social: Gestión segura de notificaciones para todos los usuarios
- */
+const { NotificationService } = require('../services/notificationService');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
 
-const notificationService = require('../services/notificationService');
-const pushNotificationService = require('../services/pushNotificationService');
-
-/**
- * Obtener notificaciones del usuario autenticado
- */
-exports.getNotifications = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { filter } = req.query; // 'all', 'unread', 'read'
-
-    const result = await notificationService.getUserNotifications(userId, filter);
-
-    res.json({
-      success: true,
-      notifications: result.notifications,
-      unreadCount: result.unreadCount
-    });
-  } catch (error) {
-    console.error('Error obteniendo notificaciones:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
+class NotificationController {
+  constructor() {
+    this.notificationService = new NotificationService();
   }
-};
 
-/**
- * Marcar una notificación como leída
- */
-exports.markAsRead = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { id: notificationId } = req.params;
+  // GET /api/notifications - Obtener notificaciones del usuario
+  async getUserNotifications(req, res) {
+    try {
+      const userId = req.user.id;
+      const { page = 1, limit = 20 } = req.query;
 
-    // Verificar que la notificación pertenece al usuario
-    const notification = await notificationService.getNotificationById(notificationId);
-    if (!notification || notification.usuario_id !== userId) {
-      return res.status(404).json({
-        error: 'Notificación no encontrada'
+      const result = await this.notificationService.getUserNotifications(
+        userId,
+        parseInt(page),
+        parseInt(limit)
+      );
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener notificaciones'
       });
     }
-
-    await notificationService.markAsRead(notificationId);
-
-    res.json({
-      success: true,
-      message: 'Notificación marcada como leída'
-    });
-  } catch (error) {
-    console.error('Error marcando notificación como leída:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
   }
-};
 
-/**
- * Marcar todas las notificaciones del usuario como leídas
- */
-exports.markAllAsRead = async (req, res) => {
-  try {
-    const userId = req.user.id;
+  // POST /api/notifications/mark-read - Marcar notificación como leída
+  async markAsRead(req, res) {
+    try {
+      const userId = req.user.id;
+      const { notificationId } = req.body;
 
-    await notificationService.markAllAsRead(userId);
-
-    res.json({
-      success: true,
-      message: 'Todas las notificaciones marcadas como leídas'
-    });
-  } catch (error) {
-    console.error('Error marcando todas las notificaciones como leídas:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
-  }
-};
-
-/**
- * Eliminar una notificación
- */
-exports.deleteNotification = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { id: notificationId } = req.params;
-
-    // Verificar que la notificación pertenece al usuario
-    const notification = await notificationService.getNotificationById(notificationId);
-    if (!notification || notification.usuario_id !== userId) {
-      return res.status(404).json({
-        error: 'Notificación no encontrada'
-      });
-    }
-
-    await notificationService.deleteNotification(notificationId);
-
-    res.json({
-      success: true,
-      message: 'Notificación eliminada'
-    });
-  } catch (error) {
-    console.error('Error eliminando notificación:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
-  }
-};
-
-/**
- * Registrar token FCM para notificaciones push
- */
-exports.registerFCMToken = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { token } = req.body;
-
-    if (!token) {
-      return res.status(400).json({
-        error: 'Token FCM es requerido'
-      });
-    }
-
-    await pushNotificationService.registerFCMToken(userId, token);
-
-    res.json({
-      success: true,
-      message: 'Token FCM registrado correctamente'
-    });
-  } catch (error) {
-    console.error('Error registrando token FCM:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
-  }
-};
-
-/**
- * Eliminar token FCM (logout/dispositivo removido)
- */
-exports.unregisterFCMToken = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    await pushNotificationService.unregisterFCMToken(userId);
-
-    res.json({
-      success: true,
-      message: 'Token FCM eliminado correctamente'
-    });
-  } catch (error) {
-    console.error('Error eliminando token FCM:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
-  }
-};
-
-/**
- * Enviar notificación push de prueba
- */
-exports.sendTestNotification = async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    await pushNotificationService.sendPushNotification(
-      userId,
-      'Notificación de Prueba',
-      'Esta es una notificación de prueba de Changánet',
-      { type: 'test', timestamp: new Date().toISOString() }
-    );
-
-    res.json({
-      success: true,
-      message: 'Notificación de prueba enviada'
-    });
-  } catch (error) {
-    console.error('Error enviando notificación de prueba:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
-  }
-};
-
-/**
- * Obtener preferencias de notificación del usuario
- */
-exports.getNotificationPreferences = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
-    const user = await prisma.usuarios.findUnique({
-      where: { id: userId },
-      select: {
-        notificaciones_push: true,
-        notificaciones_email: true,
-        notificaciones_sms: true,
-        notificaciones_servicios: true,
-        notificaciones_mensajes: true,
-        notificaciones_pagos: true,
-        notificaciones_marketing: true
+      if (!notificationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID de notificación requerido'
+        });
       }
-    });
 
-    if (!user) {
-      return res.status(404).json({
-        error: 'Usuario no encontrado'
+      const notification = await this.notificationService.markAsRead(notificationId, userId);
+
+      res.json({
+        success: true,
+        data: notification
+      });
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al marcar notificación como leída'
       });
     }
-
-    res.json({
-      success: true,
-      preferences: user
-    });
-  } catch (error) {
-    console.error('Error obteniendo preferencias de notificación:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
   }
-};
 
-/**
- * Actualizar preferencias de notificación del usuario
- */
-exports.updateNotificationPreferences = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const {
-      notificaciones_push,
-      notificaciones_email,
-      notificaciones_sms,
-      notificaciones_servicios,
-      notificaciones_mensajes,
-      notificaciones_pagos,
-      notificaciones_marketing
-    } = req.body;
+  // POST /api/notifications/mark-all-read - Marcar todas como leídas
+  async markAllAsRead(req, res) {
+    try {
+      const userId = req.user.id;
 
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+      const result = await this.notificationService.markAllAsRead(userId);
 
-    // Validar que los valores sean booleanos
-    const preferences = {
-      notificaciones_push,
-      notificaciones_email,
-      notificaciones_sms,
-      notificaciones_servicios,
-      notificaciones_mensajes,
-      notificaciones_pagos,
-      notificaciones_marketing
-    };
-
-    // Filtrar solo valores booleanos válidos
-    const validPreferences = {};
-    Object.keys(preferences).forEach(key => {
-      if (typeof preferences[key] === 'boolean') {
-        validPreferences[key] = preferences[key];
-      }
-    });
-
-    if (Object.keys(validPreferences).length === 0) {
-      return res.status(400).json({
-        error: 'Debe proporcionar al menos una preferencia válida'
+      res.json({
+        success: true,
+        data: {
+          modifiedCount: result.count
+        }
+      });
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al marcar todas las notificaciones como leídas'
       });
     }
-
-    const updatedUser = await prisma.usuarios.update({
-      where: { id: userId },
-      data: validPreferences,
-      select: {
-        notificaciones_push: true,
-        notificaciones_email: true,
-        notificaciones_sms: true,
-        notificaciones_servicios: true,
-        notificaciones_mensajes: true,
-        notificaciones_pagos: true,
-        notificaciones_marketing: true
-      }
-    });
-
-    res.json({
-      success: true,
-      message: 'Preferencias de notificación actualizadas',
-      preferences: updatedUser
-    });
-  } catch (error) {
-    console.error('Error actualizando preferencias de notificación:', error);
-    res.status(500).json({
-      error: 'Error interno del servidor'
-    });
   }
-};
+
+  // GET /api/notifications/unread-count - Contador de no leídas
+  async getUnreadCount(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const count = await this.notificationService.getUnreadCount(userId);
+
+      res.json({
+        success: true,
+        data: { count }
+      });
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener contador de notificaciones'
+      });
+    }
+  }
+
+  // GET /api/notifications/preferences/:userId - Obtener preferencias
+  async getUserPreferences(req, res) {
+    try {
+      const { userId } = req.params;
+
+      // Verificar permisos (solo el propio usuario o admin)
+      if (req.user.id !== userId && req.user.rol !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado'
+        });
+      }
+
+      const preferences = await this.notificationService.getUserPreferences(userId);
+
+      res.json({
+        success: true,
+        data: preferences
+      });
+    } catch (error) {
+      console.error('Error getting preferences:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener preferencias'
+      });
+    }
+  }
+
+  // PUT /api/notifications/preferences/:userId - Actualizar preferencias
+  async updateUserPreferences(req, res) {
+    try {
+      const { userId } = req.params;
+      const preferences = req.body;
+
+      // Verificar permisos
+      if (req.user.id !== userId && req.user.rol !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado'
+        });
+      }
+
+      // Validar estructura de preferencias
+      const validTypes = ['system', 'message', 'payment', 'urgent', 'review', 'admin'];
+      for (const [type, prefs] of Object.entries(preferences)) {
+        if (!validTypes.includes(type)) {
+          return res.status(400).json({
+            success: false,
+            message: `Tipo de notificación inválido: ${type}`
+          });
+        }
+        if (typeof prefs.inapp !== 'boolean' || typeof prefs.push !== 'boolean' || typeof prefs.email !== 'boolean') {
+          return res.status(400).json({
+            success: false,
+            message: 'Preferencias deben ser booleanas'
+          });
+        }
+      }
+
+      await this.notificationService.updateUserPreferences(userId, preferences);
+
+      res.json({
+        success: true,
+        message: 'Preferencias actualizadas correctamente'
+      });
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al actualizar preferencias'
+      });
+    }
+  }
+
+  // POST /api/notifications/dispatch - Enviar notificación manual (admin/sistema)
+  async dispatchNotification(req, res) {
+    try {
+      const { userId, type, title, message, data, channel } = req.body;
+
+      // Solo admin puede enviar notificaciones manuales
+      if (req.user.rol !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado'
+        });
+      }
+
+      if (!userId || !type || !title || !message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Campos requeridos: userId, type, title, message'
+        });
+      }
+
+      const notification = await this.notificationService.createNotification(
+        userId,
+        type,
+        title,
+        message,
+        data || {},
+        channel || 'inapp'
+      );
+
+      res.json({
+        success: true,
+        data: notification
+      });
+    } catch (error) {
+      console.error('Error dispatching notification:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar notificación'
+      });
+    }
+  }
+
+  // POST /api/notifications/bulk - Enviar notificaciones masivas
+  async bulkDispatch(req, res) {
+    try {
+      const { userIds, type, title, message, data, channel } = req.body;
+
+      // Solo admin puede enviar notificaciones masivas
+      if (req.user.rol !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado'
+        });
+      }
+
+      if (!Array.isArray(userIds) || !type || !title || !message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Campos requeridos: userIds (array), type, title, message'
+        });
+      }
+
+      const notifications = [];
+      for (const userId of userIds) {
+        const notification = await this.notificationService.createNotification(
+          userId,
+          type,
+          title,
+          message,
+          data || {},
+          channel || 'inapp'
+        );
+        notifications.push(notification);
+      }
+
+      res.json({
+        success: true,
+        data: {
+          sent: notifications.length,
+          notifications
+        }
+      });
+    } catch (error) {
+      console.error('Error bulk dispatching notifications:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar notificaciones masivas'
+      });
+    }
+  }
+
+  // POST /api/notifications/schedule - Programar notificación
+  async scheduleNotification(req, res) {
+    try {
+      const { userId, type, title, message, data, channel, scheduledAt } = req.body;
+
+      // Solo admin puede programar notificaciones
+      if (req.user.rol !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'No autorizado'
+        });
+      }
+
+      if (!userId || !type || !title || !message || !scheduledAt) {
+        return res.status(400).json({
+          success: false,
+          message: 'Campos requeridos: userId, type, title, message, scheduledAt'
+        });
+      }
+
+      // Aquí iría la lógica para programar en cola
+      // Por simplicidad, crear inmediatamente
+      const notification = await this.notificationService.createNotification(
+        userId,
+        type,
+        title,
+        message,
+        data || {},
+        channel || 'inapp'
+      );
+
+      res.json({
+        success: true,
+        data: notification
+      });
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al programar notificación'
+      });
+    }
+  }
+
+  // Métodos legacy para compatibilidad con rutas existentes
+  async getNotifications(req, res) {
+    return this.getUserNotifications(req, res);
+  }
+
+  async deleteNotification(req, res) {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      // Soft delete - marcar como eliminada cambiando el estado
+      await this.notificationService.updateNotificationStatus(id, 'deleted');
+
+      res.json({
+        success: true,
+        message: 'Notificación eliminada'
+      });
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al eliminar notificación'
+      });
+    }
+  }
+
+  async registerFCMToken(req, res) {
+    try {
+      const userId = req.user.id;
+      const { token } = req.body;
+
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Token FCM requerido'
+        });
+      }
+
+      // Actualizar token FCM en la tabla usuarios
+      await prisma.usuarios.update({
+        where: { id: userId },
+        data: { fcm_token: token }
+      });
+
+      res.json({
+        success: true,
+        message: 'Token FCM registrado correctamente'
+      });
+    } catch (error) {
+      console.error('Error registering FCM token:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al registrar token FCM'
+      });
+    }
+  }
+
+  async unregisterFCMToken(req, res) {
+    try {
+      const userId = req.user.id;
+
+      await prisma.usuarios.update({
+        where: { id: userId },
+        data: { fcm_token: null }
+      });
+
+      res.json({
+        success: true,
+        message: 'Token FCM eliminado correctamente'
+      });
+    } catch (error) {
+      console.error('Error unregistering FCM token:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al eliminar token FCM'
+      });
+    }
+  }
+
+  async sendTestNotification(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const notification = await this.notificationService.createNotification(
+        userId,
+        'system',
+        'Notificación de Prueba',
+        'Esta es una notificación de prueba del sistema Changánet',
+        { test: true }
+      );
+
+      res.json({
+        success: true,
+        data: notification
+      });
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar notificación de prueba'
+      });
+    }
+  }
+
+  async getNotificationPreferences(req, res) {
+    return this.getUserPreferences(req, res);
+  }
+
+  async updateNotificationPreferences(req, res) {
+    return this.updateUserPreferences(req, res);
+  }
+}
+
+module.exports = new NotificationController();

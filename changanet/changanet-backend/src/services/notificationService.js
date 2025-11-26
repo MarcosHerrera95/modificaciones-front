@@ -1,915 +1,469 @@
-/**
- * @archivo src/services/notificationService.js - Servicio de notificaciones
- * @descripción Gestiona creación y operaciones de notificaciones (REQ-19, REQ-20)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Backend] Implementar Servicio de Notificaciones
- * @impacto Social: Sistema de notificaciones inclusivo y accesible
- * @mejora Sistema de plantillas y prioridades implementado
- */
-
 const { PrismaClient } = require('@prisma/client');
-const { sendPushNotification, sendMulticastPushNotification } = require('../config/firebaseAdmin');
-const { sendEmail } = require('./emailService');
-const notificationTemplates = require('./notificationTemplatesService');
-const notificationPreferences = require('./notificationPreferencesService');
-
 const prisma = new PrismaClient();
 
-/**
- * Tipos de notificaciones soportados
- */
+// WebSocket service para notificaciones en tiempo real
+let webSocketService = null;
+
+function setWebSocketService(service) {
+  webSocketService = service;
+}
+
+// Tipos de notificaciones según PRD
 const NOTIFICATION_TYPES = {
-  BIENVENIDA: 'bienvenida',
-  COTIZACION: 'cotizacion',
-  COTIZACION_ACEPTADA: 'cotizacion_aceptada',
-  COTIZACION_RECHAZADA: 'cotizacion_rechazada',
-  SERVICIO_AGENDADO: 'servicio_agendado',
-  MENSAJE: 'mensaje',
-  TURNO_AGENDADO: 'turno_agendado',
-  RESENA_RECIBIDA: 'resena_recibida',
-  PAGO_LIBERADO: 'pago_liberado',
-  VERIFICACION_APROBADA: 'verificacion_aprobada'
+  SYSTEM: 'system',
+  MESSAGE: 'message',
+  PAYMENT: 'payment',
+  URGENT: 'urgent',
+  REVIEW: 'review',
+  ADMIN: 'admin'
 };
 
-/**
- * Niveles de prioridad para notificaciones
- */
-const NOTIFICATION_PRIORITIES = {
-  CRITICAL: 'critical',     // Urgente: servicios urgentes, pagos, verificaciones
-  HIGH: 'high',            // Alta: servicios agendados, cotizaciones aceptadas/rechazadas
-  MEDIUM: 'medium',        // Media: mensajes, reseñas
-  LOW: 'low'              // Baja: recordatorios, bienvenida
+// Canales de notificación
+const NOTIFICATION_CHANNELS = {
+  INAPP: 'inapp',
+  PUSH: 'push',
+  EMAIL: 'email'
 };
 
-/**
- * Crear una nueva notificación respetando las preferencias del usuario
- * @param {string} userId - ID del usuario destinatario
- * @param {string} type - Tipo de notificación
- * @param {string} message - Mensaje de la notificación
- * @param {Object} metadata - Datos adicionales (opcional)
- * @param {string} priority - Prioridad de la notificación (critical, high, medium, low)
- */
-exports.createNotification = async (userId, type, message, metadata = {}, priority = 'medium') => {
-  try {
-    // Validar tipo de notificación
-    if (!Object.values(NOTIFICATION_TYPES).includes(type)) {
-      throw new Error(`Tipo de notificación inválido: ${type}`);
+// Estados de notificación
+const NOTIFICATION_STATUS = {
+  UNREAD: 'unread',
+  READ: 'read',
+  DELIVERED: 'delivered',
+  FAILED: 'failed'
+};
+
+class NotificationService {
+  // Crear notificación
+  async createNotification(userId, type, title, message, data = {}, channel = 'inapp') {
+    try {
+      const notification = await prisma.notificaciones.create({
+        data: {
+          usuario_id: userId,
+          tipo: type,
+          titulo: title,
+          mensaje: message,
+          data: JSON.stringify(data),
+          canal: channel,
+          estado: NOTIFICATION_STATUS.UNREAD,
+          creado_en: new Date()
+        }
+      });
+
+      // Enviar a canales según preferencias
+      await this.sendToChannels(notification);
+
+      // Emitir evento WebSocket para actualización en tiempo real
+      if (webSocketService) {
+        const unreadCount = await this.getUnreadCount(userId);
+        webSocketService.emitToUser(userId, 'notification:new', {
+          notification: {
+            ...notification,
+            data: JSON.parse(notification.data)
+          },
+          unreadCount
+        });
+      }
+
+      return notification;
+    } catch (error) {
+      console.error('Error creating notification:', error);
+      throw error;
+    }
+  }
+
+  // Enviar notificación a múltiples canales
+  async sendToChannels(notification) {
+    const preferences = await this.getUserPreferences(notification.usuario_id, notification.tipo);
+
+    if (preferences.inapp && notification.canal === 'inapp') {
+      // Ya está en BD para in-app
     }
 
-    // Validar prioridad
-    if (!Object.values(NOTIFICATION_PRIORITIES).includes(priority)) {
-      priority = 'medium'; // Prioridad por defecto
+    if (preferences.push) {
+      await this.sendPushNotification(notification);
     }
 
-    // Obtener preferencias del usuario
-    const user = await prisma.usuarios.findUnique({
-      where: { id: userId },
-      select: {
-        fcm_token: true,
-        email: true,
-        nombre: true,
-        telefono: true,
-        sms_enabled: true,
-        notificaciones_push: true,
-        notificaciones_email: true,
-        notificaciones_sms: true,
-        notificaciones_servicios: true,
-        notificaciones_mensajes: true,
-        notificaciones_pagos: true,
-        notificaciones_marketing: true
+    if (preferences.email) {
+      await this.sendEmailNotification(notification);
+    }
+  }
+
+  // Enviar push notification
+  async sendPushNotification(notification) {
+    try {
+      const { sendPushNotification } = require('./pushNotificationService');
+
+      const result = await sendPushNotification(
+        notification.usuario_id,
+        notification.titulo,
+        notification.mensaje,
+        JSON.parse(notification.data || '{}')
+      );
+
+      if (result.success) {
+        await this.updateNotificationStatus(notification.id, NOTIFICATION_STATUS.DELIVERED);
+      } else {
+        await this.updateNotificationStatus(notification.id, NOTIFICATION_STATUS.FAILED);
+      }
+    } catch (error) {
+      console.error('Error sending push notification:', error);
+      await this.updateNotificationStatus(notification.id, NOTIFICATION_STATUS.FAILED);
+    }
+  }
+
+  // Enviar email notification
+  async sendEmailNotification(notification) {
+    try {
+      const { sendNotificationEmail } = require('./emailService');
+
+      const user = await prisma.usuarios.findUnique({
+        where: { id: notification.usuario_id },
+        select: { email: true, nombre: true }
+      });
+
+      if (user?.email) {
+        // Mapear tipos de notificación a tipos de email
+        const emailTypeMap = {
+          [NOTIFICATION_TYPES.SYSTEM]: 'mensaje',
+          [NOTIFICATION_TYPES.MESSAGE]: 'mensaje',
+          [NOTIFICATION_TYPES.PAYMENT]: 'pago_liberado',
+          [NOTIFICATION_TYPES.URGENT]: 'mensaje',
+          [NOTIFICATION_TYPES.REVIEW]: 'resena_recibida',
+          [NOTIFICATION_TYPES.ADMIN]: 'mensaje'
+        };
+
+        const emailType = emailTypeMap[notification.tipo] || 'mensaje';
+
+        await sendNotificationEmail(
+          user.email,
+          emailType,
+          notification.mensaje,
+          user.nombre
+        );
+
+        await this.updateNotificationStatus(notification.id, NOTIFICATION_STATUS.DELIVERED);
+      }
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+      await this.updateNotificationStatus(notification.id, NOTIFICATION_STATUS.FAILED);
+    }
+  }
+
+  // Obtener notificaciones de usuario
+  async getUserNotifications(userId, page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const [notifications, total] = await Promise.all([
+      prisma.notificaciones.findMany({
+        where: { usuario_id: userId },
+        orderBy: { creado_en: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.notificaciones.count({
+        where: { usuario_id: userId }
+      })
+    ]);
+
+    return {
+      notifications: notifications.map(n => ({
+        ...n,
+        data: JSON.parse(n.data)
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  // Marcar notificación como leída
+  async markAsRead(notificationId, userId) {
+    const notification = await prisma.notificaciones.findFirst({
+      where: {
+        id: notificationId,
+        usuario_id: userId
       }
     });
 
-    if (!user) {
-      throw new Error('Usuario no encontrado');
+    if (!notification) {
+      throw new Error('Notification not found');
     }
 
-    // Obtener preferencias granulares del usuario
-    const userPreferences = await notificationPreferences.getUserPreferences(userId);
+    const updatedNotification = await prisma.notificaciones.update({
+      where: { id: notificationId },
+      data: {
+        estado: NOTIFICATION_STATUS.READ,
+        leido_en: new Date()
+      }
+    });
 
-    // Verificar si el usuario quiere recibir este tipo de notificación usando el nuevo sistema
-    const preferenceCheck = notificationPreferences.shouldSendNotification(userPreferences, type, priority);
-    if (!preferenceCheck.shouldSend) {
-      console.log(`Notificación ${type} omitida por preferencias del usuario ${userId}: ${preferenceCheck.reason}`);
+    // Emitir evento WebSocket
+    if (webSocketService) {
+      const unreadCount = await this.getUnreadCount(userId);
+      webSocketService.emitToUser(userId, 'notification:read', {
+        notificationId,
+        unreadCount
+      });
+    }
+
+    return updatedNotification;
+  }
+
+  // Marcar todas como leídas
+  async markAllAsRead(userId) {
+    const result = await prisma.notificaciones.updateMany({
+      where: {
+        usuario_id: userId,
+        estado: NOTIFICATION_STATUS.UNREAD
+      },
+      data: {
+        estado: NOTIFICATION_STATUS.READ,
+        leido_en: new Date()
+      }
+    });
+
+    // Emitir evento WebSocket
+    if (webSocketService) {
+      webSocketService.emitToUser(userId, 'notification:all-read', {
+        unreadCount: 0
+      });
+    }
+
+    return result;
+  }
+
+  // Contador de notificaciones no leídas
+  async getUnreadCount(userId) {
+    return await prisma.notificaciones.count({
+      where: {
+        usuario_id: userId,
+        estado: NOTIFICATION_STATUS.UNREAD
+      }
+    });
+  }
+
+  // Obtener preferencias de usuario
+  async getUserPreferences(userId, type = null) {
+    const where = type ? { usuario_id: userId, tipo: type } : { usuario_id: userId };
+
+    const preferences = await prisma.notification_preferences.findMany({
+      where
+    });
+
+    // Si no hay preferencias específicas, usar valores por defecto
+    if (preferences.length === 0) {
       return {
-        skipped: true,
-        reason: preferenceCheck.reason,
-        recommendedAction: preferenceCheck.recommendedAction
+        inapp: true,
+        push: true,
+        email: true
       };
     }
 
-    // Generar contenido usando plantillas
-    const variables = extractVariablesFromMetadata(metadata, user);
-    const processedNotification = notificationTemplates.generateNotification(type, 'push', variables);
-    
-    // Usar el mensaje procesado de la plantilla o el mensaje original
-    const finalMessage = processedNotification.body || message;
-
-    // Crear notificación en base de datos
-    const notification = await prisma.notificaciones.create({
-      data: {
-        usuario_id: userId,
-        tipo: type,
-        mensaje: finalMessage,
-        esta_leido: false
-      }
+    // Retornar preferencias por tipo o generales
+    const prefs = {};
+    preferences.forEach(pref => {
+      prefs[pref.tipo] = {
+        inapp: pref.inapp,
+        push: pref.push,
+        email: pref.email
+      };
     });
 
-    console.log(`Notificación creada: ${type} (${priority}) para usuario ${userId}`);
-
-    // Enviar por canales según las preferencias del usuario
-    await sendNotificationByPreferences(user, type, finalMessage, metadata, priority, processedNotification, preferenceCheck);
-
-    return notification;
-  } catch (error) {
-    console.error('Error creando notificación:', error);
-    throw error;
+    return prefs;
   }
-};
 
-/**
- * Obtener notificaciones de un usuario con filtros
- * @param {string} userId - ID del usuario
- * @param {string} filter - Filtro: 'all', 'unread', 'read'
- */
-exports.getUserNotifications = async (userId, filter = 'all') => {
-  try {
-    const whereClause = { usuario_id: userId };
+  // Actualizar preferencias
+  async updateUserPreferences(userId, preferences) {
+    const updates = [];
 
-    if (filter === 'unread') {
-      whereClause.esta_leido = false;
-    } else if (filter === 'read') {
-      whereClause.esta_leido = true;
+    for (const [type, prefs] of Object.entries(preferences)) {
+      updates.push(
+        prisma.notification_preferences.upsert({
+          where: {
+            usuario_id_tipo: {
+              usuario_id: userId,
+              tipo: type
+            }
+          },
+          update: {
+            inapp: prefs.inapp,
+            push: prefs.push,
+            email: prefs.email,
+            actualizado_en: new Date()
+          },
+          create: {
+            usuario_id: userId,
+            tipo: type,
+            inapp: prefs.inapp,
+            push: prefs.push,
+            email: prefs.email
+          }
+        })
+      );
     }
 
-    const notifications = await prisma.notificaciones.findMany({
-      where: whereClause,
-      orderBy: { creado_en: 'desc' },
-      take: 50 // Limitar a 50 notificaciones más recientes
-    });
-
-    const unreadCount = await prisma.notificaciones.count({
-      where: {
-        usuario_id: userId,
-        esta_leido: false
-      }
-    });
-
-    return {
-      notifications,
-      unreadCount
-    };
-  } catch (error) {
-    console.error('Error obteniendo notificaciones:', error);
-    throw error;
+    return await prisma.$transaction(updates);
   }
-};
 
-/**
- * Obtener una notificación por ID
- * @param {string} notificationId - ID de la notificación
- */
-exports.getNotificationById = async (notificationId) => {
-  try {
-    return await prisma.notificaciones.findUnique({
-      where: { id: notificationId }
-    });
-  } catch (error) {
-    console.error('Error obteniendo notificación:', error);
-    throw error;
-  }
-};
-
-/**
- * Marcar notificación como leída
- * @param {string} notificationId - ID de la notificación
- */
-exports.markAsRead = async (notificationId) => {
-  try {
-    await prisma.notificaciones.update({
+  // Actualizar estado de notificación
+  async updateNotificationStatus(notificationId, status) {
+    return await prisma.notificaciones.update({
       where: { id: notificationId },
-      data: { esta_leido: true }
+      data: { estado: status }
     });
-  } catch (error) {
-    console.error('Error marcando notificación como leída:', error);
-    throw error;
-  }
-};
-
-/**
- * Marcar todas las notificaciones de un usuario como leídas
- * @param {string} userId - ID del usuario
- */
-exports.markAllAsRead = async (userId) => {
-  try {
-    await prisma.notificaciones.updateMany({
-      where: {
-        usuario_id: userId,
-        esta_leido: false
-      },
-      data: { esta_leido: true }
-    });
-  } catch (error) {
-    console.error('Error marcando todas las notificaciones como leídas:', error);
-    throw error;
-  }
-};
-
-/**
- * Eliminar una notificación
- * @param {string} notificationId - ID de la notificación
- */
-exports.deleteNotification = async (notificationId) => {
-  try {
-    await prisma.notificaciones.delete({
-      where: { id: notificationId }
-    });
-  } catch (error) {
-    console.error('Error eliminando notificación:', error);
-    throw error;
-  }
-};
-
-/**
- * Verificar si se debe enviar una notificación según las preferencias del usuario
- * @param {Object} user - Datos del usuario con preferencias
- * @param {string} type - Tipo de notificación
- * @returns {boolean} Si se debe enviar la notificación
- */
-function shouldSendNotification(user, type) {
-  // Tipos críticos que siempre se envían (independientemente de preferencias)
-  const criticalTypes = [
-    NOTIFICATION_TYPES.BIENVENIDA,
-    NOTIFICATION_TYPES.VERIFICACION_APROBADA
-  ];
-
-  if (criticalTypes.includes(type)) {
-    return true;
   }
 
-  // Verificar preferencias específicas por tipo
-  switch (type) {
-    case NOTIFICATION_TYPES.COTIZACION:
-    case NOTIFICATION_TYPES.COTIZACION_ACEPTADA:
-    case NOTIFICATION_TYPES.COTIZACION_RECHAZADA:
-    case NOTIFICATION_TYPES.SERVICIO_AGENDADO:
-    case NOTIFICATION_TYPES.TURNO_AGENDADO:
-    case NOTIFICATION_TYPES.RESENA_RECIBIDA:
-      return user.notificaciones_servicios;
-
-    case NOTIFICATION_TYPES.MENSAJE:
-      return user.notificaciones_mensajes;
-
-    case NOTIFICATION_TYPES.PAGO_LIBERADO:
-      return user.notificaciones_pagos;
-
-    default:
-      return true; // Por defecto, enviar si no hay preferencia específica
-  }
-}
-
-/**
- * Extraer variables de metadata para las plantillas
- * @param {Object} metadata - Datos adicionales de la notificación
- * @param {Object} user - Datos del usuario
- * @returns {Object} Variables procesadas para la plantilla
- */
-function extractVariablesFromMetadata(metadata = {}, user = {}) {
-  return {
-    // Variables del usuario
-    usuario: user.nombre || 'Usuario',
-    
-    // Variables del servicio
-    servicio: metadata.servicio || metadata.serviceName || 'servicio',
-    profesional: metadata.profesional || metadata.professionalName || 'profesional',
-    cliente: metadata.cliente || metadata.clientName || 'cliente',
-    
-    // Variables de tiempo
-    fecha: metadata.fecha || metadata.date || new Date().toLocaleDateString('es-AR'),
-    hora: metadata.hora || metadata.time || new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
-    
-    // Variables monetarias
-    monto: metadata.monto || metadata.amount || '0',
-    
-    // Variables de rating
-    rating: metadata.rating || '5',
-    
-    // Variables de contenido
-    contenido_mensaje: metadata.contenido_mensaje || metadata.messageContent || '',
-    
-    // Variables de comentario
-    comentario: metadata.comentario || metadata.comment || '',
-    
-    // Variables adicionales del metadata
-    ...metadata
-  };
-}
-
-/**
- * Enviar notificación por múltiples canales según la prioridad
- * @param {Object} user - Datos del usuario
- * @param {string} type - Tipo de notificación
- * @param {string} message - Mensaje principal
- * @param {Object} metadata - Datos adicionales
- * @param {string} priority - Prioridad de la notificación
- * @param {Object} processedNotification - Notificación procesada con plantillas
- * @param {Object} preferenceCheck - Resultado de verificación de preferencias
- */
-async function sendNotificationByPreferences(user, type, message, metadata, priority, processedNotification, preferenceCheck) {
-  // Usar canales recomendados por el sistema de preferencias
-  const channels = preferenceCheck.recommendedChannels || ['push'];
-  
-  for (const channel of channels) {
-    try {
-      switch (channel) {
-        case 'push':
-          if (user.fcm_token && user.notificaciones_push) {
-            await sendPushNotification(user.fcm_token, processedNotification.title || getNotificationTitle(type), message);
-          }
-          break;
-          
-        case 'email':
-          if (user.notificaciones_email) {
-            const emailTemplate = notificationTemplates.generateNotification(type, 'email', extractVariablesFromMetadata(metadata, user));
-            await sendEmail(user.email, emailTemplate.subject, emailTemplate.html);
-          }
-          break;
-          
-        case 'sms':
-          if (user.sms_enabled && user.notificaciones_sms && shouldSendSMS(user, type)) {
-            const smsTemplate = notificationTemplates.generateNotification(type, 'sms', extractVariablesFromMetadata(metadata, user));
-            const { sendSMS } = require('./smsService');
-            await sendSMS(user.telefono, smsTemplate.sms || smsTemplate.body);
-          }
-          break;
-      }
-    } catch (channelError) {
-      console.warn(`Error enviando notificación por ${channel}:`, channelError);
-    }
-  }
-}
-
-/**
- * Enviar notificación por múltiples canales según la prioridad (legacy)
- * @param {Object} user - Datos del usuario
- * @param {string} type - Tipo de notificación
- * @param {string} message - Mensaje principal
- * @param {Object} metadata - Datos adicionales
- * @param {string} priority - Prioridad de la notificación
- * @param {Object} processedNotification - Notificación procesada con plantillas
- */
-async function sendNotificationByPriority(user, type, message, metadata, priority, processedNotification) {
-  const channels = determineChannelsByPriority(priority, type);
-  
-  for (const channel of channels) {
-    try {
-      switch (channel) {
-        case 'push':
-          if (user.fcm_token && user.notificaciones_push) {
-            await sendPushNotification(user.fcm_token, processedNotification.title || getNotificationTitle(type), message);
-          }
-          break;
-          
-        case 'email':
-          if (user.notificaciones_email) {
-            const emailTemplate = notificationTemplates.generateNotification(type, 'email', extractVariablesFromMetadata(metadata, user));
-            await sendEmail(user.email, emailTemplate.subject, emailTemplate.html);
-          }
-          break;
-          
-        case 'sms':
-          if (shouldSendSMS(user, type)) {
-            const smsTemplate = notificationTemplates.generateNotification(type, 'sms', extractVariablesFromMetadata(metadata, user));
-            const { sendSMS } = require('./smsService');
-            await sendSMS(user.telefono, smsTemplate.sms || smsTemplate.body);
-          }
-          break;
-      }
-    } catch (channelError) {
-      console.warn(`Error enviando notificación por ${channel}:`, channelError);
-    }
-  }
-}
-
-/**
- * Determinar qué canales usar según la prioridad
- * @param {string} priority - Prioridad de la notificación
- * @param {string} type - Tipo de notificación
- * @returns {Array} Lista de canales a usar
- */
-function determineChannelsByPriority(priority, type) {
-  const channelsByPriority = {
-    [NOTIFICATION_PRIORITIES.CRITICAL]: ['push', 'email', 'sms'],
-    [NOTIFICATION_PRIORITIES.HIGH]: ['push', 'email'],
-    [NOTIFICATION_PRIORITIES.MEDIUM]: ['push'],
-    [NOTIFICATION_PRIORITIES.LOW]: ['push']
-  };
-  
-  let channels = channelsByPriority[priority] || channelsByPriority[NOTIFICATION_PRIORITIES.MEDIUM];
-  
-  // Ajustes específicos por tipo
-  if (type === NOTIFICATION_TYPES.BIENVENIDA) {
-    channels = ['email']; // Solo email para bienvenida
-  }
-  
-  return channels;
-}
-
-/**
- * Verificar si se debe enviar SMS para una notificación crítica
- * @param {Object} user - Datos del usuario
- * @param {string} type - Tipo de notificación
- * @returns {boolean} Si se debe enviar SMS
- */
-function shouldSendSMS(user, type) {
-  // Solo enviar SMS si el usuario tiene SMS habilitado y el teléfono configurado
-  if (!user.sms_enabled || !user.telefono) {
-    return false;
-  }
-
-  // Tipos de notificación que justifican envío por SMS (críticos)
-  const smsTypes = [
-    NOTIFICATION_TYPES.SERVICIO_AGENDADO,
-    NOTIFICATION_TYPES.PAGO_LIBERADO,
-    'servicio_urgente_agendado', // Servicios urgentes
-    'fondos_liberados'
-  ];
-
-  return smsTypes.includes(type);
-}
-
-/**
- * Función auxiliar para obtener título de notificación según tipo
- * @param {string} type - Tipo de notificación
- */
-function getNotificationTitle(type) {
-  const titles = {
-    [NOTIFICATION_TYPES.BIENVENIDA]: '¡Bienvenido a ChangAnet!',
-    [NOTIFICATION_TYPES.COTIZACION]: 'Nueva solicitud de presupuesto',
-    [NOTIFICATION_TYPES.COTIZACION_ACEPTADA]: 'Cotización aceptada',
-    [NOTIFICATION_TYPES.COTIZACION_RECHAZADA]: 'Cotización rechazada',
-    [NOTIFICATION_TYPES.SERVICIO_AGENDADO]: 'Servicio agendado',
-    [NOTIFICATION_TYPES.MENSAJE]: 'Nuevo mensaje',
-    [NOTIFICATION_TYPES.TURNO_AGENDADO]: 'Servicio agendado',
-    [NOTIFICATION_TYPES.RESENA_RECIBIDA]: 'Nueva reseña',
-    [NOTIFICATION_TYPES.PAGO_LIBERADO]: 'Pago liberado',
-    [NOTIFICATION_TYPES.VERIFICACION_APROBADA]: 'Verificación aprobada',
-    'servicio_urgente_agendado': '¡Servicio Urgente Agendado!',
-    'fondos_liberados': 'Fondos Liberados',
-    'fondos_liberados_auto': 'Fondos Liberados Automáticamente'
-  };
-  return titles[type] || 'Nueva notificación';
-}
-
-/**
- * Obtener prioridad por defecto según el tipo de notificación
- * @param {string} type - Tipo de notificación
- * @returns {string} Prioridad recomendada
- */
-function getDefaultPriority(type) {
-  const priorityMap = {
-    // CRÍTICO
-    'servicio_urgente_agendado': NOTIFICATION_PRIORITIES.CRITICAL,
-    'fondos_liberados': NOTIFICATION_PRIORITIES.CRITICAL,
-    'fondos_liberados_auto': NOTIFICATION_PRIORITIES.CRITICAL,
-    
-    // ALTA
-    [NOTIFICATION_TYPES.SERVICIO_AGENDADO]: NOTIFICATION_PRIORITIES.HIGH,
-    [NOTIFICATION_TYPES.TURNO_AGENDADO]: NOTIFICATION_PRIORITIES.HIGH,
-    [NOTIFICATION_TYPES.COTIZACION_ACEPTADA]: NOTIFICATION_PRIORITIES.HIGH,
-    [NOTIFICATION_TYPES.COTIZACION_RECHAZADA]: NOTIFICATION_PRIORITIES.HIGH,
-    [NOTIFICATION_TYPES.VERIFICACION_APROBADA]: NOTIFICATION_PRIORITIES.HIGH,
-    
-    // MEDIA
-    [NOTIFICATION_TYPES.COTIZACION]: NOTIFICATION_PRIORITIES.MEDIUM,
-    [NOTIFICATION_TYPES.MENSAJE]: NOTIFICATION_PRIORITIES.MEDIUM,
-    [NOTIFICATION_TYPES.RESENA_RECIBIDA]: NOTIFICATION_PRIORITIES.MEDIUM,
-    [NOTIFICATION_TYPES.PAGO_LIBERADO]: NOTIFICATION_PRIORITIES.MEDIUM,
-    
-    // BAJA
-    [NOTIFICATION_TYPES.BIENVENIDA]: NOTIFICATION_PRIORITIES.LOW,
-    'recordatorio_servicio': NOTIFICATION_PRIORITIES.LOW,
-    'recordatorio_pago': NOTIFICATION_PRIORITIES.LOW
-  };
-  
-  return priorityMap[type] || NOTIFICATION_PRIORITIES.MEDIUM;
-}
-
-/**
- * Crear notificación rápida con prioridad automática
- * @param {string} userId - ID del usuario
- * @param {string} type - Tipo de notificación
- * @param {string} message - Mensaje
- * @param {Object} metadata - Datos adicionales
- */
-exports.createNotificationQuick = async (userId, type, message, metadata = {}) => {
-  // Obtener prioridad automáticamente según el tipo
-  const priority = getDefaultPriority(type);
-  return await exports.createNotification(userId, type, message, metadata, priority);
-};
-
-/**
- * Crear notificación programada para envío futuro
- * @param {string} userId - ID del usuario
- * @param {string} type - Tipo de notificación
- * @param {string} message - Mensaje
- * @param {Date} scheduledTime - Fecha y hora programada
- * @param {Object} metadata - Datos adicionales
- * @param {string} priority - Prioridad de la notificación
- */
-exports.scheduleNotification = async (userId, type, message, scheduledTime, metadata = {}, priority = 'medium') => {
-  try {
-    // Validar que la fecha programada sea futura
-    if (new Date(scheduledTime) <= new Date()) {
-      throw new Error('La fecha programada debe ser futura');
-    }
-
-    // Validar prioridad
-    if (!Object.values(NOTIFICATION_PRIORITIES).includes(priority)) {
-      priority = 'medium';
-    }
-
-    // Crear registro de notificación programada (podríamos crear una tabla separada)
-    // Por ahora, usamos un tipo especial y metadata
-    const scheduledNotification = await prisma.notificaciones.create({
-      data: {
-        usuario_id: userId,
-        tipo: `scheduled_${type}`,
-        mensaje: message,
-        esta_leido: false
-        // Podríamos agregar campos como scheduled_for en el futuro
-      }
-    });
-
-    // En una implementación completa, aquí se programaría el envío
-    // Por ahora, solo registramos la notificación programada
-    console.log(`Notificación programada: ${type} (${priority}) para usuario ${userId} en ${scheduledTime}`);
-
-    return scheduledNotification;
-  } catch (error) {
-    console.error('Error programando notificación:', error);
-    throw error;
-  }
-};
-
-/**
- * Procesar notificaciones programadas que deben enviarse ahora
- * Esta función debe ejecutarse periódicamente (ej: cada hora)
- */
-exports.processScheduledNotifications = async () => {
-  try {
-    // En una implementación completa, buscaríamos notificaciones con scheduled_for <= now
-    // y las enviaríamos. Por ahora, implementamos algunos recordatorios automáticos
-
-    const now = new Date();
-
-    // Recordatorio de servicios próximos (24 horas antes)
-    await sendServiceReminders(now);
-
-    // Recordatorio de pagos pendientes
-    await sendPaymentReminders(now);
-
-    console.log('✅ Notificaciones programadas procesadas');
-  } catch (error) {
-    console.error('Error procesando notificaciones programadas:', error);
-    throw error;
-  }
-};
-
-/**
- * Enviar recordatorios de servicios próximos
- */
-async function sendServiceReminders(now) {
-  try {
-    // Servicios que empiezan en las próximas 24 horas
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const upcomingServices = await prisma.servicios.findMany({
-      where: {
-        fecha_agendada: {
-          gte: now,
-          lte: tomorrow
-        },
-        estado: 'AGENDADO'
-      },
+  // Eventos automáticos - disparadores de notificaciones
+  async triggerPaymentNotification(serviceId, type) {
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
       include: {
-        cliente: { select: { id: true, nombre: true } },
-        profesional: { select: { id: true, nombre: true } }
+        usuarios_servicios_cliente_idTousuarios: true,
+        usuarios_servicios_profesional_idTousuarios: true
       }
     });
 
-    for (const service of upcomingServices) {
-      // Recordatorio al cliente
-      await exports.createNotification(
+    if (!service) return;
+
+    const messages = {
+      confirmed: {
+        client: 'Tu pago fue acreditado',
+        professional: 'Pago recibido por servicio completado'
+      },
+      released: {
+        client: 'Pago liberado al profesional',
+        professional: 'Pago liberado a tu cuenta'
+      }
+    };
+
+    if (messages[type]) {
+      await this.createNotification(
         service.cliente_id,
-        'recordatorio_servicio',
-        `Recordatorio: Tienes un servicio agendado mañana con ${service.profesional.nombre} a las ${new Date(service.fecha_agendada).toLocaleTimeString('es-AR')}`,
-        { serviceId: service.id, type: 'cliente' }
+        NOTIFICATION_TYPES.PAYMENT,
+        'Actualización de Pago',
+        messages[type].client,
+        { serviceId }
       );
 
-      // Recordatorio al profesional
-      await exports.createNotification(
+      await this.createNotification(
         service.profesional_id,
-        'recordatorio_servicio',
-        `Recordatorio: Tienes un servicio agendado mañana con ${service.cliente.nombre} a las ${new Date(service.fecha_agendada).toLocaleTimeString('es-AR')}`,
-        { serviceId: service.id, type: 'profesional' }
+        NOTIFICATION_TYPES.PAYMENT,
+        'Actualización de Pago',
+        messages[type].professional,
+        { serviceId }
       );
     }
-
-    console.log(`📅 Recordatorios enviados para ${upcomingServices.length} servicios`);
-  } catch (error) {
-    console.error('Error enviando recordatorios de servicios:', error);
   }
-}
 
-/**
- * Enviar recordatorios de pagos pendientes
- */
-async function sendPaymentReminders(now) {
-  try {
-    // Pagos pendientes de más de 3 días
-    const threeDaysAgo = new Date(now);
-    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-
-    const pendingPayments = await prisma.pagos.findMany({
-      where: {
-        estado: 'pendiente',
-        creado_en: { lte: threeDaysAgo }
-      },
+  async triggerServiceNotification(serviceId, type) {
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
       include: {
-        cliente: { select: { id: true, nombre: true } },
-        servicio: { select: { id: true, descripcion: true } }
+        usuarios_servicios_cliente_idTousuarios: true,
+        usuarios_servicios_profesional_idTousuarios: true
       }
     });
 
-    for (const payment of pendingPayments) {
-      await exports.createNotification(
-        payment.cliente_id,
-        'recordatorio_pago',
-        `Recordatorio: Tienes un pago pendiente de $${payment.monto_total} por "${payment.servicio.descripcion}". Completa el pago para confirmar el servicio.`,
-        { paymentId: payment.id, serviceId: payment.servicio_id }
-      );
-    }
+    if (!service) return;
 
-    console.log(`💳 Recordatorios de pago enviados para ${pendingPayments.length} pagos pendientes`);
-  } catch (error) {
-    console.error('Error enviando recordatorios de pagos:', error);
-  }
-}
-
-/**
- * Enviar notificaciones específicas del sistema de presupuestos (REQ-35)
- * @param {string} eventType - Tipo de evento del presupuesto
- * @param {Object} eventData - Datos del evento
- */
-async function sendBudgetNotifications(eventType, eventData) {
-  try {
-    console.log(`Enviando notificaciones de presupuesto: ${eventType}`, eventData);
-
-    switch (eventType) {
-      case 'NEW_BUDGET_REQUEST':
-        await notifyNewBudgetRequest(eventData);
-        break;
-
-      case 'NEW_BUDGET_OFFER':
-        await notifyNewBudgetOffer(eventData);
-        break;
-
-      case 'OFFER_SELECTED':
-        await notifyOfferSelected(eventData);
-        break;
-
-      case 'OFFER_REJECTED':
-        await notifyOfferRejected(eventData);
-        break;
-
-      case 'REQUEST_CANCELLED':
-        await notifyRequestCancelled(eventData);
-        break;
-
-      case 'REQUEST_EXPIRED':
-        await notifyRequestExpired(eventData);
-        break;
-
-      default:
-        console.warn(`Tipo de evento de presupuesto desconocido: ${eventType}`);
-    }
-  } catch (error) {
-    console.error('Error enviando notificaciones de presupuesto:', error);
-    throw error;
-  }
-}
-
-/**
- * Notificar nueva solicitud de presupuesto a profesionales
- */
-async function notifyNewBudgetRequest(eventData) {
-  const { requestId, requestTitle, requestDescription, category, budgetRange, clientName, expiresAt } = eventData;
-
-  try {
-    // Obtener IDs de profesionales a notificar
-    const distributions = await prisma.budgetRequestProfessional.findMany({
-      where: { requestId },
-      select: { professionalId: true }
-    });
-
-    const professionalIds = distributions.map(d => d.professionalId);
-
-    // Enviar notificación a cada profesional
-    for (const professionalId of professionalIds) {
-      await exports.createNotification(
-        professionalId,
-        'cotizacion',
-        `Nueva solicitud de presupuesto: ${requestTitle}`,
-        {
-          requestId,
-          requestTitle,
-          requestDescription,
-          category,
-          budgetRange,
-          clientName,
-          expiresAt: expiresAt.toISOString(),
-          actionUrl: `/profesional/presupuestos`
-        },
-        'high'
-      );
-    }
-
-    console.log(`Notificaciones enviadas a ${professionalIds.length} profesionales para solicitud ${requestId}`);
-  } catch (error) {
-    console.error('Error notificando nueva solicitud:', error);
-  }
-}
-
-/**
- * Notificar nueva oferta de presupuesto al cliente
- */
-async function notifyNewBudgetOffer(eventData) {
-  const { requestId, offer, clientId } = eventData;
-
-  try {
-    await exports.createNotification(
-      clientId,
-      'cotizacion',
-      `Nueva oferta recibida para "${offer.request?.title || 'tu solicitud'}"`,
-      {
-        requestId,
-        offerId: offer.id,
-        professionalName: offer.professional?.usuarios?.nombre,
-        price: offer.price,
-        estimatedDays: offer.estimatedDays,
-        actionUrl: `/cliente/presupuestos/${requestId}/comparar`
+    const messages = {
+      accepted: {
+        client: 'Servicio aceptado por el profesional',
+        professional: 'Has aceptado el servicio'
       },
-      'high'
-    );
+      completed: {
+        client: 'Servicio completado',
+        professional: 'Servicio marcado como completado'
+      }
+    };
 
-    console.log(`Notificación de nueva oferta enviada al cliente ${clientId} para solicitud ${requestId}`);
-  } catch (error) {
-    console.error('Error notificando nueva oferta:', error);
-  }
-}
+    if (messages[type]) {
+      await this.createNotification(
+        service.cliente_id,
+        NOTIFICATION_TYPES.SYSTEM,
+        'Actualización de Servicio',
+        messages[type].client,
+        { serviceId }
+      );
 
-/**
- * Notificar selección de oferta al profesional ganador
- */
-async function notifyOfferSelected(eventData) {
-  const { requestId, winningOffer, clientName } = eventData;
-
-  try {
-    await exports.createNotification(
-      winningOffer.professionalId,
-      'cotizacion_aceptada',
-      `¡Felicitaciones! Tu oferta fue seleccionada para "${winningOffer.request?.title}"`,
-      {
-        requestId,
-        offerId: winningOffer.id,
-        clientName,
-        price: winningOffer.price,
-        actionUrl: `/profesional/servicios`
-      },
-      'critical'
-    );
-
-    console.log(`Notificación de oferta seleccionada enviada al profesional ${winningOffer.professionalId}`);
-  } catch (error) {
-    console.error('Error notificando oferta seleccionada:', error);
-  }
-}
-
-/**
- * Notificar rechazo de ofertas a profesionales no seleccionados
- */
-async function notifyOfferRejected(eventData) {
-  const { requestId, rejectedOffers } = eventData;
-
-  try {
-    for (const offer of rejectedOffers) {
-      await exports.createNotification(
-        offer.professional?.usuarios?.id,
-        'cotizacion_rechazada',
-        `Tu oferta para "${offer.request?.title}" no fue seleccionada`,
-        {
-          requestId,
-          offerId: offer.id,
-          clientName: offer.request?.client?.nombre,
-          actionUrl: `/profesional/presupuestos`
-        },
-        'medium'
+      await this.createNotification(
+        service.profesional_id,
+        NOTIFICATION_TYPES.SYSTEM,
+        'Actualización de Servicio',
+        messages[type].professional,
+        { serviceId }
       );
     }
-
-    console.log(`Notificaciones de ofertas rechazadas enviadas a ${rejectedOffers.length} profesionales`);
-  } catch (error) {
-    console.error('Error notificando ofertas rechazadas:', error);
   }
-}
 
-/**
- * Notificar cancelación de solicitud a profesionales
- */
-async function notifyRequestCancelled(eventData) {
-  const { requestId, clientName, reason } = eventData;
-
-  try {
-    // Obtener IDs de profesionales afectados
-    const distributions = await prisma.budgetRequestProfessional.findMany({
-      where: { requestId },
-      select: { professionalId: true }
+  async triggerMessageNotification(messageId) {
+    const message = await prisma.mensajes.findUnique({
+      where: { id: messageId },
+      include: {
+        usuarios_mensajes_destinatario_idTousuarios: true
+      }
     });
 
-    const professionalIds = distributions.map(d => d.professionalId);
+    if (!message) return;
 
-    // Enviar notificación a cada profesional
-    for (const professionalId of professionalIds) {
-      await exports.createNotification(
-        professionalId,
-        'cotizacion',
-        `La solicitud "${eventData.requestTitle || 'de presupuesto'}" ha sido cancelada`,
-        {
-          requestId,
-          clientName,
-          reason,
-          actionUrl: `/profesional/presupuestos`
-        },
-        'medium'
-      );
-    }
-
-    console.log(`Notificaciones de cancelación enviadas a ${professionalIds.length} profesionales`);
-  } catch (error) {
-    console.error('Error notificando cancelación:', error);
+    await this.createNotification(
+      message.destinatario_id,
+      NOTIFICATION_TYPES.MESSAGE,
+      'Nuevo Mensaje',
+      `Tienes un nuevo mensaje de ${message.usuarios_mensajes_destinatario_idTousuarios.nombre}`,
+      { messageId }
+    );
   }
-}
 
-/**
- * Notificar expiración de solicitud a profesionales
- */
-async function notifyRequestExpired(eventData) {
-  const { requestId, requestTitle, clientName } = eventData;
-
-  try {
-    // Obtener IDs de profesionales afectados
-    const distributions = await prisma.budgetRequestProfessional.findMany({
-      where: { requestId },
-      select: { professionalId: true }
+  async triggerReviewNotification(serviceId) {
+    const service = await prisma.servicios.findUnique({
+      where: { id: serviceId },
+      include: {
+        usuarios_servicios_profesional_idTousuarios: true
+      }
     });
 
-    const professionalIds = distributions.map(d => d.professionalId);
+    if (!service) return;
 
-    // Enviar notificación a cada profesional
-    for (const professionalId of professionalIds) {
-      await exports.createNotification(
-        professionalId,
-        'cotizacion',
-        `La solicitud "${requestTitle}" ha expirado sin respuesta`,
-        {
-          requestId,
-          requestTitle,
-          clientName,
-          actionUrl: `/profesional/presupuestos`
-        },
-        'low'
-      );
-    }
+    await this.createNotification(
+      service.profesional_id,
+      NOTIFICATION_TYPES.REVIEW,
+      'Nueva Reseña',
+      'Has recibido una nueva valoración',
+      { serviceId }
+    );
+  }
 
-    console.log(`Notificaciones de expiración enviadas a ${professionalIds.length} profesionales`);
-  } catch (error) {
-    console.error('Error notificando expiración:', error);
+  async triggerUrgentServiceNotification(urgentRequestId) {
+    const urgentRequest = await prisma.urgent_requests.findUnique({
+      where: { id: urgentRequestId },
+      include: {
+        client: true
+      }
+    });
+
+    if (!urgentRequest) return;
+
+    // Notificar a profesionales cercanos (lógica simplificada)
+    // En implementación real, buscar profesionales por ubicación
+    await this.createNotification(
+      urgentRequest.client_id,
+      NOTIFICATION_TYPES.URGENT,
+      'Servicio Urgente',
+      'Tu solicitud de servicio urgente ha sido enviada',
+      { urgentRequestId }
+    );
   }
 }
 
 module.exports = {
-  createNotification: exports.createNotification,
-  createNotificationQuick: exports.createNotificationQuick,
-  getUserNotifications: exports.getUserNotifications,
-  getNotificationById: exports.getNotificationById,
-  markAsRead: exports.markAsRead,
-  markAllAsRead: exports.markAllAsRead,
-  deleteNotification: exports.deleteNotification,
-  scheduleNotification: exports.scheduleNotification,
-  processScheduledNotifications: exports.processScheduledNotifications,
-  sendBudgetNotifications,
+  NotificationService,
   NOTIFICATION_TYPES,
-  NOTIFICATION_PRIORITIES
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_STATUS,
+  setWebSocketService
 };

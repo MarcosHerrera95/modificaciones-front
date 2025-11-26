@@ -285,8 +285,10 @@ const AdminDashboard = () => {
     { id: 'verifications', name: 'Verificaciones', icon: '✅' },
     { id: 'users', name: 'Usuarios', icon: '👥' },
     { id: 'services', name: 'Servicios', icon: '🔧' },
-    { id: 'payments', name: 'Pagos', icon: '💳' },
+    { id: 'moderation', name: 'Moderación', icon: '🛡️' },
     { id: 'disputes', name: 'Disputas', icon: '⚖️' },
+    { id: 'audit', name: 'Auditoría', icon: '📋' },
+    { id: 'payments', name: 'Pagos', icon: '💳' },
     { id: 'content', name: 'Contenido', icon: '📝' },
     { id: 'analytics', name: 'Analytics', icon: '📈' },
     { id: 'settings', name: 'Configuración', icon: '⚙️' }
@@ -929,6 +931,267 @@ const AdminDashboard = () => {
                     )}
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'moderation' && (
+            <div className="space-y-6">
+              {/* Resumen de Moderación */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Reportes Pendientes</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.moderation?.pendingReports || 0}</p>
+                      <p className="text-xs text-yellow-600">Requieren revisión</p>
+                    </div>
+                    <div className="p-3 bg-yellow-100 rounded-lg">
+                      <span className="text-2xl">⚠️</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Reportes Resueltos</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.moderation?.resolvedReports || 0}</p>
+                      <p className="text-xs text-green-600">Este mes</p>
+                    </div>
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <span className="text-2xl">✅</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Contenido Eliminado</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.moderation?.deletedContent || 0}</p>
+                      <p className="text-xs text-red-600">Reseñas y comentarios</p>
+                    </div>
+                    <div className="p-3 bg-red-100 rounded-lg">
+                      <span className="text-2xl">🗑️</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Tiempo Promedio</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.moderation?.avgResolutionTime || 0}h</p>
+                      <p className="text-xs text-blue-600">Para resolución</p>
+                    </div>
+                    <div className="p-3 bg-blue-100 rounded-lg">
+                      <span className="text-2xl">⏱️</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de Reportes de Moderación */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Reportes de Moderación</h3>
+
+                {/* Filtros */}
+                <div className="mb-6 flex flex-wrap gap-4">
+                  <select className="px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">Todos los estados</option>
+                    <option value="open">Abiertos</option>
+                    <option value="in_progress">En Progreso</option>
+                    <option value="resolved">Resueltos</option>
+                  </select>
+
+                  <select className="px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">Todas las prioridades</option>
+                    <option value="low">Baja</option>
+                    <option value="medium">Media</option>
+                    <option value="high">Alta</option>
+                    <option value="urgent">Urgente</option>
+                  </select>
+
+                  <select className="px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">Todos los tipos</option>
+                    <option value="review">Reseña</option>
+                    <option value="user">Usuario</option>
+                    <option value="content">Contenido</option>
+                  </select>
+
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Filtrar
+                  </button>
+                </div>
+
+                {/* Lista de reportes */}
+                <div className="space-y-4">
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <h4 className="font-semibold">Reporte #REP-2024-001</h4>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⏳ Pendiente
+                          </span>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                            Reseña Inapropiada
+                          </span>
+                        </div>
+
+                        <div className="text-sm text-gray-600 space-y-1 mb-3">
+                          <p><strong>Reportado por:</strong> Juan Pérez</p>
+                          <p><strong>Contenido:</strong> Reseña del servicio #SERV-001</p>
+                          <p><strong>Motivo:</strong> Lenguaje ofensivo y contenido falso</p>
+                          <p><strong>Fecha:</strong> 18 Nov 2025, 2:30 PM</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col space-y-2 ml-4">
+                        <button className="px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white hover:bg-blue-700">
+                          Revisar
+                        </button>
+                        <button className="px-3 py-1 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700">
+                          Resolver
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'audit' && (
+            <div className="space-y-6">
+              {/* Resumen de Auditoría */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Acciones Hoy</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.audit?.todayActions || 0}</p>
+                      <p className="text-xs text-blue-600">Total de acciones</p>
+                    </div>
+                    <div className="p-3 bg-blue-100 rounded-lg">
+                      <span className="text-2xl">📊</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Acciones Críticas</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.audit?.criticalActions || 0}</p>
+                      <p className="text-xs text-red-600">Requieren atención</p>
+                    </div>
+                    <div className="p-3 bg-red-100 rounded-lg">
+                      <span className="text-2xl">🚨</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Administradores Activos</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.audit?.activeAdmins || 0}</p>
+                      <p className="text-xs text-green-600">Conectados hoy</p>
+                    </div>
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <span className="text-2xl">👥</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-6 rounded-lg shadow">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-600">Tasa de Error</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats?.audit?.errorRate || 0}%</p>
+                      <p className="text-xs text-orange-600">Acciones fallidas</p>
+                    </div>
+                    <div className="p-3 bg-orange-100 rounded-lg">
+                      <span className="text-2xl">⚠️</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logs de Auditoría */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h3 className="text-lg font-semibold mb-4">Registro de Auditoría</h3>
+
+                {/* Filtros */}
+                <div className="mb-6 flex flex-wrap gap-4">
+                  <input
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="Fecha desde"
+                  />
+                  <input
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded-md"
+                    placeholder="Fecha hasta"
+                  />
+                  <select className="px-3 py-2 border border-gray-300 rounded-md">
+                    <option value="">Todas las acciones</option>
+                    <option value="user_blocked">Usuario Bloqueado</option>
+                    <option value="verification_approved">Verificación Aprobada</option>
+                    <option value="commission_changed">Comisión Cambiada</option>
+                  </select>
+
+                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                    Filtrar
+                  </button>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                    Exportar CSV
+                  </button>
+                </div>
+
+                {/* Tabla de logs */}
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200">
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Fecha/Hora</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Administrador</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Acción</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Objetivo</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">Detalles</th>
+                        <th className="text-left py-3 px-4 font-medium text-gray-700">IP</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-3 px-4 text-sm">18 Nov 2025, 14:30</td>
+                        <td className="py-3 px-4 text-sm">Admin User</td>
+                        <td className="py-3 px-4 text-sm">
+                          <span className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                            Verificación Aprobada
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm">Usuario #12345</td>
+                        <td className="py-3 px-4 text-sm">Verificación de identidad completada</td>
+                        <td className="py-3 px-4 text-sm">192.168.1.100</td>
+                      </tr>
+                      <tr className="border-b border-gray-100">
+                        <td className="py-3 px-4 text-sm">18 Nov 2025, 13:15</td>
+                        <td className="py-3 px-4 text-sm">Admin User</td>
+                        <td className="py-3 px-4 text-sm">
+                          <span className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                            Usuario Bloqueado
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm">Usuario #12346</td>
+                        <td className="py-3 px-4 text-sm">Comportamiento inapropiado</td>
+                        <td className="py-3 px-4 text-sm">192.168.1.100</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}

@@ -373,6 +373,55 @@ class UnifiedWebSocketService {
       this.broadcastConnectionStats();
     });
 
+    // ==================================================
+    // EVENTOS PARA SERVICIOS URGENTES
+    // ==================================================
+
+    // EVENTO: Unirse a notificaciones de urgencias (para profesionales)
+    socket.on('join_urgent_notifications', () => {
+      socket.join('urgent_professionals');
+      console.log(`🚨 Profesional ${userId} unido a notificaciones de urgencias`);
+    });
+
+    // EVENTO: Salir de notificaciones de urgencias
+    socket.on('leave_urgent_notifications', () => {
+      socket.leave('urgent_professionals');
+      console.log(`🚨 Profesional ${userId} salió de notificaciones de urgencias`);
+    });
+
+    // EVENTO: Actualizar ubicación del profesional (para matching geoespacial)
+    socket.on('update_location', async (data) => {
+      try {
+        const { lat, lng } = data;
+
+        if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+          socket.emit('error', { message: 'Coordenadas inválidas' });
+          return;
+        }
+
+        // Actualizar ubicación en perfiles_profesionales
+        await prisma.perfiles_profesionales.updateMany({
+          where: { usuario_id: userId },
+          data: {
+            latitud: lat,
+            longitud: lng,
+            last_location_update: new Date()
+          }
+        });
+
+        socket.emit('location_updated', {
+          message: 'Ubicación actualizada exitosamente',
+          coordinates: { lat, lng }
+        });
+
+        console.log(`📍 Ubicación actualizada para profesional ${userId}: ${lat}, ${lng}`);
+
+      } catch (error) {
+        console.error('Error actualizando ubicación:', error);
+        socket.emit('error', { message: 'Error al actualizar ubicación' });
+      }
+    });
+
     // EVENTO: Error handler
     socket.on('error', (error) => {
       console.error(`❌ WebSocket error para usuario ${userId}:`, error);
@@ -417,18 +466,115 @@ class UnifiedWebSocketService {
 
       // Registrar nueva conexión
       this.activeConnections.set(userId, newSocket);
-      
+
       // Unir a sala personal
       newSocket.join(`user_${userId}`);
-      
+
       console.log(`🔄 Usuario ${userId} reconectado exitosamente`);
-      
+
       // Enviar estadísticas actualizadas
       this.broadcastConnectionStats();
-      
+
       return true;
     } catch (error) {
       console.error('Error en reconexión de usuario:', error);
+      return false;
+    }
+  }
+
+  // ==================================================
+  // MÉTODOS PARA SERVICIOS URGENTES
+  // ==================================================
+
+  // Notificar nueva solicitud urgente a profesionales
+  async notifyUrgentRequestToProfessionals(urgentRequest, candidates) {
+    try {
+      const notification = {
+        type: 'urgent_request',
+        urgentRequestId: urgentRequest.id,
+        client: {
+          nombre: urgentRequest.client.nombre,
+          id: urgentRequest.client_id
+        },
+        description: urgentRequest.description,
+        location: urgentRequest.location,
+        radiusKm: urgentRequest.radius_km,
+        priceEstimate: urgentRequest.price_estimate,
+        createdAt: urgentRequest.created_at,
+        candidates: candidates.map(c => ({
+          professionalId: c.professional_id,
+          distance: c.distance_km
+        }))
+      };
+
+      // Enviar a todos los profesionales conectados
+      this.io.to('urgent_professionals').emit('urgent_request_available', notification);
+
+      // También enviar a salas personales de los candidatos
+      for (const candidate of candidates) {
+        this.io.to(`user_${candidate.professional_id}`).emit('urgent_request_assigned', {
+          ...notification,
+          distance: candidate.distance_km
+        });
+      }
+
+      console.log(`🚨 Notificación urgente enviada a ${candidates.length} profesionales`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando solicitud urgente:', error);
+      return false;
+    }
+  }
+
+  // Notificar aceptación de solicitud urgente al cliente
+  async notifyUrgentRequestAccepted(urgentRequest, assignment) {
+    try {
+      const notification = {
+        type: 'urgent_request_accepted',
+        urgentRequestId: urgentRequest.id,
+        professional: {
+          nombre: assignment.professional.nombre,
+          id: assignment.professional_id,
+          telefono: assignment.professional.telefono
+        },
+        assignedAt: assignment.assigned_at,
+        status: 'assigned'
+      };
+
+      // Notificar al cliente
+      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_status_update', notification);
+
+      console.log(`✅ Notificación de aceptación enviada al cliente ${urgentRequest.client_id}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando aceptación:', error);
+      return false;
+    }
+  }
+
+  // Notificar actualización de estado general
+  async notifyUrgentRequestStatusUpdate(urgentRequest, statusUpdate) {
+    try {
+      const notification = {
+        type: 'urgent_request_status_update',
+        urgentRequestId: urgentRequest.id,
+        status: urgentRequest.status,
+        ...statusUpdate
+      };
+
+      // Notificar al cliente
+      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_status_update', notification);
+
+      // Si hay asignación, notificar al profesional también
+      if (urgentRequest.assignments && urgentRequest.assignments.length > 0) {
+        const assignment = urgentRequest.assignments[0];
+        this.io.to(`user_${assignment.professional_id}`).emit('urgent_assignment_status_update', notification);
+      }
+
+      console.log(`📡 Notificación de estado enviada para solicitud ${urgentRequest.id}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando actualización de estado:', error);
       return false;
     }
   }

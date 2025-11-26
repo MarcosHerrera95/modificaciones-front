@@ -1,25 +1,42 @@
 import { useState, useEffect, useContext } from 'react';
 import { NotificationContext } from '../context/NotificationContext';
+import NotificationPreferences from './NotificationPreferences';
 
 const NotificationCenter = ({ isOpen, onClose }) => {
   const { notifications, markAsRead, markAllAsRead, deleteNotification, unreadCount } = useContext(NotificationContext);
   const [filter, setFilter] = useState('all'); // all, unread, read
+  const [showPreferences, setShowPreferences] = useState(false);
 
   const handleNotificationClick = (notification) => {
     // Navegar según el tipo de notificación
     switch (notification.tipo) {
-      case 'mensaje':
+      case 'message': {
         // Navegar al chat usando parámetro ?user= (chat simplificado)
-        window.location.href = `/chat?user=${notification.datos?.senderId}`;
+        const senderId = notification.data?.senderId;
+        if (senderId) {
+          window.location.href = `/chat?user=${senderId}`;
+        }
         break;
-      case 'cotizacion':
-        // Las cotizaciones se gestionan a través del modal en el dashboard del cliente
-        // Solo navegar al dashboard del cliente donde está el botón de cotizaciones
-        window.location.href = '/cliente/dashboard';
+      }
+      case 'system': {
+        // Las notificaciones del sistema pueden tener enlaces específicos
+        const link = notification.data?.link;
+        if (link) {
+          window.location.href = link;
+        }
         break;
-      case 'servicio_agendado':
-        // Navegar a servicios
-        window.location.href = '/cliente/servicios';
+      }
+      case 'payment':
+        // Navegar a pagos
+        window.location.href = '/cliente/pagos';
+        break;
+      case 'urgent':
+        // Navegar a servicios urgentes
+        window.location.href = '/cliente/urgentes';
+        break;
+      case 'review':
+        // Navegar a reseñas
+        window.location.href = '/cliente/reseñas';
         break;
       default:
         // Mantener en la misma página
@@ -40,8 +57,8 @@ const NotificationCenter = ({ isOpen, onClose }) => {
   }, [isOpen, onClose]);
 
   const filteredNotifications = notifications.filter(notification => {
-    if (filter === 'unread') return !notification.esta_leido;
-    if (filter === 'read') return notification.esta_leido;
+    if (filter === 'unread') return notification.estado === 'unread';
+    if (filter === 'read') return notification.estado === 'read';
     return true;
   });
 
@@ -116,10 +133,10 @@ const NotificationCenter = ({ isOpen, onClose }) => {
               <div
                 key={notification.id}
                 className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
-                  !notification.esta_leido ? 'bg-emerald-50' : ''
+                  notification.estado === 'unread' ? 'bg-emerald-50' : ''
                 }`}
                 onClick={() => {
-                  if (!notification.esta_leido) {
+                  if (notification.estado === 'unread') {
                     markAsRead(notification.id);
                   }
                   handleNotificationClick(notification);
@@ -135,16 +152,21 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                     </p>
                     <div className="flex items-center mt-2">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        notification.tipo === 'mensaje' ? 'bg-blue-100 text-blue-800' :
-                        notification.tipo === 'cotizacion' ? 'bg-green-100 text-green-800' :
-                        notification.tipo === 'servicio_agendado' ? 'bg-purple-100 text-purple-800' :
+                        notification.tipo === 'message' ? 'bg-blue-100 text-blue-800' :
+                        notification.tipo === 'system' ? 'bg-gray-100 text-gray-800' :
+                        notification.tipo === 'payment' ? 'bg-green-100 text-green-800' :
+                        notification.tipo === 'urgent' ? 'bg-red-100 text-red-800' :
+                        notification.tipo === 'review' ? 'bg-yellow-100 text-yellow-800' :
+                        notification.tipo === 'admin' ? 'bg-purple-100 text-purple-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
-                        {notification.tipo === 'mensaje' && '💬 Mensaje'}
-                        {notification.tipo === 'cotizacion' && '📋 Cotización'}
-                        {notification.tipo === 'servicio_agendado' && '📅 Servicio'}
-                        {notification.tipo === 'bienvenida' && '🎉 Bienvenida'}
-                        {!['mensaje', 'cotizacion', 'servicio_agendado', 'bienvenida'].includes(notification.tipo) && notification.tipo}
+                        {notification.tipo === 'message' && '💬 Mensaje'}
+                        {notification.tipo === 'system' && 'ℹ️ Sistema'}
+                        {notification.tipo === 'payment' && '💰 Pago'}
+                        {notification.tipo === 'urgent' && '🚨 Urgente'}
+                        {notification.tipo === 'review' && '⭐ Reseña'}
+                        {notification.tipo === 'admin' && '👑 Admin'}
+                        {!['message', 'system', 'payment', 'urgent', 'review', 'admin'].includes(notification.tipo) && notification.tipo}
                       </span>
                     </div>
                     <p className="text-xs text-gray-400 mt-2">
@@ -153,12 +175,12 @@ const NotificationCenter = ({ isOpen, onClose }) => {
                   </div>
 
                   <div className="flex items-center space-x-2 ml-3">
-                    {!notification.esta_leido && (
+                    {notification.estado === 'unread' && (
                       <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
                     )}
 
                     <div className="flex space-x-1">
-                      {!notification.esta_leido && (
+                      {notification.estado === 'unread' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -195,11 +217,25 @@ const NotificationCenter = ({ isOpen, onClose }) => {
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <p className="text-xs text-gray-500 text-center">
-            Recibe notificaciones en tiempo real sobre tus actividades en Changánet
-          </p>
+          <div className="flex justify-between items-center">
+            <button
+              onClick={() => setShowPreferences(true)}
+              className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+            >
+              Configurar preferencias
+            </button>
+            <p className="text-xs text-gray-500">
+              Recibe notificaciones en tiempo real sobre tus actividades en Changánet
+            </p>
+          </div>
         </div>
       </div>
+
+      {/* Modal de preferencias */}
+      <NotificationPreferences
+        isOpen={showPreferences}
+        onClose={() => setShowPreferences(false)}
+      />
     </div>
   );
 };

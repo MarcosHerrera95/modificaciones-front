@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useContext } from 'react';
 import { useAuth } from './AuthContext';
 import { initializeMobileNotifications, onFCMMessage, checkNotificationPermission, requestNotificationPermission } from '../services/fcmService';
 import { useNotifications } from '../hooks/useNotifications';
+import socketService from '../services/socketService';
 
 // Disable hot reload for this file to prevent React hooks issues during hot reload
 if (import.meta.hot) {
@@ -76,7 +77,7 @@ export const NotificationProvider = ({ children }) => {
   useEffect(() => {
     if (user) {
       // Escuchar mensajes FCM en tiempo real
-      const unsubscribe = onFCMMessage((payload) => {
+      const unsubscribeFCM = onFCMMessage((payload) => {
         console.log('Mensaje FCM recibido:', payload);
 
         // Crear nueva notificación desde el payload FCM
@@ -103,9 +104,33 @@ export const NotificationProvider = ({ children }) => {
         }
       });
 
-      return unsubscribe;
+      // Escuchar eventos WebSocket de notificaciones
+      const handleWebSocketNotification = (data) => {
+        console.log('Notificación WebSocket recibida:', data);
+
+        if (data.type === 'notification:new') {
+          // Nueva notificación
+          addNotification(data.notification);
+        } else if (data.type === 'notification:read') {
+          // Actualizar contador de no leídas
+          fetchNotifications();
+        } else if (data.type === 'notification:all-read') {
+          // Todas marcadas como leídas
+          fetchNotifications();
+        }
+      };
+
+      // Configurar listeners de WebSocket para notificaciones
+      socketService.addMessageListener('notification:new', handleWebSocketNotification);
+      socketService.addMessageListener('notification:read', handleWebSocketNotification);
+      socketService.addMessageListener('notification:all-read', handleWebSocketNotification);
+
+      return () => {
+        unsubscribeFCM();
+        // Limpiar listeners de WebSocket si es necesario
+      };
     }
-  }, [user, addNotification]);
+  }, [user, addNotification, fetchNotifications]);
 
   const value = {
     notifications,

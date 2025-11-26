@@ -1,102 +1,212 @@
-/**
- * @service notificationService - Servicio cliente para notificaciones
- * @descripción Funciones para interactuar con la API de notificaciones (REQ-19)
- * @sprint Sprint 2 – Notificaciones y Comunicación
- * @tarjeta Tarjeta 4: [Frontend] Implementar Servicio de Notificaciones
- * @impacto Social: API cliente accesible para gestión de notificaciones
- */
-// Removed unused Firebase messaging import
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
-
-// Función para obtener notificaciones del usuario
-export const getNotifications = async () => {
-  const token = localStorage.getItem('changanet_token');
-
-  if (!token) {
-    throw new Error('Usuario no autenticado');
+class NotificationService {
+  constructor() {
+    this.baseURL = `${API_BASE_URL}/api/notifications`;
   }
 
-  const response = await fetch(`${API_BASE}/api/notifications`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+  // Obtener headers de autenticación
+  getAuthHeaders() {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
+
+  // Obtener notificaciones del usuario
+  async getUserNotifications(page = 1, limit = 20) {
+    try {
+      const response = await fetch(`${this.baseURL}?page=${page}&limit=${limit}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al obtener notificaciones');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error getting notifications:', error);
+      throw error;
     }
-  });
-
-  if (!response.ok) {
-    throw new Error('Error al obtener notificaciones');
   }
 
-  return await response.json();
-};
+  // Marcar notificación como leída
+  async markAsRead(notificationId) {
+    try {
+      const response = await fetch(`${this.baseURL}/mark-read`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ notificationId })
+      });
 
-// Función para marcar notificación como leída
-export const markAsRead = async (notificationId) => {
-  const token = localStorage.getItem('changanet_token');
+      if (!response.ok) {
+        throw new Error('Error al marcar notificación como leída');
+      }
 
-  if (!token) {
-    throw new Error('Usuario no autenticado');
-  }
-
-  const response = await fetch(`${API_BASE}/api/notifications/${notificationId}/read`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      return await response.json();
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+      throw error;
     }
-  });
-
-  if (!response.ok) {
-    throw new Error('Error al marcar notificación como leída');
   }
 
-  return await response.json();
-};
+  // Marcar todas como leídas
+  async markAllAsRead() {
+    try {
+      const response = await fetch(`${this.baseURL}/mark-all-read`, {
+        method: 'POST',
+        headers: this.getAuthHeaders()
+      });
 
-// Función para marcar todas las notificaciones como leídas
-export const markAllAsRead = async () => {
-  const token = localStorage.getItem('changanet_token');
+      if (!response.ok) {
+        throw new Error('Error al marcar todas las notificaciones como leídas');
+      }
 
-  if (!token) {
-    throw new Error('Usuario no autenticado');
-  }
-
-  const response = await fetch(`${API_BASE}/api/notifications/read-all`, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      return await response.json();
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+      throw error;
     }
-  });
-
-  if (!response.ok) {
-    throw new Error('Error al marcar todas las notificaciones como leídas');
   }
 
-  return await response.json();
-};
+  // Obtener contador de notificaciones no leídas
+  async getUnreadCount() {
+    try {
+      const response = await fetch(`${this.baseURL}/unread-count`, {
+        headers: this.getAuthHeaders()
+      });
 
-// Función para eliminar una notificación
-export const deleteNotification = async (notificationId) => {
-  const token = localStorage.getItem('changanet_token');
+      if (!response.ok) {
+        throw new Error('Error al obtener contador de notificaciones');
+      }
 
-  if (!token) {
-    throw new Error('Usuario no autenticado');
-  }
-
-  const response = await fetch(`${API_BASE}/api/notifications/${notificationId}`, {
-    method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
+      const data = await response.json();
+      return data.data.count;
+    } catch (error) {
+      console.error('Error getting unread count:', error);
+      throw error;
     }
-  });
-
-  if (!response.ok) {
-    throw new Error('Error al eliminar notificación');
   }
 
-  return await response.json();
-};
+  // Obtener preferencias de notificación
+  async getUserPreferences(userId) {
+    try {
+      const response = await fetch(`${this.baseURL}/preferences/${userId}`, {
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al obtener preferencias');
+      }
+
+      const data = await response.json();
+      return data.data;
+    } catch (error) {
+      console.error('Error getting preferences:', error);
+      throw error;
+    }
+  }
+
+  // Actualizar preferencias de notificación
+  async updateUserPreferences(userId, preferences) {
+    try {
+      const response = await fetch(`${this.baseURL}/preferences/${userId}`, {
+        method: 'PUT',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify(preferences)
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al actualizar preferencias');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error updating preferences:', error);
+      throw error;
+    }
+  }
+
+  // Registrar token FCM para push notifications
+  async registerFCMToken(token) {
+    try {
+      const response = await fetch(`${this.baseURL}/register-token`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(),
+        body: JSON.stringify({ token })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al registrar token FCM');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error registering FCM token:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar token FCM
+  async unregisterFCMToken() {
+    try {
+      const response = await fetch(`${this.baseURL}/unregister-token`, {
+        method: 'DELETE',
+        headers: this.getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al eliminar token FCM');
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error unregistering FCM token:', error);
+      throw error;
+    }
+  }
+
+  // Solicitar permisos para notificaciones push
+  async requestNotificationPermission() {
+    if (!('Notification' in window)) {
+      console.warn('Este navegador no soporta notificaciones push');
+      return false;
+    }
+
+    if (Notification.permission === 'granted') {
+      return true;
+    }
+
+    if (Notification.permission === 'denied') {
+      return false;
+    }
+
+    const permission = await Notification.requestPermission();
+    return permission === 'granted';
+  }
+
+  // Mostrar notificación local (fallback)
+  showLocalNotification(title, body, data = {}) {
+    if (Notification.permission === 'granted') {
+      const notification = new Notification(title, {
+        body,
+        icon: '/vite.svg',
+        badge: '/vite.svg',
+        data
+      });
+
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+
+      // Auto-cerrar después de 5 segundos
+      setTimeout(() => notification.close(), 5000);
+    }
+  }
+}
+
+export default new NotificationService();

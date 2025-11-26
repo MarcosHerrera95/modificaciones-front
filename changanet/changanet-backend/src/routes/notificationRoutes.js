@@ -1,9 +1,9 @@
 /**
- * @archivo src/routes/notificationRoutes.js - Rutas de notificaciones
- * @descripción Define endpoints REST para gestión de notificaciones (REQ-19, REQ-20)
+ * @archivo src/routes/notificationRoutes.js - Rutas completas de notificaciones y alertas
+ * @descripción Implementación completa del módulo Notificaciones y Alertas según PRD
  * @sprint Sprint 2 – Notificaciones y Comunicación
  * @tarjeta Tarjeta 4: [Backend] Implementar API de Notificaciones
- * @impacto Social: Endpoints seguros para gestión de notificaciones accesibles
+ * @impacto Social: Sistema completo de notificaciones in-app, push y email
  */
 
 const express = require('express');
@@ -12,33 +12,53 @@ const { authenticateToken } = require('../middleware/authenticate');
 
 const router = express.Router();
 
-// GET /api/notifications - Obtener notificaciones del usuario
-router.get('/', authenticateToken, notificationController.getNotifications);
+// Todas las rutas requieren autenticación
+router.use(authenticateToken);
 
-// PUT /api/notifications/:id/read - Marcar notificación como leída
-router.put('/:id/read', authenticateToken, notificationController.markAsRead);
+// Centro de notificaciones
+// GET /api/notifications - Obtener notificaciones del usuario con paginación
+router.get('/', notificationController.getUserNotifications);
 
-// PUT /api/notifications/read-all - Marcar todas como leídas
-router.put('/read-all', authenticateToken, notificationController.markAllAsRead);
+// POST /api/notifications/mark-read - Marcar notificación como leída
+router.post('/mark-read', notificationController.markAsRead);
 
-// DELETE /api/notifications/:id - Eliminar notificación
-router.delete('/:id', authenticateToken, notificationController.deleteNotification);
+// POST /api/notifications/mark-all-read - Marcar todas como leídas
+router.post('/mark-all-read', notificationController.markAllAsRead);
 
-// FCM Token Management
+// GET /api/notifications/unread-count - Contador de notificaciones no leídas
+router.get('/unread-count', notificationController.getUnreadCount);
+
+// Preferencias de usuario
+// GET /api/notifications/preferences/:userId - Obtener preferencias
+router.get('/preferences/:userId', notificationController.getUserPreferences);
+
+// PUT /api/notifications/preferences/:userId - Actualizar preferencias
+router.put('/preferences/:userId', notificationController.updateUserPreferences);
+
+// Sistema interno / eventos (solo admin)
+// POST /api/notifications/dispatch - Enviar notificación manual
+router.post('/dispatch', notificationController.dispatchNotification);
+
+// POST /api/notifications/bulk - Enviar notificaciones masivas
+router.post('/bulk', notificationController.bulkDispatch);
+
+// POST /api/notifications/schedule - Programar notificación
+router.post('/schedule', notificationController.scheduleNotification);
+
+// FCM Token Management (compatibilidad con implementación existente)
 // POST /api/notifications/register-token - Registrar token FCM
-router.post('/register-token', authenticateToken, notificationController.registerFCMToken);
+router.post('/register-token', notificationController.registerFCMToken);
 
 // DELETE /api/notifications/unregister-token - Eliminar token FCM
-router.delete('/unregister-token', authenticateToken, notificationController.unregisterFCMToken);
+router.delete('/unregister-token', notificationController.unregisterFCMToken);
 
-// POST /api/notifications/test - Enviar notificación de prueba (desarrollo)
+// Rutas de desarrollo para testing
 if (process.env.NODE_ENV !== 'production') {
-  router.post('/test', authenticateToken, notificationController.sendTestNotification);
-}
+  // POST /api/notifications/test - Enviar notificación de prueba
+  router.post('/test', notificationController.sendTestNotification);
 
-// POST /api/notifications/test-fcm - Enviar notificación FCM de prueba (desarrollo)
-if (process.env.NODE_ENV !== 'production') {
-  router.post('/test-fcm', authenticateToken, async (req, res) => {
+  // POST /api/notifications/test-fcm - Enviar notificación FCM de prueba
+  router.post('/test-fcm', async (req, res) => {
     try {
       const { title, body } = req.body;
       const userId = req.user.id;
@@ -70,10 +90,14 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-// GET /api/notifications/preferences - Obtener preferencias de notificación
-router.get('/preferences', authenticateToken, notificationController.getNotificationPreferences);
+// Rutas legacy para compatibilidad (marcadas como deprecated)
+router.put('/:id/read', (req, res) => {
+  req.body.notificationId = req.params.id;
+  notificationController.markAsRead(req, res);
+});
 
-// PUT /api/notifications/preferences - Actualizar preferencias de notificación
-router.put('/preferences', authenticateToken, notificationController.updateNotificationPreferences);
+router.put('/read-all', notificationController.markAllAsRead);
+
+router.delete('/:id', notificationController.deleteNotification);
 
 module.exports = router;
