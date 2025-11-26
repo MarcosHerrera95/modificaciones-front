@@ -7,6 +7,7 @@ const { authenticateToken } = require('../middleware/authenticate');
 const {
   openOrCreateConversation,
   getConversation,
+  getConversationMessages,
   getUserConversations
 } = require('../controllers/chatController');
 
@@ -23,6 +24,10 @@ router.post('/open-or-create', openOrCreateConversation);
 // GET /api/chat/conversation/:conversationId
 // Obtiene información de una conversación específica
 router.get('/conversation/:conversationId', getConversation);
+
+// GET /api/chat/messages/:conversationId
+// Obtiene los mensajes de una conversación específica
+router.get('/messages/:conversationId', getConversationMessages);
 
 // GET /api/chat/conversations
 // Lista todas las conversaciones del usuario

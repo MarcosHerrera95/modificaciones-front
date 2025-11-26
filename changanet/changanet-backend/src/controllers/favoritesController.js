@@ -45,10 +45,10 @@ exports.addFavorite = async (req, res) => {
         profesional_id: profesionalId
       },
       include: {
-        profesional: {
+        usuarios_favoritos_profesional_idTousuarios: {
           select: {
             nombre: true,
-            perfil_profesional: {
+            perfiles_profesionales: {
               select: {
                 especialidad: true,
                 zona_cobertura: true,
@@ -118,12 +118,12 @@ exports.getFavorites = async (req, res) => {
     const favorites = await prisma.favoritos.findMany({
       where: { cliente_id: clienteId },
       include: {
-        profesional: {
+        usuarios_favoritos_profesional_idTousuarios: {
           select: {
             id: true,
             nombre: true,
             url_foto_perfil: true,
-            perfil_profesional: {
+            perfiles_profesionales: {
               select: {
                 especialidad: true,
                 zona_cobertura: true,

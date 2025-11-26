@@ -37,12 +37,12 @@ exports.getProfessionals = async (req, res) => {
     // Construir filtros usando Prisma con include
     const where = {
       rol: 'profesional',
-      perfil_profesional: {
+      perfiles_profesionales: {
         isNot: null // Solo usuarios con perfil profesional
       }
     };
 
-    // Crear filtros para perfil_profesional usando 'is'
+    // Crear filtros para perfiles_profesionales usando 'is'
     const perfilWhere = {};
 
     // Filtro por zona/barrio (REQ-12)
@@ -118,33 +118,34 @@ exports.getProfessionals = async (req, res) => {
       if (precio_max) perfilWhere.tarifa_hora.lte = parseFloat(precio_max);
     }
 
-    // Aplicar filtros de perfil_profesional si existen
+    // Aplicar filtros de perfiles_profesionales si existen
     if (Object.keys(perfilWhere).length > 0) {
-      where.perfil_profesional = {
-        ...where.perfil_profesional,
+      where.perfiles_profesionales = {
+        ...where.perfiles_profesionales,
         is: perfilWhere
       };
     }
 
     // Configurar ordenamiento (REQ-14)
+    // Para ordenar por campos relacionados, necesitamos usar la estructura correcta de Prisma
     let orderBy = {};
     switch (sort_by) {
       case 'calificacion_promedio':
-        orderBy = { perfil_profesional: { calificacion_promedio: 'desc' } };
+        orderBy = { perfiles_profesionales: { calificacion_promedio: 'desc' } };
         break;
       case 'tarifa_hora':
-        orderBy = { perfil_profesional: { tarifa_hora: 'asc' } };
+        orderBy = { perfiles_profesionales: { tarifa_hora: 'asc' } };
         break;
       case 'distancia':
         // Para distancia necesitaríamos coordenadas del usuario
-        orderBy = { perfil_profesional: { zona_cobertura: 'asc' } };
+        orderBy = { perfiles_profesionales: { zona_cobertura: 'asc' } };
         break;
       case 'disponibilidad':
         // Para disponibilidad: ordenar por estado de verificación
-        orderBy = { perfil_profesional: { estado_verificacion: 'desc' } };
+        orderBy = { perfiles_profesionales: { estado_verificacion: 'desc' } };
         break;
       default:
-        orderBy = { perfil_profesional: { calificacion_promedio: 'desc' } };
+        orderBy = { perfiles_profesionales: { calificacion_promedio: 'desc' } };
     }
 
     const skip = (pageNum - 1) * limitNum;
@@ -162,10 +163,11 @@ exports.getProfessionals = async (req, res) => {
     }
 
     // Buscar profesionales usando Prisma con include (REQ-15)
+    // Nota: Ordenamos después de obtener los resultados debido a la estructura de Prisma
     const professionals = await prisma.usuarios.findMany({
       where,
       include: {
-        perfil_profesional: {
+        perfiles_profesionales: {
           select: {
             especialidad: true,
             zona_cobertura: true,
@@ -176,31 +178,54 @@ exports.getProfessionals = async (req, res) => {
           }
         }
       },
-      orderBy,
       skip,
       take: limitNum
     });
 
+    // Ordenar los resultados en JavaScript según el criterio solicitado
+    const sortedProfessionals = professionals.sort((a, b) => {
+      const profA = a.perfiles_profesionales;
+      const profB = b.perfiles_profesionales;
+      
+      if (!profA || !profB) return 0;
+      
+      switch (sort_by) {
+        case 'calificacion_promedio':
+          return (profB.calificacion_promedio || 0) - (profA.calificacion_promedio || 0);
+        case 'tarifa_hora':
+          return (profA.tarifa_hora || 0) - (profB.tarifa_hora || 0);
+        case 'distancia':
+          return (profA.zona_cobertura || '').localeCompare(profB.zona_cobertura || '');
+        case 'disponibilidad': {
+          const estadoA = profA.estado_verificacion === 'verificado' ? 1 : 0;
+          const estadoB = profB.estado_verificacion === 'verificado' ? 1 : 0;
+          return estadoB - estadoA;
+        }
+        default:
+          return (profB.calificacion_promedio || 0) - (profA.calificacion_promedio || 0);
+      }
+    });
+
     // Transformar datos para el frontend
-    const transformedProfessionals = professionals.map(prof => ({
+    const transformedProfessionals = sortedProfessionals.map(prof => ({
       usuario_id: prof.id,
       usuario: {
         nombre: prof.nombre,
         email: prof.email,
         url_foto_perfil: prof.url_foto_perfil
       },
-      especialidad: prof.perfil_profesional?.especialidad,
-      zona_cobertura: prof.perfil_profesional?.zona_cobertura,
-      tarifa_hora: prof.perfil_profesional?.tarifa_hora,
-      calificacion_promedio: prof.perfil_profesional?.calificacion_promedio,
-      estado_verificacion: prof.perfil_profesional?.estado_verificacion,
-      descripcion: prof.perfil_profesional?.descripcion
+      especialidad: prof.perfiles_profesionales?.especialidad,
+      zona_cobertura: prof.perfiles_profesionales?.zona_cobertura,
+      tarifa_hora: prof.perfiles_profesionales?.tarifa_hora,
+      calificacion_promedio: prof.perfiles_profesionales?.calificacion_promedio,
+      estado_verificacion: prof.perfiles_profesionales?.estado_verificacion,
+      descripcion: prof.perfiles_profesionales?.descripcion
     }));
 
     const total = await prisma.usuarios.count({
       where: {
         rol: 'profesional',
-        perfil_profesional: { isNot: null }
+        perfiles_profesionales: { isNot: null }
       }
     });
 
@@ -236,7 +261,7 @@ exports.getProfessionalById = async (req, res) => {
         rol: 'profesional'
       },
       include: {
-        perfil_profesional: {
+        perfiles_profesionales: {
           select: {
             especialidad: true,
             zona_cobertura: true,
@@ -244,7 +269,7 @@ exports.getProfessionalById = async (req, res) => {
             calificacion_promedio: true,
             estado_verificacion: true,
             descripcion: true,
-            creado_en: true
+            created_at: true
           }
         }
       }
@@ -262,12 +287,12 @@ exports.getProfessionalById = async (req, res) => {
         email: professional.email,
         url_foto_perfil: professional.url_foto_perfil
       },
-      especialidad: professional.perfil_profesional?.especialidad,
-      zona_cobertura: professional.perfil_profesional?.zona_cobertura,
-      tarifa_hora: professional.perfil_profesional?.tarifa_hora,
-      calificacion_promedio: professional.perfil_profesional?.calificacion_promedio,
-      estado_verificacion: professional.perfil_profesional?.estado_verificacion,
-      descripcion: professional.perfil_profesional?.descripcion
+      especialidad: professional.perfiles_profesionales?.especialidad,
+      zona_cobertura: professional.perfiles_profesionales?.zona_cobertura,
+      tarifa_hora: professional.perfiles_profesionales?.tarifa_hora,
+      calificacion_promedio: professional.perfiles_profesionales?.calificacion_promedio,
+      estado_verificacion: professional.perfiles_profesionales?.estado_verificacion,
+      descripcion: professional.perfiles_profesionales?.descripcion
     };
 
     res.json(transformedProfessional);

@@ -397,9 +397,9 @@ exports.getClientQuotes = async (req, res) => {
     const quotes = await prisma.cotizaciones.findMany({
       where: { cliente_id: clientId },
       include: {
-        respuestas: {
+        cotizacion_respuestas: {
           include: {
-            profesional: { select: { nombre: true, email: true } }
+            usuarios: { select: { nombre: true, email: true } }
           },
           orderBy: { precio: 'asc' } // Ordenar por precio ascendente para comparación
         }
@@ -414,20 +414,20 @@ exports.getClientQuotes = async (req, res) => {
       zona_cobertura: quote.zona_cobertura,
       fotos_urls: quote.fotos_urls ? JSON.parse(quote.fotos_urls) : [],
       profesionales_solicitados: quote.profesionales_solicitados ? JSON.parse(quote.profesionales_solicitados) : [],
-      ofertas: quote.respuestas.map(respuesta => ({
+      ofertas: quote.cotizacion_respuestas.map(respuesta => ({
         id: respuesta.id,
-        profesional: respuesta.profesional,
+        profesional: respuesta.usuarios,
         precio: respuesta.precio,
         comentario: respuesta.comentario,
         estado: respuesta.estado,
         respondido_en: respuesta.respondido_en
       })),
       estadisticas_ofertas: {
-        total_ofertas: quote.respuestas.filter(r => r.estado === 'ACEPTADO').length,
-        precio_minimo: Math.min(...quote.respuestas.filter(r => r.precio).map(r => r.precio)),
-        precio_maximo: Math.max(...quote.respuestas.filter(r => r.precio).map(r => r.precio)),
-        precio_promedio: quote.respuestas.filter(r => r.precio).length > 0
-          ? quote.respuestas.filter(r => r.precio).reduce((sum, r) => sum + r.precio, 0) / quote.respuestas.filter(r => r.precio).length
+        total_ofertas: quote.cotizacion_respuestas.filter(r => r.estado === 'ACEPTADO').length,
+        precio_minimo: Math.min(...quote.cotizacion_respuestas.filter(r => r.precio).map(r => r.precio)),
+        precio_maximo: Math.max(...quote.cotizacion_respuestas.filter(r => r.precio).map(r => r.precio)),
+        precio_promedio: quote.cotizacion_respuestas.filter(r => r.precio).length > 0
+          ? quote.cotizacion_respuestas.filter(r => r.precio).reduce((sum, r) => sum + r.precio, 0) / quote.cotizacion_respuestas.filter(r => r.precio).length
           : null
       },
       creado_en: quote.creado_en
@@ -458,13 +458,13 @@ exports.compareQuotes = async (req, res) => {
         cliente_id: clientId
       },
       include: {
-        respuestas: {
+        cotizacion_respuestas: {
           include: {
-            profesional: {
+            usuarios: {
               select: {
                 nombre: true,
                 email: true,
-                perfil_profesional: {
+                perfiles_profesionales: {
                   select: {
                     anos_experiencia: true,
                     calificacion_promedio: true,
@@ -484,7 +484,7 @@ exports.compareQuotes = async (req, res) => {
     }
 
     // Calcular estadísticas de comparación
-    const acceptedOffers = quote.respuestas.filter(r => r.estado === 'ACEPTADO' && r.precio);
+    const acceptedOffers = quote.cotizacion_respuestas.filter(r => r.estado === 'ACEPTADO' && r.precio);
     const stats = {
       total_offers: acceptedOffers.length,
       price_range: acceptedOffers.length > 0 ? {
@@ -507,13 +507,13 @@ exports.compareQuotes = async (req, res) => {
         zona_cobertura: quote.zona_cobertura,
         fotos_urls: quote.fotos_urls ? JSON.parse(quote.fotos_urls) : []
       },
-      offers: quote.respuestas.map(respuesta => ({
+      offers: quote.cotizacion_respuestas.map(respuesta => ({
         id: respuesta.id,
         profesional: {
-          nombre: respuesta.profesional.nombre,
-          experiencia: respuesta.profesional.perfil_profesional?.anos_experiencia,
-          calificacion: respuesta.profesional.perfil_profesional?.calificacion_promedio,
-          especialidad: respuesta.profesional.perfil_profesional?.especialidad
+          nombre: respuesta.usuarios.nombre,
+          experiencia: respuesta.usuarios.perfiles_profesionales?.anos_experiencia,
+          calificacion: respuesta.usuarios.perfiles_profesionales?.calificacion_promedio,
+          especialidad: respuesta.usuarios.perfiles_profesionales?.especialidad
         },
         precio: respuesta.precio,
         comentario: respuesta.comentario,

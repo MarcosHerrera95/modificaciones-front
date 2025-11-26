@@ -26,12 +26,12 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { nanoid } = require('nanoid'); // Para IDs consistentes
-const rateLimit = require('rate-limiter-flexible');
+const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const prisma = new PrismaClient();
 
 // Rate limiting específico para chat (HABILITADO)
-const chatRateLimiter = new rateLimit.RateLimiterFlexible({
+const chatRateLimiter = new RateLimiterMemory({
   storeClient: prisma,
   keyPrefix: 'chat_rl',
   points: 30, // Número de puntos
@@ -40,7 +40,7 @@ const chatRateLimiter = new rateLimit.RateLimiterFlexible({
 });
 
 // Antiflood - límite más estricto (HABILITADO)
-const chatFloodLimiter = new rateLimit.RateLimiterFlexible({
+const chatFloodLimiter = new RateLimiterMemory({
   storeClient: prisma,
   keyPrefix: 'chat_flood',
   points: 5, // Solo 5 mensajes

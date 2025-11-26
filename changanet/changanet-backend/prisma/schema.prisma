@@ -2,14 +2,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-  output   = "../docs/database-diagram.png"
-}
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "../docs/database-diagram.png"
+// }
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model cotizacion_respuestas {
@@ -21,8 +21,8 @@ model cotizacion_respuestas {
   estado         String       @default("PENDIENTE")
   creado_en      DateTime     @default(now())
   respondido_en  DateTime?
-  usuarios       usuarios     @relation(fields: [profesional_id], references: [id])
   cotizaciones   cotizaciones @relation(fields: [cotizacion_id], references: [id])
+  usuarios       usuarios     @relation(fields: [profesional_id], references: [id])
 
   @@unique([cotizacion_id, profesional_id])
   @@index([estado])
@@ -92,9 +92,9 @@ model disponibilidad {
   reservado_por                                    String?
   reservado_en                                     DateTime?
   servicio_id                                      String?    @unique
-  servicios                                        servicios? @relation(fields: [servicio_id], references: [id])
-  usuarios_disponibilidad_reservado_porTousuarios  usuarios?  @relation("disponibilidad_reservado_porTousuarios", fields: [reservado_por], references: [id])
   usuarios_disponibilidad_profesional_idTousuarios usuarios   @relation("disponibilidad_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  usuarios_disponibilidad_reservado_porTousuarios  usuarios?  @relation("disponibilidad_reservado_porTousuarios", fields: [reservado_por], references: [id])
+  servicios                                        servicios? @relation(fields: [servicio_id], references: [id])
 
   @@index([esta_disponible, fecha])
   @@index([servicio_id])
@@ -107,8 +107,8 @@ model favoritos {
   cliente_id                                  String
   profesional_id                              String
   creado_en                                   DateTime @default(now())
-  usuarios_favoritos_profesional_idTousuarios usuarios @relation("favoritos_profesional_idTousuarios", fields: [profesional_id], references: [id])
   usuarios_favoritos_cliente_idTousuarios     usuarios @relation("favoritos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  usuarios_favoritos_profesional_idTousuarios usuarios @relation("favoritos_profesional_idTousuarios", fields: [profesional_id], references: [id])
 
   @@unique([cliente_id, profesional_id])
   @@index([profesional_id])
@@ -136,44 +136,67 @@ model logros_usuario {
   usuario_id  String
   logro_id    String
   obtenido_en DateTime @default(now())
-  logros      logros   @relation(fields: [logro_id], references: [id])
   usuarios    usuarios @relation(fields: [usuario_id], references: [id])
+  logros      logros   @relation(fields: [logro_id], references: [id])
 
   @@unique([usuario_id, logro_id])
   @@index([logro_id])
   @@index([usuario_id])
 }
 
+model conversations {
+  id             String   @id @default(cuid())
+  client_id      String
+  professional_id String
+  is_active      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  client         usuarios @relation("conversations_client_idTousuarios", fields: [client_id], references: [id])
+  professional   usuarios @relation("conversations_professional_idTousuarios", fields: [professional_id], references: [id])
+  messages       mensajes[]
+
+  @@unique([client_id, professional_id])
+  @@index([client_id])
+  @@index([professional_id])
+  @@index([is_active])
+  @@index([updated_at])
+  @@map("conversations")
+}
+
 model mensajes {
-  id                                          String   @id
+  id                                          String        @id
+  conversation_id                             String?
   remitente_id                                String
   destinatario_id                             String
-  contenido                                   String
-  url_imagen                                  String?
-  esta_leido                                  Boolean  @default(false)
-  creado_en                                   DateTime @default(now())
-  usuarios_mensajes_destinatario_idTousuarios usuarios @relation("mensajes_destinatario_idTousuarios", fields: [destinatario_id], references: [id])
-  usuarios_mensajes_remitente_idTousuarios    usuarios @relation("mensajes_remitente_idTousuarios", fields: [remitente_id], references: [id])
+  message                                     String?
+  image_url                                   String?
+  status                                      String        @default("sent")
+  read_at                                     DateTime?
+  creado_en                                   DateTime      @default(now())
+  conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  usuarios_mensajes_remitente_idTousuarios    usuarios      @relation("mensajes_remitente_idTousuarios", fields: [remitente_id], references: [id])
+  usuarios_mensajes_destinatario_idTousuarios usuarios      @relation("mensajes_destinatario_idTousuarios", fields: [destinatario_id], references: [id])
 
   @@index([creado_en])
+  @@index([conversation_id])
   @@index([remitente_id, destinatario_id, creado_en])
   @@index([destinatario_id, creado_en])
   @@index([remitente_id, creado_en])
+  @@index([status])
 }
 
 model notificaciones {
-  id         String   @id @default(cuid())
+  id         String               @id @default(cuid())
   usuario_id String
-  tipo       String   // system, message, payment, urgent, review, admin...
+  tipo       String
   titulo     String
   mensaje    String
-  data       String   @default("{}") // JSON string - metadata (id de servicio, link, etc.)
-  canal      String   @default("inapp") // inapp | push | email
-  estado     String   @default("unread") // unread | read | delivered | failed
-  creado_en  DateTime @default(now())
+  data       String               @default("{}")
+  canal      String               @default("inapp")
+  estado     String               @default("unread")
+  creado_en  DateTime             @default(now())
   leido_en   DateTime?
-  usuarios   usuarios @relation(fields: [usuario_id], references: [id])
-  // Relación con cola de notificaciones
+  usuarios   usuarios             @relation(fields: [usuario_id], references: [id])
   queue      notification_queue[]
 
   @@index([usuario_id], map: "idx_notif_user")
@@ -183,32 +206,32 @@ model notificaciones {
 }
 
 model pagos {
-  id                                       String    @id
-  servicio_id                              String    @unique
-  cliente_id                               String
-  profesional_id                           String
-  monto_total                              Float
-  comision_plataforma                      Float
-  monto_profesional                        Float
-  mercado_pago_id                          String?   @unique
-  mercado_pago_preference_id               String?   @unique
-  estado                                   String    @default("pendiente")
-  metodo_pago                              String?
-  fecha_pago                               DateTime?
-  fecha_liberacion                         DateTime?
-  fecha_liberacion_programada              DateTime?
-  url_comprobante                          String?
-  metadata                                 String?   // JSON string para datos adicionales
-  webhook_procesado                        Boolean   @default(false)
-  ultimo_webhook_procesado_en              DateTime?
-  intentos_webhook                         Int       @default(0)
-  created_at                               DateTime  @default(now())
-  updated_at                               DateTime  @updatedAt
-  usuarios_pagos_profesional_idTousuarios  usuarios  @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
-  usuarios_pagos_cliente_idTousuarios      usuarios  @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
-  servicios                                servicios @relation(fields: [servicio_id], references: [id])
-  eventos_pagos                            eventos_pagos[]
-  disputas                                 disputas_pagos[]
+  id                                      String           @id
+  servicio_id                             String           @unique
+  cliente_id                              String
+  profesional_id                          String
+  monto_total                             Float
+  comision_plataforma                     Float
+  monto_profesional                       Float
+  mercado_pago_id                         String?          @unique
+  mercado_pago_preference_id              String?          @unique
+  estado                                  String           @default("pendiente")
+  metodo_pago                             String?
+  fecha_pago                              DateTime?
+  fecha_liberacion                        DateTime?
+  fecha_liberacion_programada             DateTime?
+  url_comprobante                         String?
+  metadata                                String?
+  webhook_procesado                       Boolean          @default(false)
+  ultimo_webhook_procesado_en             DateTime?
+  intentos_webhook                        Int              @default(0)
+  created_at                              DateTime         @default(now())
+  updated_at                              DateTime         @updatedAt
+  disputas                                disputas_pagos[]
+  eventos_pagos                           eventos_pagos[]
+  servicios                               servicios        @relation(fields: [servicio_id], references: [id])
+  usuarios_pagos_cliente_idTousuarios     usuarios         @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  usuarios_pagos_profesional_idTousuarios usuarios         @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
 
   @@index([mercado_pago_preference_id])
   @@index([mercado_pago_id])
@@ -220,35 +243,34 @@ model pagos {
 }
 
 model perfiles_profesionales {
-  usuario_id                 String                     @id
+  usuario_id                 String                      @id
   especialidad               String
   especialidades             String?
   anos_experiencia           Int?
   zona_cobertura             String
   latitud                    Float?
   longitud                   Float?
-  tipo_tarifa                String                     @default("hora")
+  tipo_tarifa                String                      @default("hora")
   tarifa_hora                Float?
   tarifa_servicio            Float?
   tarifa_convenio            String?
   descripcion                String?
   url_foto_perfil            String?
   url_foto_portada           String?
-  esta_disponible            Boolean                    @default(true)
+  esta_disponible            Boolean                     @default(true)
   calificacion_promedio      Float?
-  estado_verificacion        String                     @default("pendiente")
+  estado_verificacion        String                      @default("pendiente")
   verificado_en              DateTime?
   url_documento_verificacion String?
   coverage_zone_id           String?
-  profile_completion_score   Int?                       @default(0)
-  profile_views_count        Int?                       @default(0)
-  last_profile_update        DateTime?                  @default(now())
-  usuarios                   usuarios                   @relation(fields: [usuario_id], references: [id])
-  coverage_zones             coverage_zones?            @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
-  professional_specialties   professional_specialties[]
-  // Relaciones nuevas para BudgetRequest
-  budgetRequestDistributions BudgetRequestProfessional[]
+  profile_completion_score   Int?                        @default(0)
+  profile_views_count        Int?                        @default(0)
+  last_profile_update        DateTime?                   @default(now())
   budgetOffers               BudgetOffer[]
+  budgetRequestDistributions BudgetRequestProfessional[]
+  coverage_zones             coverage_zones?             @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  usuarios                   usuarios                    @relation(fields: [usuario_id], references: [id])
+  professional_specialties   professional_specialties[]
 
   @@index([last_profile_update], map: "idx_professionals_last_update")
   @@index([profile_completion_score], map: "idx_professionals_completion_score")
@@ -266,8 +288,8 @@ model professional_specialties {
   specialty_id           String
   is_primary             Boolean?               @default(false)
   created_at             DateTime?              @default(now())
-  specialties            specialties            @relation(fields: [specialty_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   perfiles_profesionales perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade, onUpdate: NoAction)
+  specialties            specialties            @relation(fields: [specialty_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([professional_id, specialty_id])
   @@index([specialty_id], map: "idx_professional_specialties_specialty")
@@ -296,8 +318,8 @@ model resenas {
   comentario   String?
   url_foto     String?
   creado_en    DateTime  @default(now())
-  usuarios     usuarios  @relation(fields: [cliente_id], references: [id])
   servicios    servicios @relation(fields: [servicio_id], references: [id])
+  usuarios     usuarios  @relation(fields: [cliente_id], references: [id])
 
   @@index([servicio_id])
 }
@@ -314,8 +336,8 @@ model retiros {
   referencia        String?
   notas             String?
   creado_en         DateTime          @default(now())
-  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
   usuarios          usuarios          @relation(fields: [profesional_id], references: [id])
+  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
 
   @@index([fecha_solicitud])
   @@index([estado])
@@ -333,16 +355,14 @@ model servicios {
   completado_en                               DateTime?
   es_urgente                                  Boolean                 @default(false)
   servicio_recurrente_id                      String?
+  appointments                                appointments[]
   disponibilidad                              disponibilidad?
   pagos                                       pagos?
   resenas                                     resenas?
-  servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
-  usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
   usuarios_servicios_cliente_idTousuarios     usuarios                @relation("servicios_cliente_idTousuarios", fields: [cliente_id], references: [id])
-  // Relación nueva para appointments
-  appointments                                appointments[]
-  // Relación para servicios urgentes
-  urgent_requests                              urgent_requests[]
+  usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
+  urgent_requests                             urgent_requests[]
 
   @@index([profesional_id, fecha_agendada])
   @@index([cliente_id, fecha_agendada])
@@ -376,8 +396,8 @@ model servicios_recurrrentes {
   creado_en                                                DateTime    @default(now())
   actualizado_en                                           DateTime?
   servicios                                                servicios[]
-  usuarios_servicios_recurrrentes_profesional_idTousuarios usuarios    @relation("servicios_recurrrentes_profesional_idTousuarios", fields: [profesional_id], references: [id])
   usuarios_servicios_recurrrentes_cliente_idTousuarios     usuarios    @relation("servicios_recurrrentes_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  usuarios_servicios_recurrrentes_profesional_idTousuarios usuarios    @relation("servicios_recurrrentes_profesional_idTousuarios", fields: [profesional_id], references: [id])
 
   @@index([frecuencia])
   @@index([fecha_inicio])
@@ -401,85 +421,79 @@ model specialties {
 }
 
 model usuarios {
-  id                                                                     String                   @id
-  email                                                                  String                   @unique
+  id                                                                     String                       @id
+  email                                                                  String                       @unique
   hash_contrasena                                                        String?
   nombre                                                                 String
   telefono                                                               String?
-  rol                                                                    String                   @default("cliente")
-  esta_verificado                                                        Boolean                  @default(false)
-  bloqueado                                                              Boolean                  @default(false)
+  rol                                                                    String                       @default("cliente")
+  esta_verificado                                                        Boolean                      @default(false)
+  bloqueado                                                              Boolean                      @default(false)
   bloqueado_hasta                                                        DateTime?
-  failed_login_attempts                                                  Int                      @default(0)
-  token_verificacion                                                     String?                  @unique
+  failed_login_attempts                                                  Int                          @default(0)
+  token_verificacion                                                     String?                      @unique
   token_expiracion                                                       DateTime?
-  creado_en                                                              DateTime                 @default(now())
+  creado_en                                                              DateTime                     @default(now())
   actualizado_en                                                         DateTime?
-  google_id                                                              String?                  @unique
-  facebook_id                                                            String?                  @unique
+  google_id                                                              String?                      @unique
+  facebook_id                                                            String?                      @unique
   url_foto_perfil                                                        String?
   fcm_token                                                              String?
-  sms_enabled                                                            Boolean                  @default(false)
+  sms_enabled                                                            Boolean                      @default(false)
   direccion                                                              String?
   preferencias_servicio                                                  String?
-  notificaciones_push                                                    Boolean                  @default(true)
-  notificaciones_email                                                   Boolean                  @default(true)
-  notificaciones_sms                                                     Boolean                  @default(false)
-  notificaciones_servicios                                               Boolean                  @default(true)
-  notificaciones_mensajes                                                Boolean                  @default(true)
-  notificaciones_pagos                                                   Boolean                  @default(true)
-  notificaciones_marketing                                               Boolean                  @default(false)
+  notificaciones_push                                                    Boolean                      @default(true)
+  notificaciones_email                                                   Boolean                      @default(true)
+  notificaciones_sms                                                     Boolean                      @default(false)
+  notificaciones_servicios                                               Boolean                      @default(true)
+  notificaciones_mensajes                                                Boolean                      @default(true)
+  notificaciones_pagos                                                   Boolean                      @default(true)
+  notificaciones_marketing                                               Boolean                      @default(false)
+  budgetRequests                                                         BudgetRequest[]
+  admin_audit_logs                                                       admin_audit_log[]            @relation("AdminAuditLogs")
+  admin_profile                                                          admin_profile?
+  appointments_client_idTousuarios                                       appointments[]               @relation("appointments_client_idTousuarios")
+  appointments_professional_idTousuarios                                 appointments[]               @relation("appointments_professional_idTousuarios")
+  audit_logs                                                             audit_log[]
+  blocked_slots_created_byTousuarios                                     blocked_slots[]              @relation("blocked_slots_created_byTousuarios")
+  blocked_slots_professional_idTousuarios                                blocked_slots[]              @relation("blocked_slots_professional_idTousuarios")
+  calendar_sync_professional_idTousuarios                                calendar_sync[]              @relation("calendar_sync_professional_idTousuarios")
   cotizacion_respuestas                                                  cotizacion_respuestas[]
   cotizaciones                                                           cotizaciones[]
   cuentas_bancarias                                                      cuentas_bancarias[]
-  disponibilidad_disponibilidad_reservado_porTousuarios                  disponibilidad[]         @relation("disponibilidad_reservado_porTousuarios")
-  disponibilidad_disponibilidad_profesional_idTousuarios                 disponibilidad[]         @relation("disponibilidad_profesional_idTousuarios")
-  favoritos_favoritos_profesional_idTousuarios                           favoritos[]              @relation("favoritos_profesional_idTousuarios")
-  favoritos_favoritos_cliente_idTousuarios                               favoritos[]              @relation("favoritos_cliente_idTousuarios")
+  disponibilidad_disponibilidad_profesional_idTousuarios                 disponibilidad[]             @relation("disponibilidad_profesional_idTousuarios")
+  disponibilidad_disponibilidad_reservado_porTousuarios                  disponibilidad[]             @relation("disponibilidad_reservado_porTousuarios")
+  disputas_pagos                                                         disputas_pagos[]
+  favoritos_favoritos_cliente_idTousuarios                               favoritos[]                  @relation("favoritos_cliente_idTousuarios")
+  favoritos_favoritos_profesional_idTousuarios                           favoritos[]                  @relation("favoritos_profesional_idTousuarios")
+  reviewed_verifications                                                 identity_verification[]      @relation("VerificationReviewedBy")
+  identity_verifications                                                 identity_verification[]
   logros_usuario                                                         logros_usuario[]
-  mensajes_mensajes_destinatario_idTousuarios                            mensajes[]               @relation("mensajes_destinatario_idTousuarios")
-  mensajes_mensajes_remitente_idTousuarios                               mensajes[]               @relation("mensajes_remitente_idTousuarios")
+  conversations_conversations_client_idTousuarios                       conversations[]             @relation("conversations_client_idTousuarios")
+  conversations_conversations_professional_idTousuarios                 conversations[]             @relation("conversations_professional_idTousuarios")
+  mensajes_mensajes_remitente_idTousuarios                               mensajes[]                   @relation("mensajes_remitente_idTousuarios")
+  mensajes_mensajes_destinatario_idTousuarios                            mensajes[]                   @relation("mensajes_destinatario_idTousuarios")
+  assigned_moderation_reports                                            moderation_reports[]         @relation("AssignedModerationReports")
+  created_moderation_reports                                             moderation_reports[]         @relation("CreatedModerationReports")
   notificaciones                                                         notificaciones[]
-  pagos_pagos_profesional_idTousuarios                                   pagos[]                  @relation("pagos_profesional_idTousuarios")
-  pagos_pagos_cliente_idTousuarios                                       pagos[]                  @relation("pagos_cliente_idTousuarios")
+  notification_preferences                                               notification_preferences[]
+  pagos_pagos_cliente_idTousuarios                                       pagos[]                      @relation("pagos_cliente_idTousuarios")
+  pagos_pagos_profesional_idTousuarios                                   pagos[]                      @relation("pagos_profesional_idTousuarios")
   perfiles_profesionales                                                 perfiles_profesionales?
+  professional_reputation                                                professional_reputation?
+  professionals_availability_professional_idTousuarios                   professionals_availability[] @relation("professionals_availability_professional_idTousuarios")
   refresh_tokens                                                         refresh_tokens[]
+  reputation_history                                                     reputation_history[]
   resenas                                                                resenas[]
   retiros                                                                retiros[]
-  servicios_servicios_profesional_idTousuarios                           servicios[]              @relation("servicios_profesional_idTousuarios")
-  servicios_servicios_cliente_idTousuarios                               servicios[]              @relation("servicios_cliente_idTousuarios")
-  servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[] @relation("servicios_recurrrentes_profesional_idTousuarios")
-  servicios_recurrrentes_servicios_recurrrentes_cliente_idTousuarios     servicios_recurrrentes[] @relation("servicios_recurrrentes_cliente_idTousuarios")
+  servicios_servicios_cliente_idTousuarios                               servicios[]                  @relation("servicios_cliente_idTousuarios")
+  servicios_servicios_profesional_idTousuarios                           servicios[]                  @relation("servicios_profesional_idTousuarios")
+  servicios_recurrrentes_servicios_recurrrentes_cliente_idTousuarios     servicios_recurrrentes[]     @relation("servicios_recurrrentes_cliente_idTousuarios")
+  servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[]     @relation("servicios_recurrrentes_profesional_idTousuarios")
+  urgent_assignments_professional                                        urgent_assignments[]         @relation("urgent_assignments_professional_idTousuarios")
+  urgent_request_candidates_professional                                 urgent_request_candidates[]  @relation("urgent_request_candidates_professional_idTousuarios")
+  urgent_requests_client                                                 urgent_requests[]            @relation("urgent_requests_client_idTousuarios")
   verification_requests                                                  verification_requests?
-  // Relaciones nuevas para Verificación de Identidad y Reputación
-  identity_verifications                                                 identity_verification[]
-  reviewed_verifications                                                 identity_verification[]     @relation("VerificationReviewedBy")
-  professional_reputation                                                professional_reputation?
-  reputation_history                                                     reputation_history[]
-  // Relaciones nuevas para BudgetRequest
-  budgetRequests                                                         BudgetRequest[]
-  // Relaciones nuevas para disputas_pagos
-  disputas_pagos                                                         disputas_pagos[]
-  // Relaciones nuevas para sistema de disponibilidad y agenda
-  professionals_availability_professional_idTousuarios                  professionals_availability[] @relation("professionals_availability_professional_idTousuarios")
-  appointments_professional_idTousuarios                                 appointments[]              @relation("appointments_professional_idTousuarios")
-  appointments_client_idTousuarios                                       appointments[]              @relation("appointments_client_idTousuarios")
-  blocked_slots_professional_idTousuarios                                blocked_slots[]             @relation("blocked_slots_professional_idTousuarios")
-  blocked_slots_created_byTousuarios                                     blocked_slots[]             @relation("blocked_slots_created_byTousuarios")
-  calendar_sync_professional_idTousuarios                                calendar_sync[]             @relation("calendar_sync_professional_idTousuarios")
-  // Relación con auditoría
-  audit_logs                                                           audit_log[]
-  // Relaciones para servicios urgentes
-  urgent_requests_client                                               urgent_requests[]           @relation("urgent_requests_client_idTousuarios")
-  urgent_request_candidates_professional                                urgent_request_candidates[] @relation("urgent_request_candidates_professional_idTousuarios")
-  urgent_assignments_professional                                       urgent_assignments[]        @relation("urgent_assignments_professional_idTousuarios")
-  // Relaciones para notificaciones
-  notification_preferences                                             notification_preferences[]
-  // Relaciones para Panel de Administración
-  admin_profile                                                        admin_profile?
-  admin_audit_logs                                                     admin_audit_log[]          @relation("AdminAuditLogs")
-  created_moderation_reports                                           moderation_reports[]       @relation("CreatedModerationReports")
-  assigned_moderation_reports                                          moderation_reports[]       @relation("AssignedModerationReports")
 
   @@index([sms_enabled])
   @@index([telefono])
@@ -499,26 +513,19 @@ model verification_requests {
   usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
 }
 
-// ==================================================
-// NUEVAS TABLAS: Verificación de Identidad y Reputación
-// Implementación para REQ-36 a REQ-40
-// ==================================================
-
 model identity_verification {
-  id                  String   @id @default(cuid())
-  user_id             String
-  document_type       String   // 'dni','pasaporte','id'
-  document_front_url  String
-  document_back_url   String?
-  status              String   @default("pending") // 'pending','approved','rejected'
-  admin_review_notes  String?
-  reviewed_by         String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  // Relaciones
-  user                usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  admin               usuarios? @relation("VerificationReviewedBy", fields: [reviewed_by], references: [id], onDelete: SetNull)
+  id                 String    @id @default(cuid())
+  user_id            String
+  document_type      String
+  document_front_url String
+  document_back_url  String?
+  status             String    @default("pending")
+  admin_review_notes String?
+  reviewed_by        String?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+  admin              usuarios? @relation("VerificationReviewedBy", fields: [reviewed_by], references: [id])
+  user               usuarios  @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([status])
@@ -527,16 +534,14 @@ model identity_verification {
 }
 
 model professional_reputation {
-  user_id             String   @id
-  average_rating      Float    @default(0)
-  completed_jobs      Int      @default(0)
-  on_time_percentage  Float    @default(0)
-  medals              String   @default("[]") // JSON string: ['puntualidad','excelencia','top-rated']
-  ranking_score       Float    @default(0)
-  updated_at          DateTime @updatedAt
-
-  // Relaciones
-  user                usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id            String   @id
+  average_rating     Float    @default(0)
+  completed_jobs     Int      @default(0)
+  on_time_percentage Float    @default(0)
+  medals             String   @default("[]")
+  ranking_score      Float    @default(0)
+  updated_at         DateTime @updatedAt
+  user               usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([ranking_score])
   @@index([updated_at])
@@ -544,14 +549,12 @@ model professional_reputation {
 }
 
 model reputation_history {
-  id          String   @id @default(cuid())
-  user_id     String
-  event_type  String   // 'job_completed','medal_awarded','rating_received','reputation_updated'
-  value       String   @default("{}") // JSON string
-  created_at  DateTime @default(now())
-
-  // Relaciones
-  user        usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  user_id    String
+  event_type String
+  value      String   @default("{}")
+  created_at DateTime @default(now())
+  user       usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
@@ -559,24 +562,17 @@ model reputation_history {
   @@map("reputation_history")
 }
 
-// ==================================================
-// Tabla de Auditoría General
-// Implementación para cumplimiento y trazabilidad
-// ==================================================
-
 model audit_log {
-  id          String   @id @default(cuid())
-  user_id     String?  // Usuario que realizó la acción (puede ser null para acciones del sistema)
-  action      String   // 'verification_submitted','verification_approved','verification_rejected','reputation_updated', etc.
-  resource    String   // 'identity_verification','professional_reputation','service', etc.
-  resource_id String?  // ID del recurso afectado
-  details     String   @default("{}") // JSON string con detalles adicionales
+  id          String    @id @default(cuid())
+  user_id     String?
+  action      String
+  resource    String
+  resource_id String?
+  details     String    @default("{}")
   ip_address  String?
   user_agent  String?
-  created_at  DateTime @default(now())
-
-  // Relaciones
-  user        usuarios? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  created_at  DateTime  @default(now())
+  user        usuarios? @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
   @@index([action])
@@ -586,11 +582,6 @@ model audit_log {
   @@map("audit_log")
 }
 
-// ==================================================
-// NUEVAS TABLAS: Sistema Avanzado de Disponibilidad y Agenda
-// Implementación según especificaciones REQ-26 a REQ-30
-// ==================================================
-
 model professionals_availability {
   id              String   @id @default(cuid())
   professional_id String
@@ -598,11 +589,9 @@ model professionals_availability {
   start_datetime  DateTime
   end_datetime    DateTime
   timezone        String   @default("America/Argentina/Buenos_Aires")
-  meta            String   @default("{}") // JSON string
+  meta            String   @default("{}")
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
-
-  // Relaciones
   professional    usuarios @relation("professionals_availability_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
 
   @@index([professional_id])
@@ -613,26 +602,24 @@ model professionals_availability {
 }
 
 model appointments {
-  id                String   @id @default(cuid())
-  professional_id   String
-  client_id         String
-  service_id        String?
-  start_datetime    DateTime
-  end_datetime      DateTime
-  status            String   @default("pending")
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-  source            String   @default("web")
-  notes             String?
+  id                  String     @id @default(cuid())
+  professional_id     String
+  client_id           String
+  service_id          String?
+  start_datetime      DateTime
+  end_datetime        DateTime
+  status              String     @default("pending")
+  created_at          DateTime   @default(now())
+  updated_at          DateTime   @updatedAt
+  source              String     @default("web")
+  notes               String?
   cancellation_reason String?
-  confirmed_at      DateTime?
-  cancelled_at      DateTime?
-  completed_at      DateTime?
-
-  // Relaciones
-  professional      usuarios  @relation("appointments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
-  client            usuarios  @relation("appointments_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
-  service           servicios? @relation(fields: [service_id], references: [id], onDelete: SetNull)
+  confirmed_at        DateTime?
+  cancelled_at        DateTime?
+  completed_at        DateTime?
+  service             servicios? @relation(fields: [service_id], references: [id])
+  client              usuarios   @relation("appointments_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
+  professional        usuarios   @relation("appointments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
 
   @@index([professional_id])
   @@index([client_id])
@@ -645,18 +632,16 @@ model appointments {
 }
 
 model blocked_slots {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   professional_id String
   start_datetime  DateTime
   end_datetime    DateTime
   reason          String
   created_by      String?
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
-
-  // Relaciones
-  professional    usuarios @relation("blocked_slots_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
-  creator         usuarios? @relation("blocked_slots_created_byTousuarios", fields: [created_by], references: [id], onDelete: SetNull)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  creator         usuarios? @relation("blocked_slots_created_byTousuarios", fields: [created_by], references: [id])
+  professional    usuarios  @relation("blocked_slots_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
 
   @@index([professional_id])
   @@index([start_datetime])
@@ -665,22 +650,20 @@ model blocked_slots {
 }
 
 model calendar_sync {
-  id                  String   @id @default(cuid())
-  professional_id     String
-  provider            String
+  id                   String    @id @default(cuid())
+  professional_id      String
+  provider             String
   external_calendar_id String?
-  access_token        String?
-  refresh_token       String?
-  token_expires_at    DateTime?
-  sync_enabled        Boolean  @default(true)
-  last_sync_at        DateTime?
-  sync_status         String   @default("idle")
-  sync_error          String?
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  // Relaciones
-  professional        usuarios @relation("calendar_sync_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  access_token         String?
+  refresh_token        String?
+  token_expires_at     DateTime?
+  sync_enabled         Boolean   @default(true)
+  last_sync_at         DateTime?
+  sync_status          String    @default("idle")
+  sync_error           String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  professional         usuarios  @relation("calendar_sync_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
 
   @@unique([professional_id, provider])
   @@index([professional_id])
@@ -693,7 +676,7 @@ model eventos_pagos {
   id          String   @id
   pago_id     String
   tipo_evento String
-  datos       String   // JSON string
+  datos       String
   procesado   Boolean  @default(false)
   creado_en   DateTime @default(now())
   pago        pagos    @relation(fields: [pago_id], references: [id], onDelete: Cascade)
@@ -714,8 +697,8 @@ model disputas_pagos {
   resolucion       String?
   notas_admin      String?
   reembolso_monto  Float?
-  pago             pagos     @relation(fields: [pago_id], references: [id])
   usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
+  pago             pagos     @relation(fields: [pago_id], references: [id])
 
   @@index([pago_id])
   @@index([usuario_id])
@@ -723,34 +706,27 @@ model disputas_pagos {
   @@index([fecha_apertura])
 }
 
-// ==================================================
-// NUEVOS MODELOS: Sistema de Solicitud de Presupuestos
-// Implementación para REQ-31 a REQ-35
-// ==================================================
-
 model BudgetRequest {
-  id                String   @id @default(cuid())
-  clientId          String
-  title             String
-  description       String
-  photos            String   @default("[]") // JSON string
-  category          String
-  status            String   @default("DRAFT")
-  budgetRangeMin    Float?
-  budgetRangeMax    Float?
-  preferredDate     DateTime?
-  location          String?  // JSON string
-  requirements      String   @default("{}") // JSON string
-  totalOffers       Int      @default(0)
-  selectedOfferId   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relaciones
-  client            usuarios @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  distributions     BudgetRequestProfessional[]
-  offers            BudgetOffer[]
-  selectedOffer     BudgetOffer? @relation("SelectedOffer", fields: [selectedOfferId], references: [id])
+  id              String                      @id @default(cuid())
+  clientId        String
+  title           String
+  description     String
+  photos          String                      @default("[]")
+  category        String
+  status          String                      @default("DRAFT")
+  budgetRangeMin  Float?
+  budgetRangeMax  Float?
+  preferredDate   DateTime?
+  location        String?
+  requirements    String                      @default("{}")
+  totalOffers     Int                         @default(0)
+  selectedOfferId String?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+  offers          BudgetOffer[]
+  selectedOffer   BudgetOffer?                @relation("SelectedOffer", fields: [selectedOfferId], references: [id])
+  client          usuarios                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  distributions   BudgetRequestProfessional[]
 
   @@index([clientId])
   @@index([status])
@@ -759,20 +735,18 @@ model BudgetRequest {
 }
 
 model BudgetRequestProfessional {
-  id           String                 @id @default(cuid())
-  requestId    String
+  id             String                 @id @default(cuid())
+  requestId      String
   professionalId String
-  sentAt       DateTime               @default(now())
-  responded    Boolean                @default(false)
-  respondedAt  DateTime?
-  expiresAt    DateTime
-  status       String                 @default("SENT")
-  notes        String?
-  createdAt    DateTime               @default(now())
-
-  // Relaciones
-  request      BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  professional perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
+  sentAt         DateTime               @default(now())
+  responded      Boolean                @default(false)
+  respondedAt    DateTime?
+  expiresAt      DateTime
+  status         String                 @default("SENT")
+  notes          String?
+  createdAt      DateTime               @default(now())
+  professional   perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
+  request        BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, professionalId])
   @@index([requestId])
@@ -783,25 +757,21 @@ model BudgetRequestProfessional {
 }
 
 model BudgetOffer {
-  id                  String    @id @default(cuid())
+  id                  String                 @id @default(cuid())
   requestId           String
   professionalId      String
   price               Float
   estimatedDays       Int?
   comments            String?
-  photos              String    @default("[]") // JSON string
+  photos              String                 @default("[]")
   availabilityDetails String?
-  offerStatus         String    @default("PENDING")
-  isSelected          Boolean   @default(false)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  // Relaciones
-  request             BudgetRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  offerStatus         String                 @default("PENDING")
+  isSelected          Boolean                @default(false)
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
   professional        perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
-
-  // Relación para la oferta seleccionada
-  selectedRequest     BudgetRequest[] @relation("SelectedOffer")
+  request             BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  selectedRequest     BudgetRequest[]        @relation("SelectedOffer")
 
   @@unique([requestId, professionalId])
   @@index([requestId])
@@ -812,45 +782,33 @@ model BudgetOffer {
   @@index([isSelected])
 }
 
-// ==================================================
-// Tabla de Configuración de Comisiones
-// Implementación para REQ-43: Comisión configurable (5-10%)
-// ==================================================
-
 model commission_settings {
   id                    String   @id @default(cuid())
-  commission_percentage Float    // 0.05 = 5%
-  minimum_fee           Float    // Monto mínimo de comisión
+  commission_percentage Float
+  minimum_fee           Float
   active                Boolean  @default(true)
   updated_at            DateTime @updatedAt
-  updated_by            String?  // ID del admin que actualizó
+  updated_by            String?
 
   @@index([active])
   @@index([updated_at])
 }
 
-// ==================================================
-// MODELOS PARA SERVICIOS URGENTES
-// Implementación completa según especificaciones del PRD
-// ==================================================
-
 model urgent_requests {
-  id            String   @id @default(cuid())
-  client_id     String
-  service_id    String?
-  description   String
-  location      String   // JSON: {lat: number, lng: number}
-  radius_km     Float    @default(5.0)
-  status        String   @default("pending") // pending | assigned | cancelled | completed
+  id             String                      @id @default(cuid())
+  client_id      String
+  service_id     String?
+  description    String
+  location       String
+  radius_km      Float                       @default(5.0)
+  status         String                      @default("pending")
   price_estimate Float?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  // Relaciones
-  client        usuarios @relation("urgent_requests_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
-  service       servicios? @relation(fields: [service_id], references: [id], onDelete: SetNull)
-  candidates    urgent_request_candidates[]
-  assignments   urgent_assignments[]
+  created_at     DateTime                    @default(now())
+  updated_at     DateTime                    @updatedAt
+  assignments    urgent_assignments[]
+  candidates     urgent_request_candidates[]
+  service        servicios?                  @relation(fields: [service_id], references: [id])
+  client         usuarios                    @relation("urgent_requests_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
 
   @@index([status], map: "idx_urgent_status")
   @@index([created_at])
@@ -860,17 +818,15 @@ model urgent_requests {
 }
 
 model urgent_request_candidates {
-  id                 String   @id @default(cuid())
-  urgent_request_id  String
-  professional_id    String
-  distance_km        Float
-  responded          Boolean  @default(false)
-  accepted           Boolean  @default(false)
-  created_at         DateTime @default(now())
-
-  // Relaciones
-  urgent_request     urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
-  professional       usuarios        @relation("urgent_request_candidates_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  id                String          @id @default(cuid())
+  urgent_request_id String
+  professional_id   String
+  distance_km       Float
+  responded         Boolean         @default(false)
+  accepted          Boolean         @default(false)
+  created_at        DateTime        @default(now())
+  professional      usuarios        @relation("urgent_request_candidates_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
 
   @@index([urgent_request_id])
   @@index([professional_id])
@@ -881,16 +837,14 @@ model urgent_request_candidates {
 }
 
 model urgent_assignments {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   urgent_request_id String
   professional_id   String
-  assigned_at       DateTime @default(now())
-  status            String   @default("accepted") // accepted | rejected | timeout | completed
-  updated_at        DateTime @updatedAt
-
-  // Relaciones
-  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
+  assigned_at       DateTime        @default(now())
+  status            String          @default("accepted")
+  updated_at        DateTime        @updatedAt
   professional      usuarios        @relation("urgent_assignments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
 
   @@index([urgent_request_id])
   @@index([professional_id])
@@ -911,22 +865,15 @@ model urgent_pricing_rules {
   @@map("urgent_pricing_rules")
 }
 
-// ==================================================
-// MODELOS PARA SISTEMA DE NOTIFICACIONES Y ALERTAS
-// Implementación completa según especificaciones del PRD
-// ==================================================
-
 model notification_preferences {
-  id         String   @id @default(cuid())
-  usuario_id String
-  tipo       String   // system, message, payment, urgent, review, admin...
-  inapp      Boolean  @default(true)
-  push       Boolean  @default(true)
-  email      Boolean  @default(true)
+  id             String   @id @default(cuid())
+  usuario_id     String
+  tipo           String
+  inapp          Boolean  @default(true)
+  push           Boolean  @default(true)
+  email          Boolean  @default(true)
   actualizado_en DateTime @updatedAt
-
-  // Relaciones
-  usuarios   usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  usuarios       usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
   @@unique([usuario_id, tipo])
   @@index([usuario_id], map: "idx_preference_user")
@@ -935,14 +882,12 @@ model notification_preferences {
 }
 
 model notification_queue {
-  id               String   @id @default(cuid())
-  notificacion_id  String
-  intentos_reintento Int     @default(0)
-  programado_en    DateTime
-  creado_en        DateTime @default(now())
-
-  // Relaciones
-  notificacion     notificaciones @relation(fields: [notificacion_id], references: [id], onDelete: Cascade)
+  id                 String         @id @default(cuid())
+  notificacion_id    String
+  intentos_reintento Int            @default(0)
+  programado_en      DateTime
+  creado_en          DateTime       @default(now())
+  notificacion       notificaciones @relation(fields: [notificacion_id], references: [id], onDelete: Cascade)
 
   @@index([notificacion_id])
   @@index([programado_en])
@@ -950,23 +895,16 @@ model notification_queue {
   @@map("notification_queue")
 }
 
-// ==================================================
-// MODELOS PARA PANEL DE ADMINISTRACIÓN
-// Implementación completa según especificaciones del PRD
-// ==================================================
-
 model admin_profile {
-  id                String   @id @default(cuid())
-  user_id           String   @unique
-  role              String   @default("support") // superadmin | manager | support
-  permissions       String   @default("{}") // JSON string con permisos específicos
-  is_active         Boolean  @default(true)
-  last_login        DateTime?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  // Relaciones
-  user              usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  user_id     String    @unique
+  role        String    @default("support")
+  permissions String    @default("{}")
+  is_active   Boolean   @default(true)
+  last_login  DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+  user        usuarios  @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([role])
   @@index([is_active])
@@ -974,18 +912,16 @@ model admin_profile {
 }
 
 model admin_audit_log {
-  id                String   @id @default(cuid())
-  admin_id          String
-  action            String   // verification_approved, user_blocked, commission_changed, etc.
-  target_type       String   // user, service, payment, verification, etc.
-  target_id         String?
-  details           String   @default("{}") // JSON string con detalles adicionales
-  ip_address        String?
-  user_agent        String?
-  created_at        DateTime @default(now())
-
-  // Relaciones
-  admin             usuarios @relation("AdminAuditLogs", fields: [admin_id], references: [id], onDelete: Cascade)
+  id          String   @id @default(cuid())
+  admin_id    String
+  action      String
+  target_type String
+  target_id   String?
+  details     String   @default("{}")
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  admin       usuarios @relation("AdminAuditLogs", fields: [admin_id], references: [id], onDelete: Cascade)
 
   @@index([admin_id])
   @@index([action])
@@ -995,24 +931,22 @@ model admin_audit_log {
 }
 
 model moderation_reports {
-  id                String   @id @default(cuid())
-  reporter_id       String
-  target_type       String   // review | user | content | service
-  target_id         String
-  reason            String
-  description       String?
-  status            String   @default("open") // open | in_progress | resolved | dismissed
-  priority          String   @default("medium") // low | medium | high | urgent
-  assigned_to       String?
-  assigned_at       DateTime?
-  resolved_at       DateTime?
-  resolution_notes  String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  // Relaciones
-  reporter          usuarios @relation("CreatedModerationReports", fields: [reporter_id], references: [id], onDelete: Cascade)
-  assigned_admin    usuarios? @relation("AssignedModerationReports", fields: [assigned_to], references: [id], onDelete: SetNull)
+  id               String    @id @default(cuid())
+  reporter_id      String
+  target_type      String
+  target_id        String
+  reason           String
+  description      String?
+  status           String    @default("open")
+  priority         String    @default("medium")
+  assigned_to      String?
+  assigned_at      DateTime?
+  resolved_at      DateTime?
+  resolution_notes String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+  assigned_admin   usuarios? @relation("AssignedModerationReports", fields: [assigned_to], references: [id])
+  reporter         usuarios  @relation("CreatedModerationReports", fields: [reporter_id], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([priority])
@@ -1023,24 +957,16 @@ model moderation_reports {
 }
 
 model settings {
-  key               String   @id
-  value             String   // JSON string
-  description       String?
-  category          String   @default("general") // general | commission | security | notifications
-  is_public         Boolean  @default(false)
-  updated_by        String?
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+  key         String   @id
+  value       String
+  description String?
+  category    String   @default("general")
+  is_public   Boolean  @default(false)
+  updated_by  String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 
   @@index([category])
   @@index([is_public])
   @@map("settings")
 }
-
-// ==================================================
-// Nota: Enums convertidos a String para compatibilidad con SQLite
-// Valores válidos:
-// BudgetRequestStatus: DRAFT, SENT, DISTRIBUTED, RESPONDING, CLOSED, EXPIRED
-// BudgetDistributionStatus: SENT, VIEWED, RESPONDED, EXPIRED, DECLINED
-// BudgetOfferStatus: PENDING, ACCEPTED, REJECTED, WITHDRAWN
-// ==================================================

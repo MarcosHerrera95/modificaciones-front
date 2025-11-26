@@ -357,6 +357,90 @@ exports.getConversation = async (req, res) => {
 };
 
 /**
+ * Obtiene los mensajes de una conversación específica
+ * GET /api/chat/messages/:conversationId
+ */
+exports.getConversationMessages = async (req, res) => {
+  const { id: currentUserId } = req.user;
+  const { conversationId } = req.params;
+
+  try {
+    // Parsear y validar el conversationId
+    const parsedId = parseConversationId(conversationId);
+
+    if (!parsedId.isValid) {
+      return res.status(404).json({
+        error: 'Conversación no encontrada',
+        received: conversationId
+      });
+    }
+
+    const { participant1, participant2 } = parsedId;
+
+    // Verificar que el usuario actual es participante de la conversación
+    if (currentUserId !== participant1 && currentUserId !== participant2) {
+      return res.status(403).json({
+        error: 'No tienes acceso a esta conversación'
+      });
+    }
+
+    // Obtener mensajes de la conversación
+    const messages = await prisma.mensajes.findMany({
+      where: {
+        OR: [
+          {
+            remitente_id: String(participant1),
+            destinatario_id: String(participant2)
+          },
+          {
+            remitente_id: String(participant2),
+            destinatario_id: String(participant1)
+          }
+        ]
+      },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            nombre: true,
+            url_foto_perfil: true,
+            rol: true
+          }
+        }
+      },
+      orderBy: { creado_en: 'asc' }
+    });
+
+    // Formatear mensajes para el frontend
+    const formattedMessages = messages.map(message => ({
+      id: message.id,
+      conversation_id: conversationId,
+      content: message.contenido || message.message,
+      image_url: message.url_imagen || message.image_url,
+      status: message.status || 'sent',
+      created_at: message.creado_en || message.created_at,
+      sender: {
+        id: message.sender.id,
+        nombre: message.sender.nombre,
+        foto_perfil: message.sender.url_foto_perfil,
+        rol: message.sender.rol
+      }
+    }));
+
+    res.status(200).json({
+      messages: formattedMessages,
+      total: formattedMessages.length
+    });
+
+  } catch (error) {
+    console.error('Error al obtener mensajes de conversación:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor al obtener mensajes'
+    });
+  }
+};
+
+/**
  * Lista todas las conversaciones de un usuario
  * GET /api/chat/conversations
  */

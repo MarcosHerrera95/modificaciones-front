@@ -108,13 +108,50 @@ class UnifiedWebSocketService {
     // Unir a sala personal del usuario
     socket.join(`user_${userId}`);
 
-    // EVENTO: Unirse a conversación
+    // EVENTO: Unirse a conversación o sala personal
     socket.on('join', async (data) => {
       try {
-        const { conversationId } = data;
+        console.log('📡 [JOIN] Evento recibido:', data);
 
+        // 🔍 MANEJO CORRECTO DE AMBOS TIPOS DE JOIN
+        const { conversationId, roomName } = data;
+
+        // CASO 1: Unirse a sala personal (user room)
+        if (roomName) {
+          if (roomName.startsWith('user_')) {
+            const userId = roomName.replace('user_', '');
+            if (userId === socket.user.id) {
+              console.log(`✅ [USER ROOM] Usuario ${userId} unido a su sala personal`);
+              socket.join(roomName);
+              socket.emit('joined_user_room', {
+                roomName,
+                message: 'Unido a sala personal exitosamente'
+              });
+              return;
+            } else {
+              socket.emit('error', { message: 'No tienes acceso a esta sala personal' });
+              return;
+            }
+          } else {
+            console.log(`✅ [CUSTOM ROOM] Usuario unido a sala: ${roomName}`);
+            socket.join(roomName);
+            socket.emit('joined_room', {
+              roomName,
+              message: 'Unido a sala exitosamente'
+            });
+            return;
+          }
+        }
+
+        // CASO 2: Unirse a conversación específica
         if (!conversationId) {
-          socket.emit('error', { message: 'conversationId es requerido' });
+          console.error('🚨 [BACKEND ERROR] conversationId es requerido para conversaciones:', {
+            receivedData: data,
+            conversationIdValue: conversationId,
+            conversationIdType: typeof conversationId,
+            stackTrace: new Error().stack
+          });
+          socket.emit('error', { message: 'conversationId es requerido para unirse a conversación' });
           return;
         }
 

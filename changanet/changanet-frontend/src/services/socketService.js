@@ -95,14 +95,32 @@ class SocketService {
   }
 
   /**
-   * Une al usuario a su sala personal
+   * Une al usuario a su sala personal (para notificaciones directas)
    */
   joinUserRoom(userId) {
     if (this.socket && this.isConnected) {
-      this.socket.emit('join', userId);
-      console.log(`Usuario ${userId} unido a sala personal`);
+      // Unirse a sala personal del usuario para notificaciones directas
+      this.socket.emit('join', { roomName: `user_${userId}` });
+      console.log(`Usuario ${userId} unido a su sala personal`);
     } else {
-      console.warn('Socket no conectado, no se puede unir a sala');
+      console.warn('Socket no conectado, no se puede unir a sala personal');
+    }
+  }
+
+  /**
+   * Une al usuario a una conversación específica
+   */
+  joinConversation(conversationId) {
+    if (!conversationId) {
+      console.warn('⚠️ conversationId es requerido para unirse a conversación');
+      return;
+    }
+    
+    if (this.socket && this.isConnected) {
+      this.socket.emit('join', { conversationId });
+      console.log(`💬 Usuario unido a conversación ${conversationId}`);
+    } else {
+      console.warn('⚠️ Socket no conectado, no se puede unir a conversación');
     }
   }
 

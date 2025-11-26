@@ -19,16 +19,23 @@ class SearchMetricsService {
    */
   async initRedisClient() {
     try {
-      this.redisClient = redis.createClient({
-        url: process.env.REDIS_URL || 'redis://localhost:6379'
-      });
-      
-      this.redisClient.on('error', (err) => {
-        console.warn('Redis metrics connection error:', err);
+      // Solo conectar a Redis si REDIS_URL está explícitamente configurado
+      if (process.env.REDIS_URL) {
+        this.redisClient = redis.createClient({
+          url: process.env.REDIS_URL
+        });
+        
+        this.redisClient.on('error', (err) => {
+          console.warn('Redis metrics connection error:', err);
+          this.redisClient = null;
+        });
+        
+        await this.redisClient.connect();
+        console.log('✅ Redis metrics service initialized');
+      } else {
+        console.log('ℹ️ Redis URL not provided, metrics will use database fallback');
         this.redisClient = null;
-      });
-      
-      await this.redisClient.connect();
+      }
     } catch (error) {
       console.warn('Failed to connect to Redis for metrics:', error);
       this.redisClient = null;

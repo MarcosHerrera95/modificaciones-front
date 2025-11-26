@@ -12,7 +12,9 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL
+});
 
 /**
  * @estrategia Google OAuth - Autenticación con Google
@@ -85,9 +87,8 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     }
   )
 );
-} else {
-  console.log('⚠️ Google OAuth no configurado - variables GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET no encontradas');
-}
+} 
+// Google OAuth no configurado silenciosamente
 
 /**
  * @estrategia Facebook OAuth - Autenticación con Facebook
@@ -173,9 +174,8 @@ if (process.env.FACEBOOK_APP_ID && process.env.FACEBOOK_APP_SECRET) {
       }
     )
   );
-} else {
-  console.log('⚠️ Facebook OAuth no configurado - variables FACEBOOK_APP_ID y FACEBOOK_APP_SECRET no encontradas');
-}
+} 
+// Facebook OAuth no configurado silenciosamente
 
 // Serializar usuario para la sesión
 passport.serializeUser((user, done) => {

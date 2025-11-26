@@ -462,8 +462,5 @@ class NotificationService {
 
 module.exports = {
   NotificationService,
-  NOTIFICATION_TYPES,
-  NOTIFICATION_CHANNELS,
-  NOTIFICATION_STATUS,
   setWebSocketService
 };

@@ -264,6 +264,7 @@ exports.register = async (req, res) => {
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
+        id: require('crypto').randomUUID(),
         user_id: user.id,
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt
@@ -476,6 +477,7 @@ exports.login = async (req, res) => {
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
+        id: require('crypto').randomUUID(),
         user_id: user.id,
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt
@@ -654,6 +656,7 @@ exports.registerProfessional = async (req, res) => {
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
+        id: require('crypto').randomUUID(),
         user_id: user.id,
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt
@@ -977,14 +980,14 @@ exports.verifyEmail = async (req, res) => {
 exports.googleLogin = async (req, res) => {
   try {
     console.log('🟡 Google OAuth request received:', req.body);
-    const { uid, email, nombre, foto, rol } = req.body;
+    const { uid, email, nombre, photo, rol } = req.body;
 
     console.log('🟡 Google OAuth attempt:', { 
       email, 
       uid, 
       nombre, 
       rol,
-      foto: foto || 'NO PHOTO PROVIDED' // 🔍 DEBUG PHOTO
+      photo: photo || 'NO PHOTO PROVIDED' // 🔍 DEBUG PHOTO
     });
 
     // Validar campos requeridos
@@ -1023,7 +1026,7 @@ exports.googleLogin = async (req, res) => {
     if (user) {
       console.log('🟡 EXISTING USER SCENARIO:');
       console.log('🟡 Current google_id:', user.google_id);
-      console.log('🟡 Incoming foto from Google:', foto);
+      console.log('🟡 Incoming photo from Google:', photo);
       console.log('🟡 Current photo in DB:', user.url_foto_perfil);
       
       // Usuario existe, actualizar información si es necesario
@@ -1036,7 +1039,7 @@ exports.googleLogin = async (req, res) => {
           data: {
             google_id: uid,
             nombre: nombre, // Actualizar nombre si cambió
-            url_foto_perfil: foto || user.url_foto_perfil, // 🔍 CRÍTICO: siempre usar foto de Google si está disponible
+            url_foto_perfil: photo || user.url_foto_perfil, // 🔍 CRÍTICO: siempre usar photo de Google si está disponible
             esta_verificado: true, // Los usuarios de Google están verificados
           }
         });
@@ -1060,18 +1063,18 @@ exports.googleLogin = async (req, res) => {
       } else {
         console.log('🟡 User already has Google ID - CHECK IF PHOTO NEEDS UPDATE');
         
-        // 🔍 NUEVA LÓGICA: Actualizar foto de Google siempre que sea diferente
-        const shouldUpdatePhoto = foto && foto !== user.url_foto_perfil;
+        // 🔍 NUEVA LÓGICA: Actualizar photo de Google siempre que sea diferente
+        const shouldUpdatePhoto = photo && photo !== user.url_foto_perfil;
         
         if (shouldUpdatePhoto) {
           console.log('🟡 PHOTO UPDATE NEEDED - Google photo different from current');
           console.log('🟡 Current DB photo:', user.url_foto_perfil);
-          console.log('🟡 New Google photo:', foto);
+          console.log('🟡 New Google photo:', photo);
           
           user = await prisma.usuarios.update({
             where: { id: user.id },
             data: {
-              url_foto_perfil: foto, // 🔍 ACTUALIZAR SIEMPRE LA FOTO DE GOOGLE
+              url_foto_perfil: photo, // 🔍 ACTUALIZAR SIEMPRE LA FOTO DE GOOGLE
               nombre: nombre, // Actualizar nombre si cambió
             }
           });
@@ -1087,7 +1090,7 @@ exports.googleLogin = async (req, res) => {
           
         } else {
           console.log('🟡 NO PHOTO UPDATE NEEDED');
-          if (!foto) {
+          if (!photo) {
             console.log('🟡 No Google photo provided in this login');
           } else {
             console.log('🟡 Google photo same as current DB photo');
@@ -1113,12 +1116,16 @@ exports.googleLogin = async (req, res) => {
         return res.status(400).json({ error: 'Rol inválido para registro social.' });
       }
 
+      // Generar UUID para el nuevo usuario
+      const userId = require('crypto').randomUUID();
+      
       user = await prisma.usuarios.create({
         data: {
+          id: userId,
           nombre,
           email,
           google_id: uid,
-          url_foto_perfil: foto, // 🔍 GUARDANDO FOTO DE GOOGLE
+          url_foto_perfil: photo, // 🔍 GUARDANDO FOTO DE GOOGLE
           rol: userRole,
           esta_verificado: true, // Los usuarios de Google están verificados automáticamente
           hash_contrasena: null, // No tienen contraseña local
@@ -1156,6 +1163,7 @@ exports.googleLogin = async (req, res) => {
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
+        id: require('crypto').randomUUID(),
         user_id: user.id,
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt
@@ -1179,15 +1187,36 @@ exports.googleLogin = async (req, res) => {
     });
   } catch (error) {
     console.error('Google OAuth login error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error cause:', error.cause);
+    
+    // Log detallado de la petición que causó el error
+    console.error('Request that failed:', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body,
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+    
     logger.error('Google OAuth login error', {
       service: 'auth',
       error: error.message,
       stack: error.stack,
-      ip: req.ip
+      errorName: error.name,
+      errorCause: error.cause,
+      ip: req.ip,
+      userAgent: req.get('User-Agent'),
+      requestBody: req.body,
+      url: req.url
     });
+    
     res.status(500).json({
       error: 'Error interno del servidor',
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Error procesando autenticación con Google'
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error procesando autenticación con Google',
+      timestamp: new Date().toISOString()
     });
   }
 };
@@ -1200,14 +1229,14 @@ exports.googleLogin = async (req, res) => {
 exports.facebookLogin = async (req, res) => {
   try {
     console.log('🟡 Facebook OAuth request received:', req.body);
-    const { uid, email, nombre, foto, rol } = req.body;
+    const { uid, email, nombre, photo, rol } = req.body;
 
     console.log('🟡 Facebook OAuth attempt:', {
       email,
       uid,
       nombre,
       rol,
-      foto: foto || 'NO PHOTO PROVIDED'
+      photo: photo || 'NO PHOTO PROVIDED'
     });
 
     // Validar campos requeridos
@@ -1246,7 +1275,7 @@ exports.facebookLogin = async (req, res) => {
     if (user) {
       console.log('🟡 EXISTING USER SCENARIO:');
       console.log('🟡 Current facebook_id:', user.facebook_id);
-      console.log('🟡 Incoming foto from Facebook:', foto);
+      console.log('🟡 Incoming photo from Facebook:', photo);
       console.log('🟡 Current photo in DB:', user.url_foto_perfil);
 
       // Usuario existe, actualizar información si es necesario
@@ -1259,7 +1288,7 @@ exports.facebookLogin = async (req, res) => {
           data: {
             facebook_id: uid,
             nombre: nombre, // Actualizar nombre si cambió
-            url_foto_perfil: foto || user.url_foto_perfil, // Usar foto de Facebook si está disponible
+            url_foto_perfil: photo || user.url_foto_perfil, // Usar photo de Facebook si está disponible
             esta_verificado: true, // Los usuarios de Facebook están verificados
           }
         });
@@ -1283,18 +1312,18 @@ exports.facebookLogin = async (req, res) => {
       } else {
         console.log('🟡 User already has Facebook ID - CHECK IF PHOTO NEEDS UPDATE');
 
-        // Actualizar foto de Facebook siempre que sea diferente
-        const shouldUpdatePhoto = foto && foto !== user.url_foto_perfil;
+        // Actualizar photo de Facebook siempre que sea diferente
+        const shouldUpdatePhoto = photo && photo !== user.url_foto_perfil;
 
         if (shouldUpdatePhoto) {
           console.log('🟡 PHOTO UPDATE NEEDED - Facebook photo different from current');
           console.log('🟡 Current DB photo:', user.url_foto_perfil);
-          console.log('🟡 New Facebook photo:', foto);
+          console.log('🟡 New Facebook photo:', photo);
 
           user = await prisma.usuarios.update({
             where: { id: user.id },
             data: {
-              url_foto_perfil: foto, // Actualizar foto de Facebook
+              url_foto_perfil: photo, // Actualizar photo de Facebook
               nombre: nombre, // Actualizar nombre si cambió
             }
           });
@@ -1310,7 +1339,7 @@ exports.facebookLogin = async (req, res) => {
 
         } else {
           console.log('🟡 NO PHOTO UPDATE NEEDED');
-          if (!foto) {
+          if (!photo) {
             console.log('🟡 No Facebook photo provided in this login');
           } else {
             console.log('🟡 Facebook photo same as current DB photo');
@@ -1341,7 +1370,7 @@ exports.facebookLogin = async (req, res) => {
           nombre,
           email,
           facebook_id: uid,
-          url_foto_perfil: foto, // Guardando foto de Facebook
+          url_foto_perfil: photo, // Guardando photo de Facebook
           rol: userRole,
           esta_verificado: true, // Los usuarios de Facebook están verificados automáticamente
           hash_contrasena: null, // No tienen contraseña local
@@ -1379,6 +1408,7 @@ exports.facebookLogin = async (req, res) => {
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
+        id: require('crypto').randomUUID(),
         user_id: user.id,
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt

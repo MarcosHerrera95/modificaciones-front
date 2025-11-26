@@ -9,7 +9,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import ChatWidget from '../components/ChatWidget';
+import ChatWindow from '../components/ChatWindow';
 import BackButton from '../components/BackButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -305,12 +305,11 @@ const Chat = () => {
           </div>
         </div>
 
-        {/* Chat Widget */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <ChatWidget
-            otherUserId={otherUser.id}
-            otherUserName={otherUser.nombre}
-            servicioId={null} // Chat general, no asociado a un servicio específico
+        {/* Chat Window */}
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden h-96">
+          <ChatWindow
+            conversationId={conversationId}
+            otherUser={otherUser}
           />
         </div>
 

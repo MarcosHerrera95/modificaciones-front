@@ -12,7 +12,7 @@
 
 class ProfessionalProfileAPIService {
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    this.baseURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
     this.token = localStorage.getItem('changanet_token');
   }
 

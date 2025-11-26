@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
 
 class NotificationService {
   constructor() {
@@ -7,7 +7,7 @@ class NotificationService {
 
   // Obtener headers de autenticación
   getAuthHeaders() {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('changanet_token');
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`

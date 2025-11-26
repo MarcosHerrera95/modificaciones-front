@@ -99,7 +99,7 @@ const favoritesRoutes = require('./routes/favoritesRoutes');
 const achievementsRoutes = require('./routes/achievementsRoutes');
 const urgentRoutes = require('./routes/urgentRoutes');
 const { authenticateToken } = require('./middleware/authenticate');
-const { sendNotification, setWebSocketService } = require('./services/notificationService');
+const { setWebSocketService } = require('./services/notificationService');
 const { sendPushNotification } = require('./services/pushNotificationService');
 const { scheduleAutomaticReminders } = require('./services/availabilityReminderService');
 const { scheduleRecurringServiceGeneration, scheduleAutomaticFundReleases } = require('./services/recurringServiceScheduler');
@@ -113,6 +113,7 @@ const fs = require('fs');
 const swaggerDocument = yaml.load(fs.readFileSync('./src/docs/swagger.yaml', 'utf8'));
 
 const prisma = new PrismaClient({
+  datasourceUrl: process.env.DATABASE_URL,
   log: process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['error'],
 });
 
@@ -180,6 +181,10 @@ app.use(helmet({
   crossOriginOpenerPolicy: false // Disable COOP for popup compatibility
 }));
 app.use(compression()); // Comprime respuestas HTTP para reducir ancho de banda
+
+// Middleware para parsear JSON MUY TEMPRANO para evitar interferencias
+app.use(express.json({ limit: '10mb' }));
+
 app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 /**
@@ -221,10 +226,18 @@ app.use(cors({
   credentials: true, // Si necesitas enviar cookies/credenciales
 }));
 
-app.use(rateLimiterMiddleware);
+// Debug middleware temporal
+app.use((req, res, next) => {
+  console.log('🔍 DEBUG: Raw body:', req.body);
+  console.log('🔍 DEBUG: Content-Type:', req.headers['content-type']);
+  console.log('🔍 DEBUG: Body type:', typeof req.body);
+  next();
+});
 
 // Middleware para parsear JSON con límite de tamaño
 app.use(express.json({ limit: '10mb' }));
+
+app.use(rateLimiterMiddleware);
 
 // Middleware para parsear datos de formularios URL-encoded
 app.use(express.urlencoded({ extended: true }));

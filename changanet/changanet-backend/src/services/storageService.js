@@ -13,7 +13,9 @@
  */
 
 const { Storage } = require('@google-cloud/storage');
-const AWS = require('aws-sdk');
+const { S3Client } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { PutObjectCommand, HeadObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const sharp = require('sharp');
 const crypto = require('crypto');
 const path = require('path');
@@ -71,11 +73,12 @@ class StorageService {
    */
   initializeS3() {
     try {
-      this.s3 = new AWS.S3({
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      this.s3 = new S3Client({
         region: this.config.region,
-        signatureVersion: 'v4'
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        }
       });
       
       console.log('✅ StorageService: S3 configurado correctamente');
@@ -196,14 +199,13 @@ class StorageService {
    * Generar presigned URL para S3
    */
   async getS3PresignedUrl(key, contentType, expiresIn) {
-    const params = {
+    const command = new PutObjectCommand({
       Bucket: this.config.bucket,
       Key: key,
-      ContentType: contentType,
-      Expires: expiresIn
-    };
+      ContentType: contentType
+    });
 
-    const uploadUrl = await this.s3.getSignedUrlPromise('putObject', params);
+    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn });
     const fileUrl = `https://${this.config.bucket}.s3.${this.config.region}.amazonaws.com/${key}`;
 
     return { uploadUrl, fileUrl };
@@ -361,7 +363,10 @@ class StorageService {
     try {
       switch (this.config.provider) {
         case 's3':
-          await this.s3.headObject({ Bucket: this.config.bucket, Key: key }).promise();
+          await this.s3.send(new HeadObjectCommand({ 
+            Bucket: this.config.bucket, 
+            Key: key 
+          }));
           return true;
         
         case 'gcs':
@@ -386,7 +391,10 @@ class StorageService {
     try {
       switch (this.config.provider) {
         case 's3':
-          await this.s3.deleteObject({ Bucket: this.config.bucket, Key: key }).promise();
+          await this.s3.send(new DeleteObjectCommand({ 
+            Bucket: this.config.bucket, 
+            Key: key 
+          }));
           break;
         
         case 'gcs':
@@ -432,12 +440,12 @@ class StorageService {
     try {
       switch (this.config.provider) {
         case 's3':
-          await this.s3.upload({
+          await this.s3.send(new PutObjectCommand({
             Bucket: this.config.bucket,
             Key: key,
             Body: buffer,
             ContentType: contentType
-          }).promise();
+          }));
           break;
         
         case 'gcs':

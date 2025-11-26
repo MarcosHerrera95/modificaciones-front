@@ -1,19 +1,10 @@
 /**
  * @component ChatWindow
- * @description Ventana principal del chat con conversación completa y UX mejorada
+ * @description Ventana principal del chat con conversación completa usando socketService centralizado
  * @required_by REQ-16: Chat interno en página del perfil
  * @required_by REQ-17: Mensajes de texto
  * @required_by REQ-18: Imágenes
  * @required_by REQ-20: Historial persistente
- * 
- * MEJORAS IMPLEMENTADAS:
- * - Indicadores de escritura en tiempo real
- * - Estados de mensajes detallados
- * - Manejo robusto de errores con reintentos
- * - Notificaciones toast para feedback
- * - Auto-reconexión de WebSocket
- * - Indicadores de estado de conexión
- * - Contador de caracteres en tiempo real
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -22,7 +13,7 @@ import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import ImageUploadButton from './ImageUploadButton';
 import LoadingSpinner from './LoadingSpinner';
-import io from 'socket.io-client';
+import socketService from '../services/socketService';
 
 const ChatWindow = ({ conversationId, otherUser }) => {
   const { user } = useAuth();
@@ -31,14 +22,10 @@ const ChatWindow = ({ conversationId, otherUser }) => {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [connectionError, setConnectionError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
   const [typingUsers, setTypingUsers] = useState(new Set());
-  const [messageStates, setMessageStates] = useState({}); // Estados detallados de mensajes
-  const [notification, setNotification] = useState(null); // Toast notifications
+  const [notification, setNotification] = useState(null);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
-  const reconnectTimeoutRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
 
   // Función para mostrar notificaciones toast
   const showNotification = (message, type = 'info', duration = 5000) => {
@@ -49,7 +36,7 @@ const ChatWindow = ({ conversationId, otherUser }) => {
   // Enviar estado de escritura al WebSocket
   const sendTypingState = (isTyping) => {
     if (socketRef.current && socketConnected) {
-      socketRef.current.emit('typing', { 
+      socketRef.current.emit?.('typing', { 
         conversationId, 
         isTyping 
       });
@@ -59,120 +46,52 @@ const ChatWindow = ({ conversationId, otherUser }) => {
   // Manejar estado de escritura con debounce
   const handleTypingStart = () => {
     sendTypingState(true);
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-    typingTimeoutRef.current = setTimeout(() => {
-      sendTypingState(false);
-    }, 3000);
   };
 
   const handleTypingStop = () => {
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
     sendTypingState(false);
   };
 
-  // Función para reconectar con backoff exponencial
-  const attemptReconnect = () => {
-    if (retryCount < 5) {
-      const delay = Math.min(1000 * Math.pow(2, retryCount), 10000);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        setRetryCount(prev => prev + 1);
-        initializeSocket();
-      }, delay);
-    } else {
-      showNotification('No se pudo conectar al chat. Verifica tu conexión.', 'error');
-    }
-  };
-
-  // Inicializar Socket.IO con reintentos
+  // Inicializar Socket.IO usando el servicio centralizado
   const initializeSocket = () => {
     if (!user || !conversationId) return;
 
-    const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
     const token = localStorage.getItem('changanet_token');
-
     if (!token) {
       showNotification('No hay token de autenticación', 'error');
       return;
     }
 
-    // Limpiar socket anterior
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
-    }
+    // Conectar usando el servicio centralizado
+    socketService.connect();
+    socketRef.current = socketService;
 
-    // Inicializar Socket.IO con configuración mejorada
-    socketRef.current = io(API_BASE_URL, {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000
-    });
-
-    const socket = socketRef.current;
-
-    // Manejar conexión exitosa
-    socket.on('connect', () => {
-      console.log('✅ Socket.IO conectado al chat');
-      setSocketConnected(true);
-      setRetryCount(0);
-      setConnectionError(null);
-      showNotification('Conectado al chat', 'success');
+    // Configurar listeners
+    socketService.addConnectionListener((isConnected) => {
+      console.log(`✅ ChatWindow: Socket ${isConnected ? 'conectado' : 'desconectado'}`);
+      setSocketConnected(isConnected);
       
-      // Unirse a la conversación
-      socket.emit('join', { conversationId });
-    });
-
-    // Manejar desconexión
-    socket.on('disconnect', (reason) => {
-      console.log('❌ Socket.IO desconectado:', reason);
-      setSocketConnected(false);
-      
-      if (reason === 'io server disconnect') {
-        showNotification('Desconectado del servidor', 'warning');
-        attemptReconnect();
+      if (isConnected) {
+        setConnectionError(null);
+        showNotification('Conectado al chat', 'success');
+        
+        // Unirse a la conversación solo si conversationId es válido
+        if (conversationId) {
+          socketService.joinConversation(conversationId);
+        } else {
+          console.warn('conversationId no disponible, no se puede unir a conversación');
+        }
       }
     });
 
-    // Manejar errores de conexión
-    socket.on('connect_error', (error) => {
-      console.error('🚨 Error de conexión Socket.IO:', error);
-      setSocketConnected(false);
-      setConnectionError(error.message);
-      
-      if (retryCount === 0) {
-        showNotification('Error de conexión. Reintentando...', 'warning');
-      }
-      
-      attemptReconnect();
-    });
-
-    // Manejar eventos del chat
-    socket.on('joined_conversation', (data) => {
-      console.log('✅ Unido a conversación:', data.conversationId);
+    // Configurar listeners de mensajes
+    socketService.addMessageListener('joined_conversation', (data) => {
+      console.log('✅ ChatWindow: Unido a conversación:', data.conversationId);
       showNotification('Conversación iniciada', 'success');
     });
 
-    socket.on('message', (message) => {
-      console.log('💬 Mensaje recibido:', message);
-      
-      // Actualizar estado del mensaje
-      setMessageStates(prev => ({
-        ...prev,
-        [message.id]: {
-          delivered: true,
-          timestamp: new Date()
-        }
-      }));
-      
+    socketService.addMessageListener('message', (message) => {
+      console.log('💬 ChatWindow: Mensaje recibido:', message);
       setMessages(prevMessages => [...prevMessages, message]);
       
       // Mostrar notificación si el mensaje es de otro usuario
@@ -181,35 +100,23 @@ const ChatWindow = ({ conversationId, otherUser }) => {
       }
     });
 
-    socket.on('message_sent', (data) => {
-      console.log('✅ Mensaje enviado exitosamente:', data.message);
+    socketService.addMessageListener('message_sent', (data) => {
+      console.log('✅ ChatWindow: Mensaje enviado exitosamente:', data.message);
       setSendingMessage(false);
-      
-      // Actualizar estado del mensaje enviado
-      setMessageStates(prev => ({
-        ...prev,
-        [data.message.id]: {
-          sent: true,
-          timestamp: new Date()
-        }
-      }));
-      
       showNotification('Mensaje enviado', 'success');
     });
 
-    socket.on('error', (error) => {
-      console.error('❌ Error del chat:', error);
+    socketService.addMessageListener('error', (error) => {
+      console.error('❌ ChatWindow: Error del chat:', error);
       setSendingMessage(false);
       showNotification(error.message || 'Error enviando mensaje', 'error');
     });
 
-      // Manejar indicadores de escritura
-    socket.on('typing', (data) => {
-      console.log('⌨️ Usuario escribiendo:', data);
+    socketService.addMessageListener('typing', (data) => {
+      console.log('⌨️ ChatWindow: Usuario escribiendo:', data);
       
       if (data.isTyping) {
         setTypingUsers(prev => new Set([...prev, data.userId]));
-        // Mostrar notificación no intrusiva
         if (data.userName && data.userId !== user?.id) {
           showNotification(`${data.userName} está escribiendo...`, 'info', 2000);
         }
@@ -222,20 +129,8 @@ const ChatWindow = ({ conversationId, otherUser }) => {
       }
     });
 
-    socket.on('messages_read', (data) => {
-      // Actualizar estado de mensajes leídos
-      setMessageStates(prev => {
-        const updated = { ...prev };
-        if (data.messageIds) {
-          data.messageIds.forEach(msgId => {
-            if (updated[msgId]) {
-              updated[msgId].read = true;
-              updated[msgId].readAt = new Date();
-            }
-          });
-        }
-        return updated;
-      });
+    socketService.addMessageListener('messages_read', (data) => {
+      console.log('📖 ChatWindow: Mensajes leídos:', data);
     });
   };
 
@@ -247,20 +142,15 @@ const ChatWindow = ({ conversationId, otherUser }) => {
 
     // Cleanup mejorado
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
       if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+        // El socketService central maneja su propia cleanup
       }
     };
-  }, [user, conversationId, retryCount]);
+  }, [user, conversationId]);
 
   // Cargar historial de mensajes
   useEffect(() => {
     if (!conversationId) return;
-
     loadMessageHistory();
   }, [conversationId]);
 
@@ -300,7 +190,7 @@ const ChatWindow = ({ conversationId, otherUser }) => {
   };
 
   const sendMessage = async (content, imageFile = null) => {
-    if (!socketRef.current || !socketConnected) {
+    if (!socketRef.current?.isConnected) {
       console.error('Socket no conectado');
       return false;
     }
@@ -320,12 +210,9 @@ const ChatWindow = ({ conversationId, otherUser }) => {
         imageUrl = uploadedImageUrl;
       }
 
-      // Enviar mensaje
-      socketRef.current.emit('message', {
-        conversationId,
-        content: content || null,
-        imageUrl: imageUrl
-      });
+      // Enviar mensaje usando el servicio centralizado
+      // sendMessage(remitenteId, destinatarioId, contenido, urlImagen)
+      socketRef.current.sendMessage(user.id, otherUser.id, content || null, imageUrl);
 
       return true;
     } catch (error) {
@@ -358,14 +245,6 @@ const ChatWindow = ({ conversationId, otherUser }) => {
       }
 
       const uploadData = await uploadResponse.json();
-
-      // Paso 2: Subir archivo (simulado - en implementación real usar fetch/axios)
-      // const formData = new FormData();
-      // formData.append('file', file);
-      // const fileResponse = await fetch(uploadData.upload_url, {
-      //   method: 'PUT',
-      //   body: file
-      // });
 
       // Por ahora, retornamos la URL simulada
       return uploadData.upload_url;

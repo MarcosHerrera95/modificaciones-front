@@ -2,16 +2,39 @@ const { NotificationService } = require('../services/notificationService');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+let notificationServiceInstance = null;
+
 class NotificationController {
   constructor() {
-    this.notificationService = new NotificationService();
+    console.log('NotificationController constructor called');
+    if (!notificationServiceInstance) {
+      console.log('Creating new NotificationService instance');
+      try {
+        notificationServiceInstance = new NotificationService();
+        console.log('NotificationService instance created successfully');
+      } catch (error) {
+        console.error('Error creating NotificationService instance:', error);
+        throw error;
+      }
+    } else {
+      console.log('Using existing NotificationService instance');
+    }
+    this.notificationService = notificationServiceInstance;
+    console.log('this.notificationService set:', !!this.notificationService);
   }
 
   // GET /api/notifications - Obtener notificaciones del usuario
   async getUserNotifications(req, res) {
     try {
+      console.log('getUserNotifications called');
+      console.log('this:', this);
+      console.log('this.notificationService:', this.notificationService);
       const userId = req.user.id;
       const { page = 1, limit = 20 } = req.query;
+
+      if (!this.notificationService) {
+        throw new Error('NotificationService no está inicializado');
+      }
 
       const result = await this.notificationService.getUserNotifications(
         userId,

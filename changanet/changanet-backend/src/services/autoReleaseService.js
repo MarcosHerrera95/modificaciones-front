@@ -25,17 +25,17 @@ async function autoReleaseFunds() {
         }
       },
       include: {
-        servicio: {
+        servicios: {
           include: {
-            cliente: true,
-            profesional: true
+            usuarios_servicios_cliente_idTousuarios: true,
+            usuarios_servicios_profesional_idTousuarios: true
           }
         }
       }
     });
 
     let releasedCount = 0;
-    let errors = [];
+    const errors = [];
 
     for (const payment of paymentsToRelease) {
       try {
@@ -86,7 +86,7 @@ async function releasePaymentFunds(payment) {
 
   try {
     // Verificar que el servicio esté completado
-    if (payment.servicio.estado !== 'completado') {
+    if (payment.servicios.estado !== 'completado') {
       throw new Error('El servicio debe estar completado para liberar fondos');
     }
 
@@ -110,7 +110,7 @@ async function releasePaymentFunds(payment) {
 
     // Actualizar servicio a pagado
     await prisma.servicios.update({
-      where: { id: payment.servicio.id },
+      where: { id: payment.servicios.id },
       data: {
         estado: 'pagado',
         completado_en: new Date()
@@ -118,17 +118,20 @@ async function releasePaymentFunds(payment) {
     });
 
     // Notificar al profesional
-    const { createNotification } = require('./notificationService');
-    await createNotification(
+    const { NotificationService } = require('./notificationService');
+    const notificationService = new NotificationService();
+    await notificationService.createNotification(
       payment.profesional_id,
-      'fondos_liberados_auto',
-      `¡Fondos liberados automáticamente! Recibiste $${professionalAmount} (comisión $${commission} deducida). Servicio completado.`,
+      'payment',
+      '¡Fondos liberados automáticamente!',
+      `¡Fondos liberados automáticamente! Recibiste ${professionalAmount} (comisión ${commission} deducida). Servicio completado.`,
       {
         payment_id: payment.id,
         amount: professionalAmount,
         commission,
         auto_released: true
-      }
+      },
+      'inapp'
     );
 
     // Registrar en auditoría
@@ -188,10 +191,10 @@ async function checkUpcomingReleases() {
         }
       },
       include: {
-        servicio: {
+        servicios: {
           include: {
-            cliente: true,
-            profesional: true
+            usuarios_servicios_cliente_idTousuarios: true,
+            usuarios_servicios_profesional_idTousuarios: true
           }
         }
       }
@@ -201,16 +204,19 @@ async function checkUpcomingReleases() {
     for (const payment of upcomingReleases) {
       const hoursLeft = Math.round((payment.fecha_liberacion_programada - now) / (1000 * 60 * 60));
 
-      const { createNotification } = require('./notificationService');
-      await createNotification(
+      const { NotificationService } = require('./notificationService');
+      const notificationService = new NotificationService();
+      await notificationService.createNotification(
         payment.profesional_id,
-        'fondos_liberacion_proxima',
-        `Los fondos de $${payment.monto_total} se liberarán automáticamente en ${hoursLeft} horas.`,
+        'payment',
+        'Fondos próximos a liberarse',
+        `Los fondos de ${payment.monto_total} se liberarán automáticamente en ${hoursLeft} horas.`,
         {
           payment_id: payment.id,
           release_date: payment.fecha_liberacion_programada,
           hours_left: hoursLeft
-        }
+        },
+        'inapp'
       );
     }
 

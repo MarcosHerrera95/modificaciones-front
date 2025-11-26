@@ -52,9 +52,9 @@ const calculateProfessionalRanking = async (professionalId) => {
     const professional = await prisma.perfiles_profesionales.findUnique({
       where: { usuario_id: professionalId },
       include: {
-        usuario: {
+        usuarios: {
           include: {
-            servicios_como_profesional: {
+            servicios_servicios_profesional_idTousuarios: {
               where: { estado: 'COMPLETADO' }
             }
           }
@@ -64,11 +64,11 @@ const calculateProfessionalRanking = async (professionalId) => {
 
     if (!professional) return 0;
 
-    const user = professional.usuario;
+    const user = professional.usuarios;
 
     // Obtener métricas según fórmula requerida
     const averageRating = professional.calificacion_promedio || 0;
-    const completedJobs = user.servicios_como_profesional.length;
+    const completedJobs = user.servicios_servicios_profesional_idTousuarios.length;
     const onTimePercentage = await calculateOnTimePercentage(professionalId);
 
     // Calcular ranking score
@@ -101,13 +101,13 @@ exports.getProfessionalsRanking = async (req, res) => {
 
     const professionals = await prisma.perfiles_profesionales.findMany({
       include: {
-        usuario: {
+        usuarios: {
           include: {
-            servicios_como_profesional: {
+            servicios_servicios_profesional_idTousuarios: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: { include: { logro: true } } // REQ-38: Sistema de medallas
+            resenas: true,
+            logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
           }
         }
       }
@@ -119,12 +119,12 @@ exports.getProfessionalsRanking = async (req, res) => {
         const score = await calculateProfessionalRanking(prof.usuario_id);
         return {
           id: prof.usuario_id,
-          nombre: prof.usuario.nombre,
+          nombre: prof.usuarios.nombre,
           especialidad: prof.especialidad,
           zona_cobertura: prof.zona_cobertura,
           calificacion_promedio: prof.calificacion_promedio || 0,
-          servicios_completados: prof.usuario.servicios_como_profesional.length,
-          esta_verificado: prof.usuario.esta_verificado,
+          servicios_completados: prof.usuarios.servicios_servicios_profesional_idTousuarios.length,
+          esta_verificado: prof.usuarios.esta_verificado,
           anos_experiencia: prof.anos_experiencia || 0,
           score: score,
           ranking: 0 // Se asignará después del sort
@@ -185,13 +185,13 @@ exports.getProfessionalRanking = async (req, res) => {
     const professional = await prisma.perfiles_profesionales.findUnique({
       where: { usuario_id: professionalId },
       include: {
-        usuario: {
+        usuarios: {
           include: {
-            servicios_como_profesional: {
+            servicios_servicios_profesional_idTousuarios: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: { include: { logro: true } } // REQ-38: Sistema de medallas
+            resenas: true,
+            logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
           }
         }
       }
@@ -204,20 +204,20 @@ exports.getProfessionalRanking = async (req, res) => {
       });
     }
 
-    const user = professional.usuario;
-    const achievementPoints = user.logros_obtenidos.reduce((total, la) => total + la.logro.puntos, 0); // REQ-38: Sistema de medallas
-    const positiveReviews = user.resenas_escritas.filter(r => r.calificacion >= 4).length;
+    const user = professional.usuarios;
+    const achievementPoints = user.logros_usuario.reduce((total, la) => total + la.logros.puntos, 0); // REQ-38: Sistema de medallas
+    const positiveReviews = user.resenas.filter(r => r.calificacion >= 4).length;
 
     const rankingData = {
       id: professionalId,
-      nombre: professional.usuario.nombre,
+      nombre: professional.usuarios.nombre,
       especialidad: professional.especialidad,
       zona_cobertura: professional.zona_cobertura,
       score: score,
       ranking: position,
       detalles: {
         calificacion_promedio: professional.calificacion_promedio || 0,
-        servicios_completados: user.servicios_como_profesional.length,
+        servicios_completados: user.servicios_servicios_profesional_idTousuarios.length,
         esta_verificado: user.esta_verificado,
         anos_experiencia: professional.anos_experiencia || 0,
         logros_puntos: achievementPoints,
@@ -248,13 +248,13 @@ exports.getProfessionalRanking = async (req, res) => {
 const getAllRankingsData = async () => {
   const professionals = await prisma.perfiles_profesionales.findMany({
     include: {
-      usuario: {
+      usuarios: {
         include: {
-          servicios_como_profesional: {
+          servicios_servicios_profesional_idTousuarios: {
             where: { estado: 'COMPLETADO' }
           },
-          resenas_escritas: true,
-          logros_obtenidos: { include: { logro: true } } // REQ-38: Sistema de medallas
+          resenas: true,
+          logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
         }
       }
     }
@@ -289,13 +289,13 @@ exports.getTopProfessionalsBySpecialty = async (req, res) => {
         }
       },
       include: {
-        usuario: {
+        usuarios: {
           include: {
-            servicios_como_profesional: {
+            servicios_servicios_profesional_idTousuarios: {
               where: { estado: 'COMPLETADO' }
             },
-            resenas_escritas: true,
-            logros_obtenidos: { include: { logro: true } } // REQ-38: Sistema de medallas
+            resenas: true,
+            logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
           }
         }
       }
@@ -306,7 +306,7 @@ exports.getTopProfessionalsBySpecialty = async (req, res) => {
         const score = await calculateProfessionalRanking(prof.usuario_id);
         return {
           id: prof.usuario_id,
-          nombre: prof.usuario.nombre,
+          nombre: prof.usuarios.nombre,
           especialidad: prof.especialidad,
           zona_cobertura: prof.zona_cobertura,
           calificacion_promedio: prof.calificacion_promedio || 0,

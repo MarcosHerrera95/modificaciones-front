@@ -1,0 +1,7 @@
+{
+  "uid": "test-google-uid-debug123",
+  "email": "test.debug@gmail.com",
+  "nombre": "Test Debug User",
+  "photo": "https://example.com/debug-photo.jpg",
+  "rol": "cliente"
+}
