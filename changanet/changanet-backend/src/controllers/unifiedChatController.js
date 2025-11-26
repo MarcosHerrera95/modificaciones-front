@@ -26,27 +26,11 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { nanoid } = require('nanoid'); // Para IDs consistentes
-const { RateLimiterMemory } = require('rate-limiter-flexible');
+const Joi = require('joi');
+const DOMPurify = require('isomorphic-dompurify');
+const { getFromCache, setInCache } = require('../services/cacheService');
 
 const prisma = new PrismaClient();
-
-// Rate limiting específico para chat (HABILITADO)
-const chatRateLimiter = new RateLimiterMemory({
-  storeClient: prisma,
-  keyPrefix: 'chat_rl',
-  points: 30, // Número de puntos
-  duration: 60, // Por minuto (60 segundos)
-  execEvenly: true, // Distribuir evenly
-});
-
-// Antiflood - límite más estricto (HABILITADO)
-const chatFloodLimiter = new RateLimiterMemory({
-  storeClient: prisma,
-  keyPrefix: 'chat_flood',
-  points: 5, // Solo 5 mensajes
-  duration: 10, // Por 10 segundos
-  blockDuration: 30, // Bloquear por 30 segundos si se excede
-});
 
 /**
  * POST /api/chat/conversations
@@ -168,7 +152,13 @@ exports.createConversation = async (req, res) => {
 
         if (existingConversation) {
           return res.status(200).json({
-            conversation: existingConversation,
+            conversation: {
+              id: existingConversation.id,
+              client: existingConversation.client,
+              professional: existingConversation.professional,
+              created_at: existingConversation.created_at,
+              is_active: existingConversation.is_active
+            },
             message: 'Conversación existente encontrada'
           });
         }
@@ -191,22 +181,31 @@ exports.createConversation = async (req, res) => {
  */
 exports.getUserConversations = async (req, res) => {
   const { id: currentUserId } = req.user;
-  const { userId } = req.params;
+  // Si no hay userId en params, usar el del token JWT (para compatibilidad con GET /conversations)
+  const userId = req.params.userId || currentUserId;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
 
   try {
     // Verificar autorización
     if (currentUserId !== userId) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'No puedes ver conversaciones de otros usuarios',
         code: 'UNAUTHORIZED'
       });
     }
 
+    // ✅ CACHING: Verificar caché antes de consultar BD
+    const cacheKey = `conversations_${userId}_${page}_${limit}`;
+    const cachedData = await getFromCache(cacheKey, 'search_basic');
+    if (cachedData) {
+      console.log(`🚀 Cache hit para conversaciones de usuario ${userId}`);
+      return res.status(200).json(cachedData);
+    }
+
     const offset = (page - 1) * limit;
 
-    // Obtener conversaciones del usuario
+    // Obtener conversaciones del usuario con consulta optimizada
     const conversations = await prisma.conversations.findMany({
       where: {
         OR: [
@@ -217,19 +216,19 @@ exports.getUserConversations = async (req, res) => {
       },
       include: {
         client: {
-          select: { 
-            id: true, 
-            nombre: true, 
-            rol: true, 
+          select: {
+            id: true,
+            nombre: true,
+            rol: true,
             url_foto_perfil: true,
             esta_verificado: true
           }
         },
         professional: {
-          select: { 
-            id: true, 
-            nombre: true, 
-            rol: true, 
+          select: {
+            id: true,
+            nombre: true,
+            rol: true,
             url_foto_perfil: true,
             esta_verificado: true
           }
@@ -291,7 +290,7 @@ exports.getUserConversations = async (req, res) => {
       }
     });
 
-    res.status(200).json({
+    const result = {
       conversations: formattedConversations,
       pagination: {
         page,
@@ -299,11 +298,17 @@ exports.getUserConversations = async (req, res) => {
         total: totalCount,
         pages: Math.ceil(totalCount / limit)
       }
-    });
+    };
+
+    // ✅ CACHING: Almacenar resultado en caché
+    await setInCache(cacheKey, result, 'search_basic');
+    console.log(`💾 Conversaciones cacheadas para usuario ${userId}`);
+
+    res.status(200).json(result);
 
   } catch (error) {
     console.error('Error al obtener conversaciones:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Error interno del servidor al obtener conversaciones',
       code: 'INTERNAL_ERROR'
     });
@@ -353,9 +358,17 @@ exports.getMessageHistory = async (req, res) => {
       where: { conversation_id: conversationId },
       include: {
         sender: {
-          select: { 
-            id: true, 
-            nombre: true, 
+          select: {
+            id: true,
+            nombre: true,
+            url_foto_perfil: true,
+            rol: true
+          }
+        },
+        recipient: {
+          select: {
+            id: true,
+            nombre: true,
             url_foto_perfil: true,
             rol: true
           }
@@ -420,34 +433,44 @@ exports.sendMessage = async (req, res) => {
   const { conversationId, content, image_url, recipientId } = req.body;
 
   try {
-    // ✅ RATE LIMITING: Verificar límites
-    await chatRateLimiter.consume(senderId);
-    await chatFloodLimiter.consume(senderId);
+    // ✅ VALIDACIÓN ROBUSTA CON JOI
+    const messageSchema = Joi.object({
+      conversationId: Joi.string().uuid().required(),
+      content: Joi.string().max(1000).when('image_url', {
+        is: Joi.exist(),
+        then: Joi.optional(),
+        otherwise: Joi.required()
+      }),
+      image_url: Joi.string().uri().optional(),
+      recipientId: Joi.string().uuid().required()
+    });
 
-    // Validar parámetros
-    if (!conversationId || (!content && !image_url) || !recipientId) {
-      return res.status(400).json({ 
-        error: 'conversationId, recipientId y (content o image_url) son requeridos',
-        code: 'MISSING_PARAMETERS'
+    const { error } = messageSchema.validate({ conversationId, content, image_url, recipientId });
+    if (error) {
+      return res.status(400).json({
+        error: 'Datos inválidos',
+        details: error.details[0].message,
+        code: 'VALIDATION_ERROR'
       });
     }
 
-    // ✅ SANITIZACIÓN: Validar contenido
+    // ✅ SANITIZACIÓN AVANZADA: Validar y limpiar contenido con DOMPurify
     if (content && content.length > 1000) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'El mensaje no puede exceder 1000 caracteres',
         code: 'MESSAGE_TOO_LONG'
       });
     }
 
-    // Sanitizar contenido básico (evitar XSS)
-    const sanitizedContent = content ? 
-      content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-             .replace(/javascript:/gi, '')
-             .trim() : null;
+    // Sanitizar contenido con DOMPurify para prevenir XSS
+    const sanitizedContent = content ?
+      DOMPurify.sanitize(content, {
+        ALLOWED_TAGS: [], // No permitir HTML
+        ALLOWED_ATTR: []  // No permitir atributos
+      }).trim() : null;
 
     if (sanitizedContent && sanitizedContent.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'El mensaje no puede estar vacío después de la sanitización',
         code: 'EMPTY_MESSAGE'
       });
@@ -488,25 +511,34 @@ exports.sendMessage = async (req, res) => {
     }
 
     // Crear el mensaje
-    const message = await prisma.mensajes.create({
-      data: {
-        conversation_id: conversationId,
-        sender_id: senderId,
-        message: sanitizedContent,
-        image_url: image_url || null,
-        status: 'sent'
-      },
-      include: {
-        sender: {
-          select: { 
-            id: true, 
-            nombre: true, 
-            url_foto_perfil: true,
-            rol: true
-          }
-        }
+const message = await prisma.mensajes.create({
+  data: {
+    conversation_id: conversationId,
+    sender_id: senderId,
+    recipient_id: recipientId,
+    message: sanitizedContent,
+    image_url: image_url || null,
+    status: 'sent'
+  },
+  include: {
+    sender: {
+      select: {
+        id: true,
+        nombre: true,
+        url_foto_perfil: true,
+        rol: true
       }
-    });
+    },
+    recipient: {
+      select: {
+        id: true,
+        nombre: true,
+        url_foto_perfil: true,
+        rol: true
+      }
+    }
+  }
+});
 
     // ✅ NOTIFICACIONES: Enviar notificaciones (REQ-19)
     try {
@@ -817,5 +849,144 @@ exports.closeConversation = async (req, res) => {
       error: 'Error interno del servidor al cerrar conversación',
       code: 'INTERNAL_ERROR'
     });
+  }
+};
+
+/**
+ * POST /api/chat/messages/read
+ * Marcar mensajes como leídos (CRÍTICO - faltaba en el sistema)
+ */
+exports.markMessagesAsRead = async (req, res) => {
+  const { id: currentUserId } = req.user;
+  const { conversationId, messageIds } = req.body;
+
+  try {
+    // Validar parámetros
+    if (!conversationId) {
+      return res.status(400).json({
+        error: 'conversationId es requerido',
+        code: 'MISSING_CONVERSATION_ID'
+      });
+    }
+
+    // Verificar que la conversación existe
+    const conversation = await prisma.conversations.findUnique({
+      where: { id: conversationId },
+      include: {
+        client: { select: { id: true } },
+        professional: { select: { id: true } }
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        error: 'Conversación no encontrada',
+        code: 'CONVERSATION_NOT_FOUND'
+      });
+    }
+
+    // Verificar que el usuario actual es participante
+    if (conversation.client_id !== currentUserId &&
+        conversation.professional_id !== currentUserId) {
+      return res.status(403).json({
+        error: 'No tienes acceso a esta conversación',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    // Construir condición de actualización
+    const updateCondition = {
+      conversation_id: conversationId,
+      recipient_id: currentUserId, // Solo marcar mensajes dirigidos al usuario actual
+      status: { not: 'read' } // Solo mensajes no leídos
+    };
+
+    // Si se especifican messageIds, filtrar por ellos
+    if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
+      updateCondition.id = { in: messageIds };
+    }
+
+    // Marcar mensajes como leídos
+    const updateResult = await prisma.mensajes.updateMany({
+      where: updateCondition,
+      data: {
+        status: 'read',
+        read_at: new Date()
+      }
+    });
+
+    console.log(`✅ ${updateResult.count} mensajes marcados como leídos en conversación ${conversationId}`);
+
+    // Emitir evento WebSocket para actualizar en tiempo real
+    try {
+      const { setWebSocketService } = require('../services/notificationService');
+      const webSocketService = setWebSocketService();
+      if (webSocketService) {
+        // Notificar al otro participante que los mensajes fueron leídos
+        const otherUserId = conversation.client_id === currentUserId
+          ? conversation.professional_id
+          : conversation.client_id;
+
+        webSocketService.emitToUser(otherUserId, 'messagesRead', {
+          conversationId,
+          messageIds: messageIds || [],
+          readBy: currentUserId
+        });
+      }
+    } catch (wsError) {
+      console.warn('Error enviando notificación WebSocket:', wsError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      messages_marked_read: updateResult.count,
+      conversation_id: conversationId,
+      message: `${updateResult.count} mensajes marcados como leídos`
+    });
+
+  } catch (error) {
+    console.error('Error al marcar mensajes como leídos:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor al marcar mensajes como leídos',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
+ * GET /api/chat/conversation/:conversationId
+ * Obtener información detallada de una conversación específica
+ */
+exports.getConversation = async (req, res) => {
+  const { id: currentUserId } = req.user;
+  const { conversationId } = req.params;
+
+  try {
+    const conversation = await prisma.conversations.findUnique({
+      where: { id: conversationId },
+      include: {
+        client: { select: { id: true, nombre: true, rol: true, url_foto_perfil: true } },
+        professional: { select: { id: true, nombre: true, rol: true, url_foto_perfil: true } }
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({ error: 'Conversación no encontrada' });
+    }
+
+    if (conversation.client_id !== currentUserId && conversation.professional_id !== currentUserId) {
+      return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+    }
+
+    res.json({
+      id: conversation.id,
+      client_id: conversation.client_id,
+      professional_id: conversation.professional_id,
+      created_at: conversation.created_at,
+      is_active: conversation.is_active
+    });
+  } catch (error) {
+    console.error('Error obteniendo conversación:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 };

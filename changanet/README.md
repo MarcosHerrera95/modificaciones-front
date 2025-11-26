@@ -1,77 +1,287 @@
+# 🚀 Changanet - Plataforma Digital de Servicios Profesionales
+
+## 📋 Descripción
+
+Changanet es una plataforma digital que conecta a personas que requieren servicios técnicos (plomeros, electricistas, albañiles, etc.) con profesionales calificados. Incluye un sistema completo de mensajería en tiempo real, gestión de perfiles profesionales, sistema de reseñas y pagos integrados.
+
+## ✨ Características Principales
+
+### 💬 Sistema de Chat en Tiempo Real
+- ✅ **Mensajería instantánea** entre clientes y profesionales
+- ✅ **Envío de imágenes** con subida a Google Cloud Storage
+- ✅ **Estados de lectura** de mensajes
+- ✅ **Notificaciones push y email** automáticas
+- ✅ **Historial paginado** de conversaciones
+- ✅ **WebSocket en tiempo real** con reconexión automática
+
+### 👥 Gestión de Usuarios
+- 🔐 **Autenticación JWT** segura
+- 📧 **Registro con email** y validación
+- 🌐 **OAuth con Google y Facebook**
+- 👤 **Perfiles profesionales** detallados
+- ⭐ **Sistema de reseñas** y calificaciones
+
+### 🛠️ Servicios Profesionales
+- 📍 **Búsqueda por ubicación** y especialidad
+- 📅 **Disponibilidad y agenda** de profesionales
+- 💰 **Cotizaciones y presupuestos**
+- 💳 **Pagos integrados** con custodia de fondos
+
+## 🏗️ Arquitectura
+
+### Backend (Node.js + Express)
+```
+changanet-backend/
+├── src/
+│   ├── controllers/     # Controladores de negocio
+│   ├── routes/          # Definición de rutas API
+│   ├── services/        # Servicios externos (email, storage, etc.)
+│   ├── middleware/      # Middlewares de autenticación y validación
+│   └── config/          # Configuraciones de servicios externos
+├── prisma/
+│   └── schema.prisma    # Modelo de datos con Prisma ORM
+└── server.js            # Punto de entrada del servidor
+```
+
+### Frontend (React + Vite)
+```
+changanet-frontend/
+├── src/
+│   ├── components/      # Componentes reutilizables
+│   ├── pages/           # Páginas de la aplicación
+│   ├── context/         # Contextos de estado global
+│   ├── services/        # Servicios de API y WebSocket
+│   └── hooks/           # Hooks personalizados
+└── index.html           # Punto de entrada
+```
+
+## 🚀 Instalación y Configuración
+
+### Prerrequisitos
+- Node.js 18+
+- npm o yarn
+- SQLite (desarrollo) / PostgreSQL (producción)
+- Google Cloud Storage (opcional para imágenes)
+
+### 1. Clonar el repositorio
+```bash
+git clone <repository-url>
+cd changanet
+```
+
+### 2. Configurar Backend
+```bash
+cd changanet-backend
+
+# Instalar dependencias
+npm install
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con tus configuraciones
+
+# Configurar base de datos
+npx prisma generate
+npx prisma db push
+
+# Iniciar servidor
+npm start
+```
+
+### 3. Configurar Frontend
+```bash
+cd changanet-frontend
+
+# Instalar dependencias
+npm install
+
+# Configurar variables de entorno
+cp .env.example .env
+# Editar .env con VITE_BACKEND_URL
+
+# Iniciar aplicación
+npm run dev
+```
+
+## 📡 API Endpoints - Chat
+
+### Autenticación Requerida
+Todos los endpoints requieren header `Authorization: Bearer <token>`
+
+### Conversaciones
+```
+POST   /api/chat/conversations           # Crear conversación
+GET    /api/chat/conversations           # Listar conversaciones del usuario
+GET    /api/chat/conversations/:userId   # Listar conversaciones específicas
+GET    /api/chat/conversation/:id        # Obtener metadata de conversación
+DELETE /api/chat/conversations/:id       # Cerrar conversación
+```
+
+### Mensajes
+```
+GET    /api/chat/messages/:conversationId  # Historial paginado
+POST   /api/chat/messages                  # Enviar mensaje
+POST   /api/chat/messages/read             # Marcar como leído
+POST   /api/chat/upload-image              # Obtener URL de subida
+GET    /api/chat/search/:conversationId    # Buscar en conversación
+```
+
+### WebSocket Events
+```javascript
+// Cliente → Servidor
+socket.emit('message', { conversationId, content, imageUrl });
+socket.emit('join', { conversationId });
+socket.emit('typing', { conversationId, isTyping: true });
+
+// Servidor → Cliente
+socket.on('receiveMessage', (message) => { ... });
+socket.on('messageSent', (data) => { ... });
+socket.on('messagesRead', (data) => { ... });
+socket.on('conversationUpdated', (data) => { ... });
+```
+
+## 🔧 Configuración de Variables de Entorno
+
+### Backend (.env)
+```env
+# Base de datos
+DATABASE_URL="file:./dev.db"
+
+# JWT
+JWT_SECRET="tu-jwt-secret"
+JWT_EXPIRES_IN="24h"
+
+# Email (SendGrid)
+SENDGRID_API_KEY="tu-sendgrid-key"
+FROM_EMAIL="noreply@changanet.com"
+
+# Google Cloud Storage
+GOOGLE_CLOUD_PROJECT_ID="tu-project-id"
+GOOGLE_CLOUD_BUCKET="changanet-chat-images"
+GOOGLE_CLOUD_KEY_FILE="./config/serviceAccountKey.json"
+
+# Firebase (Notificaciones Push)
+FIREBASE_PROJECT_ID="tu-firebase-project"
+
+# Rate Limiting
+NODE_ENV="development"  # development=1000 req/min, production=30 req/min
+```
+
+### Frontend (.env)
+```env
+VITE_BACKEND_URL="http://localhost:3002"
+VITE_GOOGLE_CLIENT_ID="tu-google-client-id"
+```
+
+## 🧪 Testing
+
+### Ejecutar Tests
+```bash
+# Backend
+cd changanet-backend
+npm test
+
+# Frontend
+cd changanet-frontend
+npm test
+```
+
+### Tests de Chat
+```bash
+# Test específico del sistema de chat
+npm run test:chat
+
+# Test de integración WebSocket
+npm run test:websocket
+```
+
+## 📊 Monitoreo y Logs
+
+### Métricas Prometheus
+```
+GET /metrics  # Métricas de rendimiento
+```
+
+### Health Check
+```
+GET /health   # Estado del servicio
+GET /api/status # Estado de servicios externos
+```
+
+### Logs
+- **Desarrollo**: Console logs con Winston
+- **Producción**: Sentry para errores + logs estructurados
+
+## 🔒 Seguridad
+
+### Implementado
+- ✅ **Rate Limiting**: 1000 req/min (dev) / 30 req/min (prod)
+- ✅ **CORS**: Configurado para orígenes específicos
+- ✅ **Helmet**: Headers de seguridad HTTP
+- ✅ **JWT**: Autenticación stateless
+- ✅ **Sanitización**: DOMPurify para mensajes
+- ✅ **Validación**: Joi schemas para inputs
+- ✅ **UUID**: IDs consistentes en toda la aplicación
+
+### Mejores Prácticas
+- 🔐 **Nunca logs de passwords**
+- 🛡️ **Validación en todas las capas**
+- 🚫 **No SQL injection** (Prisma ORM)
+- 🔒 **HTTPS obligatorio** en producción
+
+## 🚀 Despliegue
+
+### Producción
+```bash
+# Build frontend
+cd changanet-frontend
+npm run build
+
+# Configurar backend para producción
+cd changanet-backend
+NODE_ENV=production npm start
+
+# Usar PM2 para gestión de procesos
+npm install -g pm2
+pm2 start ecosystem.config.js
+```
+
+### Docker
+```bash
+# Construir imágenes
+docker-compose build
+
+# Iniciar servicios
+docker-compose up -d
+```
+
+## 🤝 Contribución
+
+1. Fork el proyecto
+2. Crear rama feature (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit cambios (`git commit -am 'Agrega nueva funcionalidad'`)
+4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Crear Pull Request
+
+## 📝 Licencia
+
+Este proyecto está bajo la Licencia MIT. Ver archivo `LICENSE` para más detalles.
+
+## 📞 Soporte
+
+- 📧 **Email**: soporte@changanet.com
+- 💬 **Chat**: Integrado en la plataforma
+- 📚 **Docs**: [Documentación API](http://localhost:3002/api-docs)
+
+## 🎯 Roadmap
+
+### Próximas Versiones
+- 📱 **App Móvil** (iOS/Android)
+- 💳 **Pagos integrados** completos
+- 🤖 **Chatbot de soporte**
+- 📊 **Analytics avanzado**
+- 🌍 **Internacionalización**
 
 ---
 
-## 🚀 **CÓMO EJECUTAR EL SPRINT 6**
-
-### **Paso 1: Asegúrate de que el Backend está Actualizado**
-
-1.  **Detén el backend si está corriendo** (`Ctrl + C` en la terminal).
-2.  **Reemplaza los archivos del backend** con los nuevos archivos proporcionados.
-3.  **Instala las nuevas dependencias:**
-    ```bash
-    npm install helmet morgan compression rate-limiter-flexible swagger-jsdoc swagger-ui-express jest supertest eslint prettier @types/jest @types/supertest rimraf
-    ```
-4.  **Genera la documentación Swagger:**
-    ```bash
-    npm run docs
-    ```
-5.  **Ejecuta los tests:**
-    ```bash
-    npm test
-    ```
-6.  **Verifica la cobertura:**
-    ```bash
-    npm run test:coverage
-    ```
-7.  **Inicia el backend en modo producción:**
-    ```bash
-    npm start
-    ```
-    o con PM2:
-    ```bash
-    pm2 start ecosystem.config.js --env production
-    ```
-
-### **Paso 2: Actualiza el Frontend**
-
-1.  **Detén el frontend si está corriendo** (`Ctrl + C` en la terminal).
-2.  **Reemplaza los archivos del frontend** con los nuevos archivos proporcionados.
-3.  **Instala las nuevas dependencias:**
-    ```bash
-    npm install @testing-library/react @testing-library/jest-dom
-    ```
-4.  **Ejecuta los tests:**
-    ```bash
-    npm test
-    ```
-5.  **Construye para producción:**
-    ```bash
-    npm run build
-    ```
-
-### **Paso 3: ¡Probar!**
-
-1.  Abre tu navegador en `http://localhost:3002/api-docs` para ver la documentación de la API.
-2.  Ejecuta `npm test` en ambos proyectos para asegurarte de que todos los tests pasan.
-3.  Verifica que el backend responda en `http://localhost:3002/health`.
-4.  Revisa la cobertura de tests (`coverage/lcov-report/index.html`).
-
----
-
-## 🎯 **RESULTADO ESPERADO**
-
-Al finalizar el Sprint 6, tendrás:
-
-*   **Backend:** Totalmente testeado, documentado, optimizado y listo para producción.
-*   **Frontend:** Totalmente testeado y optimizado para producción.
-*   **Documentación:** Completa de la API, métricas de QA y guía de despliegue.
-*   **Proceso de QA:** Implementado con tests unitarios, de integración y cobertura.
-*   **Preparación para Lanzamiento:** Todo listo para el despliegue en producción.
-
----
-
-## 🚀 **¡FELICIDADES!**
-
-Has completado el desarrollo del **MVP completo de Changánet**. Tienes un producto funcional, probado, documentado y listo para ser lanzado al mercado. ¡Estás listo para el éxito! 🎉
-
-¿Te gustaría que te ayude a crear un **plan de lanzamiento** o a **desplegar el proyecto en la nube** (Google Cloud, AWS, etc.)?
+**Changanet** - Conectando servicios profesionales con confianza 💪

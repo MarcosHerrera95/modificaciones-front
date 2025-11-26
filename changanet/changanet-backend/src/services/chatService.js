@@ -24,41 +24,41 @@ const prisma = new PrismaClient();
 const chatNotificationService = new ChatNotificationService();
 
 // Función para guardar mensaje en la base de datos
-const saveMessage = async (remitente_id, destinatario_id, contenido, url_imagen = null) => {
+const saveMessage = async (sender_id, recipient_id, message, image_url = null) => {
   try {
     // Validar entrada
-    if (!remitente_id || !destinatario_id) {
+    if (!sender_id || !recipient_id) {
       throw new Error('IDs de remitente y destinatario son requeridos');
     }
 
-    if (!contenido && !url_imagen) {
+    if (!message && !image_url) {
       throw new Error('El mensaje debe tener contenido o imagen');
     }
 
-    if (contenido && contenido.length > 1000) {
+    if (message && message.length > 1000) {
       throw new Error('El mensaje no puede exceder 1000 caracteres');
     }
 
     // Verificar que ambos usuarios existen
-    const [remitente, destinatario] = await Promise.all([
-      prisma.usuarios.findUnique({ where: { id: remitente_id } }),
-      prisma.usuarios.findUnique({ where: { id: destinatario_id } })
+    const [sender, recipient] = await Promise.all([
+      prisma.usuarios.findUnique({ where: { id: sender_id } }),
+      prisma.usuarios.findUnique({ where: { id: recipient_id } })
     ]);
 
-    if (!remitente || !destinatario) {
+    if (!sender || !recipient) {
       throw new Error('Usuario remitente o destinatario no encontrado');
     }
 
-    const message = await prisma.mensajes.create({
+    const messageRecord = await prisma.mensajes.create({
       data: {
-        remitente_id,
-        destinatario_id,
-        contenido,
-        url_imagen,
-        esta_leido: false,
+        sender_id,
+        recipient_id,
+        message,
+        image_url,
+        status: 'sent',
       },
     });
-    return message;
+    return messageRecord;
   } catch (error) {
     console.error('Error al guardar mensaje:', error);
     throw error;
@@ -80,17 +80,17 @@ const getMessageHistory = async (userId1, userId2, limit = 50) => {
     const messages = await prisma.mensajes.findMany({
       where: {
         OR: [
-          { remitente_id: userId1, destinatario_id: userId2 },
-          { remitente_id: userId2, destinatario_id: userId1 },
+          { sender_id: userId1, recipient_id: userId2 },
+          { sender_id: userId2, recipient_id: userId1 },
         ],
       },
-      orderBy: { creado_en: 'desc' },
+      orderBy: { created_at: 'desc' },
       take: limit,
       include: {
-        remitente: {
+        sender: {
           select: { id: true, nombre: true }
         },
-        destinatario: {
+        recipient: {
           select: { id: true, nombre: true }
         }
       }
@@ -103,15 +103,15 @@ const getMessageHistory = async (userId1, userId2, limit = 50) => {
 };
 
 // Función para marcar mensajes como leídos
-const markMessagesAsRead = async (remitente_id, destinatario_id) => {
+const markMessagesAsRead = async (sender_id, recipient_id) => {
   try {
     await prisma.mensajes.updateMany({
       where: {
-        remitente_id,
-        destinatario_id,
-        esta_leido: false,
+        sender_id,
+        recipient_id,
+        read_at: null,
       },
-      data: { esta_leido: true },
+      data: { read_at: new Date() },
     });
   } catch (error) {
     console.error('Error al marcar mensajes como leídos:', error);
@@ -120,64 +120,64 @@ const markMessagesAsRead = async (remitente_id, destinatario_id) => {
 };
 
 // Función para enviar notificación de nuevo mensaje (ACTUALIZADA para REQ-19)
-const notifyNewMessage = async (destinatario_id, remitente_id, contenido_mensaje = '') => {
+const notifyNewMessage = async (recipient_id, sender_id, message_content = '') => {
   try {
-    console.log(`🔔 Enviando notificaciones de mensaje de ${remitente_id} a ${destinatario_id}`);
-    
+    console.log(`🔔 Enviando notificaciones de mensaje de ${sender_id} a ${recipient_id}`);
+
     // Obtener información del remitente para la notificación
-    const remitente = await prisma.usuarios.findUnique({
-      where: { id: remitente_id },
+    const sender = await prisma.usuarios.findUnique({
+      where: { id: sender_id },
       select: { nombre: true }
     });
-    
-    const remitente_nombre = remitente?.nombre || 'Usuario desconocido';
-    
+
+    const sender_name = sender?.nombre || 'Usuario desconocido';
+
     // Preparar preview del mensaje (máximo 100 caracteres)
-    const mensaje_preview = contenido_mensaje.length > 100 
-      ? contenido_mensaje.substring(0, 97) + '...'
-      : contenido_mensaje;
-    
+    const message_preview = message_content.length > 100
+      ? message_content.substring(0, 97) + '...'
+      : message_content;
+
     // Enviar notificación usando el nuevo servicio (push + email)
     const notificationResult = await chatNotificationService.sendComprehensiveNotification(
-      destinatario_id,
-      remitente_nombre,
-      mensaje_preview
+      recipient_id,
+      sender_name,
+      message_preview
     );
-    
+
     // Log del resultado
     if (notificationResult.overall.success) {
-      console.log(`✅ Notificaciones enviadas exitosamente a ${destinatario_id}:`, {
+      console.log(`✅ Notificaciones enviadas exitosamente a ${recipient_id}:`, {
         push: notificationResult.push?.success ? 'OK' : 'FAILED',
         email: notificationResult.email?.success ? 'OK' : 'FAILED'
       });
     } else {
-      console.warn(`⚠️ Notificaciones parciales para ${destinatario_id}:`, notificationResult.overall.errors);
+      console.warn(`⚠️ Notificaciones parciales para ${recipient_id}:`, notificationResult.overall.errors);
     }
-    
+
     // También mantener la notificación original en BD para compatibilidad
     try {
-      await sendNotification(destinatario_id, 'nuevo_mensaje', `Nuevo mensaje de ${remitente_nombre}`);
+      await sendNotification(recipient_id, 'nuevo_mensaje', `Nuevo mensaje de ${sender_name}`);
     } catch (dbError) {
       console.warn('Error guardando notificación en BD:', dbError.message);
     }
-    
+
     return notificationResult;
-    
+
   } catch (error) {
     console.error('❌ Error al enviar notificación de mensaje:', {
       error: error.message,
       stack: error.stack,
-      destinatario_id,
-      remitente_id,
-      contenido_length: contenido_mensaje?.length || 0
+      recipient_id,
+      sender_id,
+      content_length: message_content?.length || 0
     });
-    
+
     // No lanzar error para no interrumpir el flujo principal del chat
-    return { 
-      success: false, 
+    return {
+      success: false,
       error: error.message,
-      destinatario_id,
-      remitente_id 
+      recipient_id,
+      sender_id
     };
   }
 };

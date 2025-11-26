@@ -24,7 +24,7 @@ class SocketService {
     }
 
     const token = localStorage.getItem('changanet_token');
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
     console.log('Conectando a Socket.IO:', backendUrl);
 
@@ -73,6 +73,10 @@ class SocketService {
 
     this.socket.on('messagesRead', (data) => {
       this.notifyMessageListeners('messagesRead', data);
+    });
+
+    this.socket.on('conversationUpdated', (data) => {
+      this.notifyMessageListeners('conversationUpdated', data);
     });
 
     this.socket.on('error', (error) => {
@@ -127,20 +131,19 @@ class SocketService {
   /**
    * Envía un mensaje a otro usuario
    */
-  sendMessage(remitenteId, destinatarioId, contenido, urlImagen = null) {
+  sendMessage(remitenteId, conversationId, contenido, urlImagen = null) {
     if (!this.socket || !this.isConnected) {
       throw new Error('Socket.IO no está conectado');
     }
 
     const messageData = {
-      remitente_id: remitenteId,
-      destinatario_id: destinatarioId,
-      contenido: contenido,
-      url_imagen: urlImagen
+      conversationId: conversationId,
+      content: contenido,
+      imageUrl: urlImagen
     };
 
     console.log('Enviando mensaje:', messageData);
-    this.socket.emit('sendMessage', messageData);
+    this.socket.emit('message', messageData);
   }
 
   /**

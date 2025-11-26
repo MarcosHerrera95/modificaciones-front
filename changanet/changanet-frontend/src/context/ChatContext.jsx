@@ -297,7 +297,7 @@ export const ChatProvider = ({ children }) => {
           message
         }
       });
-      
+
       // Reproducir sonido si está habilitado
       if (state.settings.sound) {
         playMessageSound();
@@ -319,6 +319,16 @@ export const ChatProvider = ({ children }) => {
       dispatch({
         type: ActionTypes.MARK_MESSAGES_AS_READ,
         payload: data
+      });
+    });
+
+    socketService.addMessageListener('conversationUpdated', (data) => {
+      dispatch({
+        type: ActionTypes.UPDATE_CONVERSATION,
+        payload: {
+          id: data.conversationId,
+          updates: data.updates
+        }
       });
     });
 
@@ -349,7 +359,7 @@ export const ChatProvider = ({ children }) => {
     try {
       const user = JSON.parse(localStorage.getItem('changanet_user') || '{}');
       const token = localStorage.getItem('changanet_token');
-      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
       if (!user.id || !token) {
         throw new Error('Usuario no autenticado');
@@ -380,7 +390,7 @@ export const ChatProvider = ({ children }) => {
   const loadMessages = useCallback(async (conversationId, page = 1, limit = 50) => {
     try {
       const token = localStorage.getItem('changanet_token');
-      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
       dispatch({
         type: ActionTypes.SET_MESSAGE_LOADING,
@@ -420,7 +430,7 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   // Enviar mensaje
-  const sendMessage = useCallback(async (conversationId, content, type = 'text', fileUrl = null) => {
+  const sendMessage = useCallback((conversationId, content, type = 'text', fileUrl = null) => {
     if (!socketRef.current?.isConnected) {
       throw new Error('No hay conexión WebSocket');
     }
@@ -431,31 +441,8 @@ export const ChatProvider = ({ children }) => {
     }
 
     try {
-      // Enviar via WebSocket para tiempo real
+      // Enviar via WebSocket con confirmación
       socketRef.current.sendMessage(user.id, conversationId, content, fileUrl);
-      
-      // También guardar via API para persistencia
-      const token = localStorage.getItem('changanet_token');
-      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
-
-      const response = await fetch(`${API_BASE_URL}/api/chat/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          conversationId,
-          content,
-          type,
-          fileUrl
-        })
-      });
-
-      if (!response.ok) {
-        console.warn('Error guardando mensaje via API:', response.status);
-      }
-
     } catch (error) {
       console.error('Error enviando mensaje:', error);
       throw error;
@@ -466,7 +453,7 @@ export const ChatProvider = ({ children }) => {
   const markAsRead = useCallback(async (conversationId, messageIds = []) => {
     try {
       const token = localStorage.getItem('changanet_token');
-      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
       const response = await fetch(`${API_BASE_URL}/api/chat/messages/read`, {
         method: 'POST',
@@ -505,7 +492,7 @@ export const ChatProvider = ({ children }) => {
   const openConversation = useCallback(async (clientId, professionalId) => {
     try {
       const token = localStorage.getItem('changanet_token');
-      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
 
       const response = await fetch(`${API_BASE_URL}/api/chat/conversations`, {
         method: 'POST',

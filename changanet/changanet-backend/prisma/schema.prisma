@@ -145,7 +145,7 @@ model logros_usuario {
 }
 
 model conversations {
-  id             String   @id @default(cuid())
+  id             String   @id @default(uuid())
   client_id      String
   professional_id String
   is_active      Boolean  @default(true)
@@ -160,28 +160,30 @@ model conversations {
   @@index([professional_id])
   @@index([is_active])
   @@index([updated_at])
+  @@index([client_id, is_active])
+  @@index([professional_id, is_active])
   @@map("conversations")
 }
 
 model mensajes {
-  id                                          String        @id
+  id                                          String        @id @default(uuid())
   conversation_id                             String?
-  remitente_id                                String
-  destinatario_id                             String
+  sender_id                                   String
+  recipient_id                                String
   message                                     String?
   image_url                                   String?
   status                                      String        @default("sent")
   read_at                                     DateTime?
-  creado_en                                   DateTime      @default(now())
+  created_at                                  DateTime      @default(now())
   conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  usuarios_mensajes_remitente_idTousuarios    usuarios      @relation("mensajes_remitente_idTousuarios", fields: [remitente_id], references: [id])
-  usuarios_mensajes_destinatario_idTousuarios usuarios      @relation("mensajes_destinatario_idTousuarios", fields: [destinatario_id], references: [id])
+  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id])
+  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id])
 
-  @@index([creado_en])
+  @@index([created_at])
   @@index([conversation_id])
-  @@index([remitente_id, destinatario_id, creado_en])
-  @@index([destinatario_id, creado_en])
-  @@index([remitente_id, creado_en])
+  @@index([sender_id, recipient_id, created_at])
+  @@index([recipient_id, created_at])
+  @@index([sender_id, created_at])
   @@index([status])
 }
 
@@ -471,8 +473,8 @@ model usuarios {
   logros_usuario                                                         logros_usuario[]
   conversations_conversations_client_idTousuarios                       conversations[]             @relation("conversations_client_idTousuarios")
   conversations_conversations_professional_idTousuarios                 conversations[]             @relation("conversations_professional_idTousuarios")
-  mensajes_mensajes_remitente_idTousuarios                               mensajes[]                   @relation("mensajes_remitente_idTousuarios")
-  mensajes_mensajes_destinatario_idTousuarios                            mensajes[]                   @relation("mensajes_destinatario_idTousuarios")
+  mensajes_mensajes_sender_idTousuarios                                 mensajes[]                   @relation("mensajes_sender_idTousuarios")
+  mensajes_mensajes_recipient_idTousuarios                              mensajes[]                   @relation("mensajes_recipient_idTousuarios")
   assigned_moderation_reports                                            moderation_reports[]         @relation("AssignedModerationReports")
   created_moderation_reports                                             moderation_reports[]         @relation("CreatedModerationReports")
   notificaciones                                                         notificaciones[]

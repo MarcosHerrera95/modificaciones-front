@@ -4,8 +4,11 @@
  * ENDPOINTS OBLIGATORIOS IMPLEMENTADOS:
  * POST /api/chat/conversations - Crear conversación cliente ↔ profesional
  * GET /api/chat/conversations/:userId - Listar conversaciones del usuario
+ * GET /api/chat/conversations - Listar conversaciones del usuario actual (compatibilidad)
+ * GET /api/chat/conversation/:conversationId - Obtener metadata de conversación
  * GET /api/chat/messages/:conversationId - Obtener historial paginado
  * POST /api/chat/messages - Enviar mensaje (texto o imagen)
+ * POST /api/chat/messages/read - Marcar mensajes como leídos
  * POST /api/chat/upload-image - Obtener presigned URL → subir imagen
  * DELETE /api/chat/conversations/:conversationId - Cerrar conversación
  * 
@@ -17,7 +20,9 @@
  */
 
 const express = require('express');
+const { PrismaClient } = require('@prisma/client');
 const { authenticateToken } = require('../middleware/authenticate');
+const { chatRateLimiter } = require('../middleware/advancedRateLimiting');
 const {
   createConversation,
   getUserConversations,
@@ -25,48 +30,17 @@ const {
   sendMessage,
   getUploadUrl,
   searchMessages,
-  closeConversation
+  closeConversation,
+  markMessagesAsRead,
+  getConversation
 } = require('../controllers/unifiedChatController');
+
+const prisma = new PrismaClient();
 
 const router = express.Router();
 
 // Middleware de autenticación obligatorio para todas las rutas
 router.use(authenticateToken);
-
-// ✅ REQ-16: POST /api/chat/conversations
-// Crear conversación cliente ↔ profesional
-// Uso: Botón "Chat con el Cliente" en modal de cotizaciones
-router.post('/conversations', createConversation);
-
-// ✅ REQ-20: GET /api/chat/conversations/:userId  
-// Listar conversaciones del usuario (historial de chats)
-// Uso: Página de mensajes del usuario
-router.get('/conversations/:userId', getUserConversations);
-
-// ✅ REQ-20: GET /api/chat/messages/:conversationId
-// Obtener historial paginado de una conversación
-// Uso: Cargar mensajes al abrir una conversación
-router.get('/messages/:conversationId', getMessageHistory);
-
-// ✅ REQ-17, REQ-18: POST /api/chat/messages
-// Enviar mensaje (texto o imagen)
-// Uso: WebSocket en tiempo real + REST API para respaldo
-router.post('/messages', sendMessage);
-
-// ✅ REQ-18: POST /api/chat/upload-image
-// Obtener presigned URL para subir imagen
-// Uso: Antes de enviar imagen, obtener URL para subir
-router.post('/upload-image', getUploadUrl);
-
-// ✅ FUNCIONALIDAD ADICIONAL: GET /api/chat/search/:conversationId
-// Buscar en el historial de mensajes
-// Uso: Barra de búsqueda en el chat
-router.get('/search/:conversationId', searchMessages);
-
-// DELETE /api/chat/conversations/:conversationId
-// Cerrar/desactivar conversación
-// Uso: Opción para cerrar conversaciones inactivas
-router.delete('/conversations/:conversationId', closeConversation);
 
 // ✅ ENDPOINT ADICIONAL: GET /api/chat/ping
 // Endpoint de verificación para testing
@@ -78,8 +52,11 @@ router.get('/ping', (req, res) => {
     endpoints_available: [
       'POST /conversations',
       'GET /conversations/:userId',
-      'GET /messages/:conversationId', 
+      'GET /conversations',
+      'GET /conversation/:conversationId',
+      'GET /messages/:conversationId',
       'POST /messages',
+      'POST /messages/read',
       'POST /upload-image',
       'GET /search/:conversationId',
       'DELETE /conversations/:conversationId'
@@ -94,9 +71,9 @@ router.get('/health', async (req, res) => {
     // Verificar conexión a base de datos
     const { PrismaClient } = require('@prisma/client');
     const prisma = new PrismaClient();
-    
+
     await prisma.$queryRaw`SELECT 1`;
-    
+
     res.status(200).json({
       status: 'healthy',
       database: 'connected',
@@ -113,5 +90,58 @@ router.get('/health', async (req, res) => {
     });
   }
 });
+
+// Middleware de rate limiting específico para chat (aplicado solo a endpoints de chat)
+router.use(chatRateLimiter);
+
+// ✅ REQ-16: POST /api/chat/conversations
+// Crear conversación cliente ↔ profesional
+// Uso: Botón "Chat con el Cliente" en modal de cotizaciones
+router.post('/conversations', createConversation);
+
+// ✅ REQ-20: GET /api/chat/conversations/:userId
+// Listar conversaciones del usuario (historial de chats)
+// Uso: Página de mensajes del usuario
+router.get('/conversations/:userId', getUserConversations);
+
+// ✅ COMPATIBILIDAD: GET /api/chat/conversations
+// Listar conversaciones del usuario actual (sin userId en URL)
+// Uso: Frontend usa esta ruta para obtener conversaciones del usuario autenticado
+router.get('/conversations', getUserConversations);
+
+// ✅ COMPATIBILIDAD: GET /api/chat/conversation/:conversationId
+// Obtener información detallada de una conversación específica
+// Uso: Obtener metadata de conversación sin mensajes
+router.get('/conversation/:conversationId', getConversation);
+
+// ✅ REQ-20: GET /api/chat/messages/:conversationId
+// Obtener historial paginado de una conversación
+// Uso: Cargar mensajes al abrir una conversación
+router.get('/messages/:conversationId', getMessageHistory);
+
+// ✅ REQ-17, REQ-18: POST /api/chat/messages
+// Enviar mensaje (texto o imagen)
+// Uso: WebSocket en tiempo real + REST API para respaldo
+router.post('/messages', sendMessage);
+
+// ✅ CRÍTICO: POST /api/chat/messages/read
+// Marcar mensajes como leídos
+// Uso: Frontend marca mensajes como leídos en conversaciones
+router.post('/messages/read', markMessagesAsRead);
+
+// ✅ REQ-18: POST /api/chat/upload-image
+// Obtener presigned URL para subir imagen
+// Uso: Antes de enviar imagen, obtener URL para subir
+router.post('/upload-image', getUploadUrl);
+
+// ✅ FUNCIONALIDAD ADICIONAL: GET /api/chat/search/:conversationId
+// Buscar en el historial de mensajes
+// Uso: Barra de búsqueda en el chat
+router.get('/search/:conversationId', searchMessages);
+
+// DELETE /api/chat/conversations/:conversationId
+// Cerrar/desactivar conversación
+// Uso: Opción para cerrar conversaciones inactivas
+router.delete('/conversations/:conversationId', closeConversation);
 
 module.exports = router;

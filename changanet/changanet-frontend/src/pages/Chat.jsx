@@ -14,9 +14,14 @@ import BackButton from '../components/BackButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Chat = () => {
-  const { conversationId } = useParams();
+  const { conversationId: urlConversationId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // Obtener conversationId de URL params o query params
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryConversationId = urlParams.get('user');
+  const conversationId = urlConversationId || queryConversationId;
   const [conversation, setConversation] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const UNUSED_CONVERSATION = conversation;
@@ -46,12 +51,15 @@ const Chat = () => {
       return;
     }
 
-    // Cargar conversación y datos del otro usuario con debounce
-    const loadWithDebounce = setTimeout(() => {
-      loadConversationAndUserData();
-    }, 100); // Debounce de 100ms para evitar llamadas múltiples
+    // Solo cargar si tenemos conversationId válido
+    if (conversationId && conversationId !== 'undefined' && conversationId !== 'null') {
+      // Cargar conversación y datos del otro usuario con debounce
+      const loadWithDebounce = setTimeout(() => {
+        loadConversationAndUserData();
+      }, 100); // Debounce de 100ms para evitar llamadas múltiples
 
-    return () => clearTimeout(loadWithDebounce);
+      return () => clearTimeout(loadWithDebounce);
+    }
   }, [user, conversationId, navigate, isLoadingConversation, rateLimitHit]);
 
   const loadConversationAndUserData = async (currentConversationId = conversationId) => {
@@ -74,11 +82,40 @@ const Chat = () => {
       }
 
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3003';
-      
-      console.log(`🔄 Cargando conversación: ${currentConversationId}`);
-      
+
+      let finalConversationId = currentConversationId;
+
+      // Si el conversationId es un solo UUID (de query param), crear conversación
+      const parts = currentConversationId.split('-');
+      if (currentConversationId && parts.length === 5) {
+        console.log(`🔄 ConversationId es un solo UUID: ${currentConversationId}, creando conversación...`);
+
+        // Crear conversación entre el usuario actual y el usuario especificado
+        const createResponse = await fetch(`${apiBaseUrl}/api/chat/conversations`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            clientId: user.rol === 'cliente' ? user.id : currentConversationId,
+            professionalId: user.rol === 'profesional' ? user.id : currentConversationId
+          })
+        });
+
+        if (!createResponse.ok) {
+          throw new Error(`Error al crear conversación: ${createResponse.status}`);
+        }
+
+        const createData = await createResponse.json();
+        finalConversationId = createData.conversation?.id;
+        console.log(`✅ Conversación creada: ${finalConversationId}`);
+      }
+
+      console.log(`🔄 Cargando conversación: ${finalConversationId}`);
+
       // Cargar datos de la conversación
-      const conversationResponse = await fetch(`${apiBaseUrl}/api/chat/conversation/${currentConversationId}`, {
+      const conversationResponse = await fetch(`${apiBaseUrl}/api/chat/conversation/${finalConversationId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -95,10 +132,16 @@ const Chat = () => {
           }, 5000);
           throw new Error('Demasiadas solicitudes. Intenta nuevamente en unos segundos.');
         } else if (conversationResponse.status === 404) {
-          // Intentar resolver el conversationId
-          console.log('ConversationId inválido, intentando resolver...');
-          await resolveConversationId();
-          return;
+          // Si es un solo UUID, no intentar resolver, crear conversación
+          if (currentConversationId && !currentConversationId.includes('-')) {
+            console.log('ConversationId es un solo UUID, no hay resolución necesaria');
+            // No hacer nada, continuar con la lógica de creación de conversación
+          } else {
+            // Intentar resolver el conversationId
+            console.log('ConversationId inválido, intentando resolver...');
+            await resolveConversationId();
+            return;
+          }
         }
         throw new Error(`Error al cargar conversación: ${conversationResponse.status}`);
       }
@@ -108,7 +151,7 @@ const Chat = () => {
       setConversation(conversationData);
 
       // Determinar cuál es el otro usuario (no el actual)
-      const otherUserId = conversationData.usuario1_id === user.id ? 
+      const otherUserId = conversationData.usuario1_id === user.id ?
         conversationData.usuario2_id : conversationData.usuario1_id;
 
       if (!otherUserId) {

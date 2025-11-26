@@ -143,9 +143,25 @@ exports.register = async (req, res) => {
   // Extraer datos del cuerpo de la solicitud HTTP (REQ-01: campos básicos para registro)
   const { name, email, password, rol } = req.body;
 
+  logger.info('Registration attempt started', {
+    service: 'auth',
+    email,
+    rol,
+    ip: req.ip,
+    userAgent: req.get('User-Agent')
+  });
+
   try {
     // Validar que todos los campos requeridos estén presentes (REQ-01: validación de campos obligatorios)
     if (!name || !email || !password || !rol) {
+      logger.warn('Registration failed: missing required fields', {
+        service: 'auth',
+        hasName: !!name,
+        hasEmail: !!email,
+        hasPassword: !!password,
+        hasRol: !!rol,
+        ip: req.ip
+      });
       return res.status(400).json({ error: 'Todos los campos son requeridos: name, email, password, rol.' });
     }
 
@@ -196,16 +212,29 @@ exports.register = async (req, res) => {
     }
 
     // Verificar si ya existe un usuario con este email (REQ-04: email único)
+    logger.info('Checking for existing user', {
+      service: 'auth',
+      email,
+      ip: req.ip
+    });
+
     const existingUser = await prisma.usuarios.findUnique({ where: { email } });
     if (existingUser) {
       // Registrar intento de registro duplicado para auditoría
       logger.warn('Registration failed: email already exists', {
         service: 'auth',
         email,
+        existingUserId: existingUser.id,
         ip: req.ip
       });
       return res.status(409).json({ error: 'El email ya está registrado.' });
     }
+
+    logger.info('Email check passed, proceeding with user creation', {
+      service: 'auth',
+      email,
+      ip: req.ip
+    });
 
     // Hashear la contraseña usando bcrypt con factor de costo 12 (seguridad >=12)
     const hashedPassword = await bcrypt.hash(password, 12);
@@ -216,8 +245,16 @@ exports.register = async (req, res) => {
     const tokenExpiration = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
 
     // Crear nuevo usuario en la base de datos con todos los campos requeridos
+    logger.info('Creating user in database', {
+      service: 'auth',
+      email,
+      rol,
+      ip: req.ip
+    });
+
     const user = await prisma.usuarios.create({
       data: {
+        id: require('crypto').randomUUID(), // Generar UUID único para el usuario
         nombre: name, // Nombre del usuario
         email, // Email único
         hash_contrasena: hashedPassword, // Contraseña hasheada
@@ -226,6 +263,14 @@ exports.register = async (req, res) => {
         token_verificacion: verificationToken, // Token para verificar email
         token_expiracion: tokenExpiration // Fecha de expiración del token
       },
+    });
+
+    logger.info('User created successfully', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email,
+      rol: user.rol,
+      ip: req.ip
     });
 
     // Intentar enviar email de verificación (REQ-03: envío automático de email)
@@ -250,6 +295,13 @@ exports.register = async (req, res) => {
     }
 
     // Generar tokens JWT para autenticación inmediata (REQ-01: acceso después de registro)
+    logger.info('Generating JWT tokens', {
+      service: 'auth',
+      userId: user.id,
+      email: user.email,
+      ip: req.ip
+    });
+
     const token = jwt.sign(
       { userId: user.id, role: user.rol }, // Payload con ID y rol del usuario
       process.env.JWT_SECRET, // Clave secreta desde variables de entorno
@@ -261,6 +313,13 @@ exports.register = async (req, res) => {
     const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     const refreshExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días
 
+    logger.info('Storing refresh token', {
+      service: 'auth',
+      userId: user.id,
+      refreshTokenId: require('crypto').randomUUID(),
+      ip: req.ip
+    });
+
     // Almacenar refresh token hashed en DB
     await prisma.refresh_tokens.create({
       data: {
@@ -269,6 +328,12 @@ exports.register = async (req, res) => {
         token_hash: refreshTokenHash,
         expires_at: refreshExpiresAt
       }
+    });
+
+    logger.info('Refresh token stored successfully', {
+      service: 'auth',
+      userId: user.id,
+      ip: req.ip
     });
 
     // Registrar registro exitoso para auditoría
@@ -294,11 +359,31 @@ exports.register = async (req, res) => {
       service: 'auth',
       email,
       rol,
-      error,
-      ip: req.ip
+      error: {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        code: error.code
+      },
+      ip: req.ip,
+      userAgent: req.get('User-Agent')
     });
+
+    // Log additional context for Prisma errors
+    if (error.code) {
+      logger.error('Prisma error details', {
+        service: 'auth',
+        prismaCode: error.code,
+        meta: error.meta,
+        ip: req.ip
+      });
+    }
+
     // Responder con error interno del servidor
-    res.status(500).json({ error: 'Error al registrar el usuario.', details: error.message });
+    res.status(500).json({
+      error: 'Error al registrar el usuario.',
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Error interno del servidor'
+    });
   }
 };
 
@@ -599,6 +684,7 @@ exports.registerProfessional = async (req, res) => {
     // Crear usuario
     const user = await prisma.usuarios.create({
       data: {
+        id: require('crypto').randomUUID(), // Generar UUID único para el usuario
         nombre,
         email,
         hash_contrasena: hashedPassword,

@@ -198,7 +198,7 @@ class UnifiedWebSocketService {
     });
 
     // EVENTO: Enviar mensaje (REQ-17, REQ-18)
-    socket.on('message', async (data) => {
+    socket.on('receiveMessage', async (data) => {
       try {
         const { conversationId, content, imageUrl } = data;
 
@@ -262,7 +262,7 @@ class UnifiedWebSocketService {
         };
 
         // Enviar mensaje a todos en la conversación
-        this.io.to(`conversation_${conversationId}`).emit('message', formattedMessage);
+        this.io.to(`conversation_${conversationId}`).emit('receiveMessage', formattedMessage);
 
         // ✅ NOTIFICACIONES (REQ-19): Enviar notificación push + email
         try {
@@ -272,7 +272,7 @@ class UnifiedWebSocketService {
         }
 
         // Confirmar envío exitoso al emisor
-        socket.emit('message_sent', {
+        socket.emit('messageSent', {
           message: formattedMessage,
           message_text: 'Mensaje enviado exitosamente'
         });
@@ -315,7 +315,7 @@ class UnifiedWebSocketService {
         });
 
         // Notificar a todos en la conversación
-        this.io.to(`conversation_${conversationId}`).emit('messages_read', {
+        this.io.to(`conversation_${conversationId}`).emit('messagesRead', {
           conversationId,
           readerId: userId,
           messageIds: messageIds || []
@@ -337,7 +337,7 @@ class UnifiedWebSocketService {
           where: { id: conversationId }
         });
 
-        if (!conversation || 
+        if (!conversation ||
             (conversation.client_id !== userId && conversation.professional_id !== userId)) {
           return; // Silenciosamente ignorar
         }
@@ -365,6 +365,39 @@ class UnifiedWebSocketService {
 
       } catch (error) {
         console.error('Error en evento typing:', error);
+      }
+    });
+
+    // EVENTO: Actualización de conversación
+    socket.on('conversationUpdated', async (data) => {
+      try {
+        const { conversationId, updateType, updateData } = data;
+
+        // Verificar autorización
+        const conversation = await prisma.conversations.findUnique({
+          where: { id: conversationId }
+        });
+
+        if (!conversation ||
+            (conversation.client_id !== userId && conversation.professional_id !== userId)) {
+          socket.emit('error', { message: 'No tienes acceso a esta conversación' });
+          return;
+        }
+
+        // Notificar a todos los participantes de la conversación
+        this.io.to(`conversation_${conversationId}`).emit('conversationUpdated', {
+          conversationId,
+          updateType,
+          updateData,
+          updatedBy: userId,
+          timestamp: new Date()
+        });
+
+        console.log(`📡 Conversación ${conversationId} actualizada: ${updateType}`);
+
+      } catch (error) {
+        console.error('Error en evento conversationUpdated:', error);
+        socket.emit('error', { message: 'Error al actualizar conversación' });
       }
     });
 

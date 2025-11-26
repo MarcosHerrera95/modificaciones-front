@@ -42,6 +42,20 @@ const RATE_LIMITS = {
       retryAfter: '300'
     }
   },
+  chat: {
+    windowMs: 60 * 60 * 1000, // 1 hora
+    max: {
+      anonymous: process.env.NODE_ENV === 'production' ? 30 : 1000,    // 30 en prod, 1000 en dev
+      cliente: process.env.NODE_ENV === 'production' ? 30 : 1000,
+      profesional: process.env.NODE_ENV === 'production' ? 30 : 1000,
+      admin: process.env.NODE_ENV === 'production' ? 30 : 1000
+    },
+    message: {
+      success: false,
+      error: 'Demasiados mensajes de chat. Intenta nuevamente en una hora.',
+      retryAfter: '3600' // segundos
+    }
+  },
   general: {
     windowMs: 1 * 60 * 1000, // 1 minuto
     max: {
@@ -196,6 +210,11 @@ const searchRateLimiter = createAdvancedRateLimiter('search');
 const suggestionsRateLimiter = createAdvancedRateLimiter('suggestions');
 
 /**
+ * Middleware específico para chat
+ */
+const chatRateLimiter = createAdvancedRateLimiter('chat');
+
+/**
  * Middleware general para otros endpoints
  */
 const generalRateLimiter = createAdvancedRateLimiter('general');
@@ -252,6 +271,7 @@ module.exports = {
   createAdvancedRateLimiter,
   searchRateLimiter,
   suggestionsRateLimiter,
+  chatRateLimiter,
   generalRateLimiter,
   getRateLimitStats,
   resetRateLimits

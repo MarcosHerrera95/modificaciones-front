@@ -288,7 +288,7 @@ const MisCotizacionesProfesional = ({ onClose }) => {
       
       // Llamar al endpoint para crear o abrir conversación
       const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
-      const response = await fetch(`${apiBaseUrl}/api/chat/open-or-create`, {
+      const response = await fetch(`${apiBaseUrl}/api/chat/conversations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -306,11 +306,10 @@ const MisCotizacionesProfesional = ({ onClose }) => {
       }
       
       const data = await response.json();
-      console.log('Conversación creada/abierta:', data);
-      
+
       // Navegar al chat usando el conversationId
-      if (data.conversationId) {
-        navigate(`/chat/${data.conversationId}`);
+      if (data.conversation && data.conversation.id) {
+        navigate(`/chat/${data.conversation.id}`);
       } else {
         throw new Error('No se pudo obtener el ID de conversación');
       }

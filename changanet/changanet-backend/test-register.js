@@ -1,59 +1,26 @@
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const fetch = require('node-fetch');
 
 async function testRegister() {
-  const prisma = new PrismaClient();
   try {
-    const name = 'Test User';
-    const email = 'test@example.com';
-    const password = 'password123';
-    const rol = 'cliente';
-
-    console.log('Testing registration...');
-
-    // Check if user exists
-    const existingUser = await prisma.usuarios.findUnique({ where: { email } });
-    console.log('Existing user:', existingUser);
-
-    if (existingUser) {
-      console.log('User already exists, deleting...');
-      await prisma.usuarios.delete({ where: { email } });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-    console.log('Password hashed');
-
-    // Create user
-    const user = await prisma.usuarios.create({
-      data: {
-        nombre: name,
-        email,
-        hash_contrasena: hashedPassword,
-        rol,
-        esta_verificado: false
-      },
+    const response = await fetch('http://localhost:3006/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Test User',
+        email: 'test@example.com',
+        password: 'TestPassword123!',
+        rol: 'cliente'
+      })
     });
-    console.log('User created:', user);
 
-    // Generate token
-    const token = jwt.sign(
-      { userId: user.id, role: user.rol },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h', algorithm: 'HS256' }
-    );
-    console.log('Token generated');
+    console.log('Status:', response.status);
+    console.log('OK:', response.ok);
 
-    console.log('Registration successful!');
-    return { message: 'Usuario registrado exitosamente.', token, user: { id: user.id, nombre: user.nombre, email: user.email, rol: user.rol } };
-
+    const data = await response.json();
+    console.log('Response:', data);
   } catch (error) {
-    console.error('Error in registration:', error);
-    throw error;
-  } finally {
-    await prisma.$disconnect();
+    console.error('Error:', error);
   }
 }
 
-testRegister().then(result => console.log('Result:', result)).catch(err => console.error('Final error:', err));
+testRegister();

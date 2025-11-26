@@ -72,8 +72,6 @@ const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const searchRoutes = require('./routes/searchRoutes');
 const messageRoutes = require('./routes/messageRoutes');
-const chatRoutes = require('./routes/chatRoutes');
-const simpleChatRoutes = require('./routes/simpleChatRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -180,7 +178,19 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false, // Disable COEP for Firebase Auth compatibility
   crossOriginOpenerPolicy: false // Disable COOP for popup compatibility
 }));
-app.use(compression()); // Comprime respuestas HTTP para reducir ancho de banda
+
+// Compresión de respuestas con configuración optimizada
+app.use(compression({
+  level: 6, // Nivel de compresión óptimo (1-9)
+  threshold: 1024, // Comprimir respuestas > 1KB
+  filter: (req, res) => {
+    // No comprimir si el cliente no lo soporta
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
 
 // Middleware para parsear JSON MUY TEMPRANO para evitar interferencias
 app.use(express.json({ limit: '10mb' }));
@@ -194,8 +204,9 @@ app.use(morgan('combined')); // Logger de solicitudes HTTP con formato combinado
 
 // Configura el limitador de tasa usando RateLimiterMemory
 const limiter = new rateLimit.RateLimiterMemory({
-  points: process.env.NODE_ENV === 'production' ? 30 : 5000, // Más restrictivo en producción, muy permisivo en desarrollo
+  points: process.env.NODE_ENV === 'production' ? 30 : 1000, // Más restrictivo en producción, permisivo en desarrollo según PRD
   duration: 60, // Ventana de tiempo en segundos (1 minuto)
+  blockDuration: 120, // Bloquear por 2 minutos si se excede
 });
 
 console.log(`🛡️ Rate limiting configured: ${limiter.points} requests per ${limiter.duration} seconds (${process.env.NODE_ENV})`);
@@ -226,13 +237,6 @@ app.use(cors({
   credentials: true, // Si necesitas enviar cookies/credenciales
 }));
 
-// Debug middleware temporal
-app.use((req, res, next) => {
-  console.log('🔍 DEBUG: Raw body:', req.body);
-  console.log('🔍 DEBUG: Content-Type:', req.headers['content-type']);
-  console.log('🔍 DEBUG: Body type:', typeof req.body);
-  next();
-});
 
 // Middleware para parsear JSON con límite de tamaño
 app.use(express.json({ limit: '10mb' }));
@@ -331,7 +335,7 @@ app.use('/api', advancedSearchRoutes); // Rutas avanzadas con métricas
 app.use('/api/messages', authenticateToken, messageRoutes);
 
 // ✅ RUTAS UNIFICADAS DE CHAT (REQUERIMIENTOS REQ-16 a REQ-20)
-// Implementación completa según especificaciones PRD
+// Implementación completa y consolidada según especificaciones PRD
 const unifiedChatRoutes = require('./routes/unifiedChatRoutes');
 app.use('/api/chat', authenticateToken, unifiedChatRoutes);
 
