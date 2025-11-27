@@ -19,7 +19,7 @@ const initialState = {
   // Conversaciones
   conversations: [],
   activeConversation: null,
-  unreadCount: 0,
+  unreadCounts: {}, // Contadores de mensajes no leídos por conversación
   
   // Mensajes
   messages: {},
@@ -61,6 +61,9 @@ const ActionTypes = {
   UPDATE_MESSAGE: 'UPDATE_MESSAGE',
   SET_MESSAGE_LOADING: 'SET_MESSAGE_LOADING',
   MARK_MESSAGES_AS_READ: 'MARK_MESSAGES_AS_READ',
+  INCREMENT_UNREAD_COUNT: 'INCREMENT_UNREAD_COUNT',
+  DECREMENT_UNREAD_COUNT: 'DECREMENT_UNREAD_COUNT',
+  RESET_UNREAD_COUNT: 'RESET_UNREAD_COUNT',
   
   // Estado de usuarios
   SET_ONLINE_USERS: 'SET_ONLINE_USERS',
@@ -74,7 +77,8 @@ const ActionTypes = {
   
   // Utilidades
   CLEAR_MESSAGES: 'CLEAR_MESSAGES',
-  RESET_STATE: 'RESET_STATE'
+  RESET_STATE: 'RESET_STATE',
+  REMOVE_CONVERSATION: 'REMOVE_CONVERSATION'
 };
 
 // Reducer para manejar el estado del chat
@@ -89,8 +93,22 @@ const chatReducer = (state, action) => {
     case ActionTypes.SET_RECONNECT_ATTEMPTS:
       return { ...state, reconnectAttempts: action.payload };
     
-    case ActionTypes.SET_CONVERSATIONS:
-      return { ...state, conversations: action.payload };
+    case ActionTypes.SET_CONVERSATIONS: {
+      const conversations = action.payload;
+      // Initialize unread counts from conversations data
+      const unreadCounts = { ...state.unreadCounts };
+      conversations.forEach(conv => {
+        if (conv.unreadCount !== undefined) {
+          unreadCounts[conv.id] = conv.unreadCount;
+        }
+      });
+
+      return {
+        ...state,
+        conversations,
+        unreadCounts
+      };
+    }
     
     case ActionTypes.ADD_CONVERSATION: {
       const exists = state.conversations.find(c => c.id === action.payload.id);
@@ -111,8 +129,18 @@ const chatReducer = (state, action) => {
         )
       };
     
-    case ActionTypes.SET_ACTIVE_CONVERSATION:
-      return { ...state, activeConversation: action.payload };
+    case ActionTypes.SET_ACTIVE_CONVERSATION: {
+      const newActiveConversation = action.payload;
+      return {
+        ...state,
+        activeConversation: newActiveConversation,
+        // Reset unread count when conversation becomes active
+        unreadCounts: newActiveConversation ? {
+          ...state.unreadCounts,
+          [newActiveConversation]: 0
+        } : state.unreadCounts
+      };
+    }
     
     case ActionTypes.SET_MESSAGES: {
       const { conversationId, messages } = action.payload;
@@ -128,6 +156,13 @@ const chatReducer = (state, action) => {
     case ActionTypes.ADD_MESSAGE: {
       const { conversationId, message } = action.payload;
       const conversationMessages = state.messages[conversationId] || [];
+      const user = JSON.parse(localStorage.getItem('changanet_user') || '{}');
+
+      // Incrementar contador de no leídos si el mensaje no es del usuario actual
+      // y la conversación no está activa
+      const shouldIncrementUnread = message.sender_id !== user.id &&
+                                   conversationId !== state.activeConversation;
+
       return {
         ...state,
         messages: {
@@ -143,7 +178,11 @@ const chatReducer = (state, action) => {
             };
           }
           return conv;
-        })
+        }),
+        unreadCounts: shouldIncrementUnread ? {
+          ...state.unreadCounts,
+          [conversationId]: (state.unreadCounts[conversationId] || 0) + 1
+        } : state.unreadCounts
       };
     }
     
@@ -173,15 +212,59 @@ const chatReducer = (state, action) => {
     case ActionTypes.MARK_MESSAGES_AS_READ: {
       const { conversationId, messageIds } = action.payload;
       const conversationMessages = state.messages[conversationId] || [];
+      const unreadCount = state.unreadCounts[conversationId] || 0;
+      const readMessages = conversationMessages.filter(msg =>
+        messageIds.includes(msg.id) && msg.status !== 'read'
+      ).length;
+
       return {
         ...state,
         messages: {
           ...state.messages,
           [conversationId]: conversationMessages.map(msg =>
-            messageIds.includes(msg.id) 
+            messageIds.includes(msg.id)
               ? { ...msg, status: 'read', read_at: new Date().toISOString() }
               : msg
           )
+        },
+        unreadCounts: {
+          ...state.unreadCounts,
+          [conversationId]: Math.max(0, unreadCount - readMessages)
+        }
+      };
+    }
+
+    case ActionTypes.INCREMENT_UNREAD_COUNT: {
+      const { conversationId } = action.payload;
+      const currentCount = state.unreadCounts[conversationId] || 0;
+      return {
+        ...state,
+        unreadCounts: {
+          ...state.unreadCounts,
+          [conversationId]: currentCount + 1
+        }
+      };
+    }
+
+    case ActionTypes.DECREMENT_UNREAD_COUNT: {
+      const { conversationId, count = 1 } = action.payload;
+      const currentCount = state.unreadCounts[conversationId] || 0;
+      return {
+        ...state,
+        unreadCounts: {
+          ...state.unreadCounts,
+          [conversationId]: Math.max(0, currentCount - count)
+        }
+      };
+    }
+
+    case ActionTypes.RESET_UNREAD_COUNT: {
+      const { conversationId } = action.payload;
+      return {
+        ...state,
+        unreadCounts: {
+          ...state.unreadCounts,
+          [conversationId]: 0
         }
       };
     }
@@ -252,9 +335,20 @@ const chatReducer = (state, action) => {
       return { ...state, messages: newMessages };
     }
     
+    case ActionTypes.REMOVE_CONVERSATION: {
+      const conversationId = action.payload;
+      return {
+        ...state,
+        conversations: state.conversations.filter(conv => conv.id !== conversationId),
+        activeConversation: state.activeConversation === conversationId ? null : state.activeConversation,
+        messages: { ...state.messages, [conversationId]: undefined },
+        unreadCounts: { ...state.unreadCounts, [conversationId]: undefined }
+      };
+    }
+
     case ActionTypes.RESET_STATE:
       return initialState;
-    
+
     default:
       return state;
   }
@@ -485,7 +579,9 @@ export const ChatProvider = ({ children }) => {
     const user = JSON.parse(localStorage.getItem('changanet_user') || '{}');
     if (!user.id) return;
 
-    socketRef.current.emit?.('typing', { conversationId, isTyping });
+    // Enviar evento apropiado según el estado
+    const eventName = isTyping ? 'typing' : 'stopTyping';
+    socketRef.current.emit?.(eventName, { conversationId });
   }, []);
 
   // Función para crear o abrir conversación
@@ -526,6 +622,34 @@ export const ChatProvider = ({ children }) => {
   // Configuración
   const updateSettings = useCallback((newSettings) => {
     dispatch({ type: ActionTypes.UPDATE_SETTINGS, payload: newSettings });
+  }, []);
+
+  // Archivar conversación
+  const archiveConversation = useCallback(async (conversationId) => {
+    try {
+      const token = localStorage.getItem('changanet_token');
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+
+      const response = await fetch(`${API_BASE_URL}/api/chat/conversations/${conversationId}/archive`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Error archivando conversación');
+      }
+
+      // Remover conversación del estado
+      dispatch({ type: ActionTypes.REMOVE_CONVERSATION, payload: conversationId });
+
+      console.log(`✅ Conversación ${conversationId} archivada`);
+    } catch (error) {
+      console.error('Error archivando conversación:', error);
+      throw error;
+    }
   }, []);
 
   // Utilidad para reproducir sonido de mensaje
@@ -569,7 +693,7 @@ export const ChatProvider = ({ children }) => {
   const contextValue = {
     // Estado
     ...state,
-    
+
     // Acciones
     loadConversations,
     loadMessages,
@@ -578,12 +702,15 @@ export const ChatProvider = ({ children }) => {
     setTyping,
     openConversation,
     updateSettings,
-    
+    archiveConversation,
+
     // Utilidades
     getMessages: (conversationId) => state.messages[conversationId] || [],
     isUserOnline: (userId) => state.onlineUsers.has(userId),
     getTypingUsers: (conversationId) => Array.from(state.typingUsers[conversationId] || []),
-    isLoadingMessages: (conversationId) => state.messageLoading[conversationId] || false
+    isLoadingMessages: (conversationId) => state.messageLoading[conversationId] || false,
+    getUnreadCount: (conversationId) => state.unreadCounts[conversationId] || 0,
+    getTotalUnreadCount: () => Object.values(state.unreadCounts).reduce((sum, count) => sum + count, 0)
   };
 
   return (

@@ -1,0 +1,1062 @@
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+new file mode 100644
+index 0000000..6a7dfb1
+--- /dev/null
++++ b/prisma/schema.prisma
+@@ -0,0 +1,1056 @@
++generator client {
++  provider = "prisma-client-js"
++}
++
++// generator erd {
++//   provider = "prisma-erd-generator"
++//   output   = "../docs/database-diagram.png"
++// }
++
++datasource db {
++  provider = "sqlite"
++  url      = env("DATABASE_URL")
++}
++
++model cotizacion_respuestas {
++  id             String       @id
++  cotizacion_id  String
++  profesional_id String
++  precio         Float?
++  comentario     String?
++  estado         String       @default("PENDIENTE")
++  creado_en      DateTime     @default(now())
++  respondido_en  DateTime?
++  cotizaciones   cotizaciones @relation(fields: [cotizacion_id], references: [id])
++  usuarios       usuarios     @relation(fields: [profesional_id], references: [id])
++
++  @@unique([cotizacion_id, profesional_id])
++  @@index([estado])
++  @@index([profesional_id])
++  @@index([cotizacion_id])
++}
++
++model cotizaciones {
++  id                        String                  @id
++  cliente_id                String
++  descripcion               String
++  zona_cobertura            String?
++  fotos_urls                String?
++  profesionales_solicitados String?
++  creado_en                 DateTime                @default(now())
++  cotizacion_respuestas     cotizacion_respuestas[]
++  usuarios                  usuarios                @relation(fields: [cliente_id], references: [id])
++
++  @@index([creado_en])
++  @@index([cliente_id])
++}
++
++/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
++model coverage_zones {
++  id                     String                   @id @default("lower(hex(randomblob(16)))")
++  name                   String
++  state                  String
++  city                   String
++  latitude               Float?
++  longitude              Float?
++  radius_km              Float?                   @default(5.0)
++  is_active              Boolean?                 @default(true)
++  created_at             DateTime?                @default(now())
++  updated_at             DateTime?                @default(now())
++  perfiles_profesionales perfiles_profesionales[]
++
++  @@index([is_active], map: "idx_coverage_zones_active")
++  @@index([city, state], map: "idx_coverage_zones_city")
++}
++
++model cuentas_bancarias {
++  id             String    @id
++  profesional_id String
++  cvu            String
++  alias          String
++  banco          String?
++  titular        String?
++  es_principal   Boolean   @default(false)
++  verificada     Boolean   @default(false)
++  creado_en      DateTime  @default(now())
++  actualizado_en DateTime?
++  usuarios       usuarios  @relation(fields: [profesional_id], references: [id])
++  retiros        retiros[]
++
++  @@index([verificada])
++  @@index([profesional_id])
++}
++
++model disponibilidad {
++  id                                               String     @id
++  profesional_id                                   String
++  fecha                                            DateTime
++  hora_inicio                                      DateTime
++  hora_fin                                         DateTime
++  esta_disponible                                  Boolean    @default(true)
++  reservado_por                                    String?
++  reservado_en                                     DateTime?
++  servicio_id                                      String?    @unique
++  usuarios_disponibilidad_profesional_idTousuarios usuarios   @relation("disponibilidad_profesional_idTousuarios", fields: [profesional_id], references: [id])
++  usuarios_disponibilidad_reservado_porTousuarios  usuarios?  @relation("disponibilidad_reservado_porTousuarios", fields: [reservado_por], references: [id])
++  servicios                                        servicios? @relation(fields: [servicio_id], references: [id])
++
++  @@index([esta_disponible, fecha])
++  @@index([servicio_id])
++  @@index([reservado_por])
++  @@index([profesional_id, fecha])
++}
++
++model favoritos {
++  id                                          String   @id
++  cliente_id                                  String
++  profesional_id                              String
++  creado_en                                   DateTime @default(now())
++  usuarios_favoritos_cliente_idTousuarios     usuarios @relation("favoritos_cliente_idTousuarios", fields: [cliente_id], references: [id])
++  usuarios_favoritos_profesional_idTousuarios usuarios @relation("favoritos_profesional_idTousuarios", fields: [profesional_id], references: [id])
++
++  @@unique([cliente_id, profesional_id])
++  @@index([profesional_id])
++  @@index([cliente_id])
++}
++
++model logros {
++  id             String           @id
++  nombre         String
++  descripcion    String
++  icono          String
++  categoria      String
++  criterio       String
++  puntos         Int              @default(0)
++  activo         Boolean          @default(true)
++  creado_en      DateTime         @default(now())
++  logros_usuario logros_usuario[]
++
++  @@index([activo])
++  @@index([categoria])
++}
++
++model logros_usuario {
++  id          String   @id
++  usuario_id  String
++  logro_id    String
++  obtenido_en DateTime @default(now())
++  usuarios    usuarios @relation(fields: [usuario_id], references: [id])
++  logros      logros   @relation(fields: [logro_id], references: [id])
++
++  @@unique([usuario_id, logro_id])
++  @@index([logro_id])
++  @@index([usuario_id])
++}
++
++model conversations {
++  id             String   @id @default(uuid())
++  client_id      String
++  professional_id String
++  is_active      Boolean  @default(true)
++  created_at     DateTime @default(now())
++  updated_at     DateTime @updatedAt
++  last_message_at DateTime?
++  client         usuarios @relation("conversations_client_idTousuarios", fields: [client_id], references: [id])
++  professional   usuarios @relation("conversations_professional_idTousuarios", fields: [professional_id], references: [id])
++  messages       mensajes[]
++
++  @@unique([client_id, professional_id])
++  @@index([client_id])
++  @@index([professional_id])
++  @@index([is_active])
++  @@index([updated_at])
++  @@index([client_id, is_active])
++  @@index([professional_id, is_active])
++  @@map("conversations")
++}
++
++model mensajes {
++  id                                          String        @id @default(uuid())
++  conversation_id                             String
++  sender_id                                   String
++  recipient_id                                String
++  message                                     String?
++  image_url                                   String?
++  status                                      String        @default("sent")
++  read_at                                     DateTime?
++  created_at                                  DateTime      @default(now())
++  conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
++  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id], onDelete: Cascade)
++  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id], onDelete: Cascade)
++
++  @@index([created_at])
++  @@index([conversation_id])
++  @@index([sender_id, recipient_id, created_at])
++  @@index([recipient_id, created_at])
++  @@index([sender_id, created_at])
++  @@index([status])
++}
++
++model notificaciones {
++  id         String               @id @default(cuid())
++  usuario_id String
++  tipo       String
++  titulo     String
++  mensaje    String
++  data       String               @default("{}")
++  canal      String               @default("inapp")
++  estado     String               @default("unread")
++  creado_en  DateTime             @default(now())
++  leido_en   DateTime?
++  usuarios   usuarios             @relation(fields: [usuario_id], references: [id])
++  queue      notification_queue[]
++
++  @@index([usuario_id], map: "idx_notif_user")
++  @@index([estado], map: "idx_notif_status")
++  @@index([tipo], map: "idx_notif_type")
++  @@index([creado_en])
++}
++
++model pagos {
++  id                                      String           @id
++  servicio_id                             String           @unique
++  cliente_id                              String
++  profesional_id                          String
++  monto_total                             Float
++  comision_plataforma                     Float
++  monto_profesional                       Float
++  mercado_pago_id                         String?          @unique
++  mercado_pago_preference_id              String?          @unique
++  estado                                  String           @default("pendiente")
++  metodo_pago                             String?
++  fecha_pago                              DateTime?
++  fecha_liberacion                        DateTime?
++  fecha_liberacion_programada             DateTime?
++  url_comprobante                         String?
++  metadata                                String?
++  webhook_procesado                       Boolean          @default(false)
++  ultimo_webhook_procesado_en             DateTime?
++  intentos_webhook                        Int              @default(0)
++  created_at                              DateTime         @default(now())
++  updated_at                              DateTime         @updatedAt
++  disputas                                disputas_pagos[]
++  eventos_pagos                           eventos_pagos[]
++  servicios                               servicios        @relation(fields: [servicio_id], references: [id])
++  usuarios_pagos_cliente_idTousuarios     usuarios         @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
++  usuarios_pagos_profesional_idTousuarios usuarios         @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
++
++  @@index([mercado_pago_preference_id])
++  @@index([mercado_pago_id])
++  @@index([estado])
++  @@index([profesional_id])
++  @@index([cliente_id])
++  @@index([webhook_procesado])
++  @@index([fecha_liberacion_programada])
++}
++
++model perfiles_profesionales {
++  usuario_id                 String                      @id
++  especialidad               String
++  especialidades             String?
++  anos_experiencia           Int?
++  zona_cobertura             String
++  latitud                    Float?
++  longitud                   Float?
++  tipo_tarifa                String                      @default("hora")
++  tarifa_hora                Float?
++  tarifa_servicio            Float?
++  tarifa_convenio            String?
++  descripcion                String?
++  url_foto_perfil            String?
++  url_foto_portada           String?
++  esta_disponible            Boolean                     @default(true)
++  calificacion_promedio      Float?
++  estado_verificacion        String                      @default("pendiente")
++  verificado_en              DateTime?
++  url_documento_verificacion String?
++  coverage_zone_id           String?
++  matricula                  String?                     @unique
++  profile_completion_score   Int?                        @default(0)
++  profile_views_count        Int?                        @default(0)
++  last_profile_update        DateTime?                   @default(now())
++  budgetOffers               BudgetOffer[]
++  budgetRequestDistributions BudgetRequestProfessional[]
++  certifications             certifications[]
++  coverage_zones             coverage_zones?             @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
++  experiences                experiences[]
++  portfolio_photos           portfolio_photos[]
++  usuarios                   usuarios                    @relation(fields: [usuario_id], references: [id])
++  professional_specialties   professional_specialties[]
++
++  @@index([last_profile_update], map: "idx_professionals_last_update")
++  @@index([profile_completion_score], map: "idx_professionals_completion_score")
++  @@index([esta_disponible])
++  @@index([tipo_tarifa])
++  @@index([especialidad, zona_cobertura, calificacion_promedio])
++  @@index([latitud, longitud])
++  @@index([calificacion_promedio])
++  @@index([zona_cobertura])
++  @@index([especialidad])
++  @@index([matricula])
++  @@index([matricula, zona_cobertura])
++  @@index([estado_verificacion, calificacion_promedio])
++  @@index([especialidad, estado_verificacion])
++  @@index([esta_disponible, calificacion_promedio])
++  @@index([zona_cobertura, especialidad])
++}
++
++model professional_specialties {
++  professional_id        String
++  specialty_id           String
++  is_primary             Boolean?               @default(false)
++  created_at             DateTime?              @default(now())
++  perfiles_profesionales perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade, onUpdate: NoAction)
++  specialties            specialties            @relation(fields: [specialty_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
++
++  @@id([professional_id, specialty_id])
++  @@index([specialty_id], map: "idx_professional_specialties_specialty")
++  @@index([professional_id], map: "idx_professional_specialties_professional")
++}
++
++model refresh_tokens {
++  id         String   @id
++  user_id    String
++  token_hash String   @unique
++  issued_at  DateTime @default(now())
++  expires_at DateTime
++  revoked    Boolean  @default(false)
++  usuarios   usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@index([expires_at])
++  @@index([token_hash])
++  @@index([user_id])
++}
++
++model resenas {
++  id String @id @default(cuid())
++  servicio_id  String    @unique
++  cliente_id   String
++  calificacion Int
++  comentario   String?
++  url_foto     String?
++  creado_en    DateTime  @default(now())
++  servicios    servicios @relation(fields: [servicio_id], references: [id])
++  usuarios     usuarios  @relation(fields: [cliente_id], references: [id])
++
++  @@index([servicio_id])
++}
++
++model retiros {
++  id                String            @id
++  profesional_id    String
++  monto             Float
++  cuenta_id         String
++  estado            String            @default("procesando")
++  fecha_solicitud   DateTime          @default(now())
++  fecha_procesado   DateTime?
++  fecha_acreditado  DateTime?
++  referencia        String?
++  notas             String?
++  creado_en         DateTime          @default(now())
++  usuarios          usuarios          @relation(fields: [profesional_id], references: [id])
++  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
++
++  @@index([fecha_solicitud])
++  @@index([estado])
++  @@index([profesional_id])
++}
++
++model servicios {
++  id                                          String                  @id
++  cliente_id                                  String
++  profesional_id                              String
++  descripcion                                 String
++  estado                                      String                  @default("PENDIENTE")
++  fecha_agendada                              DateTime?
++  creado_en                                   DateTime                @default(now())
++  completado_en                               DateTime?
++  es_urgente                                  Boolean                 @default(false)
++  servicio_recurrente_id                      String?
++  appointments                                appointments[]
++  disponibilidad                              disponibilidad?
++  pagos                                       pagos?
++  resenas                                     resenas?
++  usuarios_servicios_cliente_idTousuarios     usuarios                @relation("servicios_cliente_idTousuarios", fields: [cliente_id], references: [id])
++  usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
++  servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
++  urgent_requests                             urgent_requests[]
++
++  @@index([profesional_id, fecha_agendada])
++  @@index([cliente_id, fecha_agendada])
++  @@index([fecha_agendada])
++  @@index([es_urgente, estado])
++  @@index([estado, creado_en])
++  @@index([profesional_id, estado])
++  @@index([cliente_id, estado])
++  @@index([es_urgente])
++  @@index([creado_en])
++  @@index([estado])
++  @@index([profesional_id])
++  @@index([cliente_id])
++}
++
++model servicios_recurrrentes {
++  id                                                       String      @id
++  cliente_id                                               String
++  profesional_id                                           String
++  descripcion                                              String
++  frecuencia                                               String
++  dia_semana                                               Int?
++  dia_mes                                                  Int?
++  hora_inicio                                              String
++  duracion_horas                                           Float
++  tarifa_base                                              Float
++  descuento_recurrencia                                    Float       @default(0)
++  fecha_inicio                                             DateTime
++  fecha_fin                                                DateTime?
++  activo                                                   Boolean     @default(true)
++  creado_en                                                DateTime    @default(now())
++  actualizado_en                                           DateTime?
++  servicios                                                servicios[]
++  usuarios_servicios_recurrrentes_cliente_idTousuarios     usuarios    @relation("servicios_recurrrentes_cliente_idTousuarios", fields: [cliente_id], references: [id])
++  usuarios_servicios_recurrrentes_profesional_idTousuarios usuarios    @relation("servicios_recurrrentes_profesional_idTousuarios", fields: [profesional_id], references: [id])
++
++  @@index([frecuencia])
++  @@index([fecha_inicio])
++  @@index([activo])
++  @@index([profesional_id])
++  @@index([cliente_id])
++}
++
++model specialties {
++  id                       String                     @id @default("lower(hex(randomblob(16)))")
++  name                     String                     @unique(map: "sqlite_autoindex_specialties_2")
++  category                 String
++  description              String?
++  is_active                Boolean?                   @default(true)
++  created_at               DateTime?                  @default(now())
++  updated_at               DateTime?                  @default(now())
++  professional_specialties professional_specialties[]
++
++  @@index([is_active], map: "idx_specialties_active")
++  @@index([category], map: "idx_specialties_category")
++}
++
++model usuarios {
++   id String @id @default(cuid())
++   email                                                                  String                       @unique
++   hash_contrasena                                                        String?
++   nombre                                                                 String
++   telefono                                                               String?
++   dni                                                                    String?                      @unique
++   rol                                                                    String                       @default("cliente")
++   esta_verificado                                                        Boolean                      @default(false)
++   bloqueado                                                              Boolean                      @default(false)
++   bloqueado_hasta                                                        DateTime?
++   failed_login_attempts                                                  Int                          @default(0)
++   token_verificacion                                                     String?                      @unique
++   token_expiracion                                                       DateTime?
++   creado_en                                                              DateTime                     @default(now())
++   actualizado_en                                                         DateTime?
++   google_id                                                              String?                      @unique
++   facebook_id                                                            String?                      @unique
++   url_foto_perfil                                                        String?
++   fcm_token                                                              String?
++   sms_enabled                                                            Boolean                      @default(false)
++   direccion                                                              String?
++   preferencias_servicio                                                  String?
++   notificaciones_push                                                    Boolean                      @default(true)
++   notificaciones_email                                                   Boolean                      @default(true)
++   notificaciones_sms                                                     Boolean                      @default(false)
++   notificaciones_servicios                                               Boolean                      @default(true)
++   notificaciones_mensajes                                                Boolean                      @default(true)
++   notificaciones_pagos                                                   Boolean                      @default(true)
++   notificaciones_marketing                                               Boolean                      @default(false)
++  budgetRequests                                                         BudgetRequest[]
++  admin_audit_logs                                                       admin_audit_log[]            @relation("AdminAuditLogs")
++  admin_profile                                                          admin_profile?
++  appointments_client_idTousuarios                                       appointments[]               @relation("appointments_client_idTousuarios")
++  appointments_professional_idTousuarios                                 appointments[]               @relation("appointments_professional_idTousuarios")
++  audit_logs                                                             audit_log[]
++  blocked_slots_created_byTousuarios                                     blocked_slots[]              @relation("blocked_slots_created_byTousuarios")
++  blocked_slots_professional_idTousuarios                                blocked_slots[]              @relation("blocked_slots_professional_idTousuarios")
++  calendar_sync_professional_idTousuarios                                calendar_sync[]              @relation("calendar_sync_professional_idTousuarios")
++  cotizacion_respuestas                                                  cotizacion_respuestas[]
++  cotizaciones                                                           cotizaciones[]
++  cuentas_bancarias                                                      cuentas_bancarias[]
++  disponibilidad_disponibilidad_profesional_idTousuarios                 disponibilidad[]             @relation("disponibilidad_profesional_idTousuarios")
++  disponibilidad_disponibilidad_reservado_porTousuarios                  disponibilidad[]             @relation("disponibilidad_reservado_porTousuarios")
++  disputas_pagos                                                         disputas_pagos[]
++  favoritos_favoritos_cliente_idTousuarios                               favoritos[]                  @relation("favoritos_cliente_idTousuarios")
++  favoritos_favoritos_profesional_idTousuarios                           favoritos[]                  @relation("favoritos_profesional_idTousuarios")
++  reviewed_verifications                                                 identity_verification[]      @relation("VerificationReviewedBy")
++  identity_verifications                                                 identity_verification[]
++  logros_usuario                                                         logros_usuario[]
++  conversations_conversations_client_idTousuarios                       conversations[]             @relation("conversations_client_idTousuarios")
++  conversations_conversations_professional_idTousuarios                 conversations[]             @relation("conversations_professional_idTousuarios")
++  mensajes_mensajes_sender_idTousuarios                                 mensajes[]                   @relation("mensajes_sender_idTousuarios")
++  mensajes_mensajes_recipient_idTousuarios                              mensajes[]                   @relation("mensajes_recipient_idTousuarios")
++  assigned_moderation_reports                                            moderation_reports[]         @relation("AssignedModerationReports")
++  created_moderation_reports                                             moderation_reports[]         @relation("CreatedModerationReports")
++  notificaciones                                                         notificaciones[]
++  notification_preferences                                               notification_preferences[]
++  pagos_pagos_cliente_idTousuarios                                       pagos[]                      @relation("pagos_cliente_idTousuarios")
++  pagos_pagos_profesional_idTousuarios                                   pagos[]                      @relation("pagos_profesional_idTousuarios")
++  perfiles_profesionales                                                 perfiles_profesionales?
++  professional_reputation                                                professional_reputation?
++  professionals_availability_professional_idTousuarios                   professionals_availability[] @relation("professionals_availability_professional_idTousuarios")
++  refresh_tokens                                                         refresh_tokens[]
++  reputation_history                                                     reputation_history[]
++  resenas                                                                resenas[]
++  retiros                                                                retiros[]
++  servicios_servicios_cliente_idTousuarios                               servicios[]                  @relation("servicios_cliente_idTousuarios")
++  servicios_servicios_profesional_idTousuarios                           servicios[]                  @relation("servicios_profesional_idTousuarios")
++  servicios_recurrrentes_servicios_recurrrentes_cliente_idTousuarios     servicios_recurrrentes[]     @relation("servicios_recurrrentes_cliente_idTousuarios")
++  servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[]     @relation("servicios_recurrrentes_profesional_idTousuarios")
++  urgent_assignments_professional                                        urgent_assignments[]         @relation("urgent_assignments_professional_idTousuarios")
++  urgent_request_candidates_professional                                 urgent_request_candidates[]  @relation("urgent_request_candidates_professional_idTousuarios")
++  urgent_requests_client                                                 urgent_requests[]            @relation("urgent_requests_client_idTousuarios")
++  verification_requests                                                  verification_requests?
++
++  @@index([sms_enabled])
++  @@index([telefono])
++  @@index([esta_verificado])
++  @@index([rol])
++  @@index([dni])
++  @@index([dni, rol])
++  @@index([dni, esta_verificado])
++}
++
++model verification_requests {
++  id               String    @id
++  usuario_id       String    @unique
++  documento_url    String
++  estado           String    @default("pendiente")
++  comentario_admin String?
++  creado_en        DateTime  @default(now())
++  revisado_en      DateTime?
++  revisado_por     String?
++  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
++}
++
++model identity_verification {
++  id                 String    @id @default(cuid())
++  user_id            String
++  document_type      String
++  document_front_url String
++  document_back_url  String?
++  status             String    @default("pending")
++  admin_review_notes String?
++  reviewed_by        String?
++  created_at         DateTime  @default(now())
++  updated_at         DateTime  @updatedAt
++  admin              usuarios? @relation("VerificationReviewedBy", fields: [reviewed_by], references: [id])
++  user               usuarios  @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@index([user_id])
++  @@index([status])
++  @@index([created_at])
++  @@map("identity_verification")
++}
++
++model professional_reputation {
++  user_id            String   @id
++  average_rating     Float    @default(0)
++  completed_jobs     Int      @default(0)
++  on_time_percentage Float    @default(0)
++  medals             String   @default("[]")
++  ranking_score      Float    @default(0)
++  updated_at         DateTime @updatedAt
++  user               usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@index([ranking_score])
++  @@index([updated_at])
++  @@map("professional_reputation")
++}
++
++model reputation_history {
++  id         String   @id @default(cuid())
++  user_id    String
++  event_type String
++  value      String   @default("{}")
++  created_at DateTime @default(now())
++  user       usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@index([user_id])
++  @@index([event_type])
++  @@index([created_at])
++  @@map("reputation_history")
++}
++
++model audit_log {
++  id          String    @id @default(cuid())
++  user_id     String?
++  action      String
++  resource    String
++  resource_id String?
++  details     String    @default("{}")
++  ip_address  String?
++  user_agent  String?
++  created_at  DateTime  @default(now())
++  user        usuarios? @relation(fields: [user_id], references: [id])
++
++  @@index([user_id])
++  @@index([action])
++  @@index([resource])
++  @@index([created_at])
++  @@index([resource, resource_id])
++  @@map("audit_log")
++}
++
++model professionals_availability {
++  id              String   @id @default(cuid())
++  professional_id String
++  recurrence_type String   @default("single")
++  start_datetime  DateTime
++  end_datetime    DateTime
++  timezone        String   @default("America/Argentina/Buenos_Aires")
++  meta            String   @default("{}")
++  created_at      DateTime @default(now())
++  updated_at      DateTime @updatedAt
++  professional    usuarios @relation("professionals_availability_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@index([start_datetime])
++  @@index([end_datetime])
++  @@index([recurrence_type])
++  @@map("professionals_availability")
++}
++
++model appointments {
++  id                  String     @id @default(cuid())
++  professional_id     String
++  client_id           String
++  service_id          String?
++  start_datetime      DateTime
++  end_datetime        DateTime
++  status              String     @default("pending")
++  created_at          DateTime   @default(now())
++  updated_at          DateTime   @updatedAt
++  source              String     @default("web")
++  notes               String?
++  cancellation_reason String?
++  confirmed_at        DateTime?
++  cancelled_at        DateTime?
++  completed_at        DateTime?
++  service             servicios? @relation(fields: [service_id], references: [id])
++  client              usuarios   @relation("appointments_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
++  professional        usuarios   @relation("appointments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@index([client_id])
++  @@index([service_id])
++  @@index([start_datetime])
++  @@index([end_datetime])
++  @@index([status])
++  @@index([created_at])
++  @@map("appointments")
++}
++
++model blocked_slots {
++  id              String    @id @default(cuid())
++  professional_id String
++  start_datetime  DateTime
++  end_datetime    DateTime
++  reason          String
++  created_by      String?
++  created_at      DateTime  @default(now())
++  updated_at      DateTime  @updatedAt
++  creator         usuarios? @relation("blocked_slots_created_byTousuarios", fields: [created_by], references: [id])
++  professional    usuarios  @relation("blocked_slots_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@index([start_datetime])
++  @@index([end_datetime])
++  @@map("blocked_slots")
++}
++
++model calendar_sync {
++  id                   String    @id @default(cuid())
++  professional_id      String
++  provider             String
++  external_calendar_id String?
++  access_token         String?
++  refresh_token        String?
++  token_expires_at     DateTime?
++  sync_enabled         Boolean   @default(true)
++  last_sync_at         DateTime?
++  sync_status          String    @default("idle")
++  sync_error           String?
++  created_at           DateTime  @default(now())
++  updated_at           DateTime  @updatedAt
++  professional         usuarios  @relation("calendar_sync_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++
++  @@unique([professional_id, provider])
++  @@index([professional_id])
++  @@index([provider])
++  @@index([sync_enabled])
++  @@map("calendar_sync")
++}
++
++model eventos_pagos {
++  id          String   @id
++  pago_id     String
++  tipo_evento String
++  datos       String
++  procesado   Boolean  @default(false)
++  creado_en   DateTime @default(now())
++  pago        pagos    @relation(fields: [pago_id], references: [id], onDelete: Cascade)
++
++  @@index([pago_id, tipo_evento])
++  @@index([procesado])
++}
++
++model disputas_pagos {
++  id               String    @id
++  pago_id          String
++  usuario_id       String
++  motivo           String
++  descripcion      String
++  estado           String    @default("abierta")
++  fecha_apertura   DateTime  @default(now())
++  fecha_resolucion DateTime?
++  resolucion       String?
++  notas_admin      String?
++  reembolso_monto  Float?
++  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
++  pago             pagos     @relation(fields: [pago_id], references: [id])
++
++  @@index([pago_id])
++  @@index([usuario_id])
++  @@index([estado])
++  @@index([fecha_apertura])
++}
++
++model BudgetRequest {
++  id              String                      @id @default(cuid())
++  clientId        String
++  title           String
++  description     String
++  photos          String                      @default("[]")
++  category        String
++  status          String                      @default("DRAFT")
++  budgetRangeMin  Float?
++  budgetRangeMax  Float?
++  preferredDate   DateTime?
++  location        String?
++  requirements    String                      @default("{}")
++  totalOffers     Int                         @default(0)
++  selectedOfferId String?
++  createdAt       DateTime                    @default(now())
++  updatedAt       DateTime                    @updatedAt
++  offers          BudgetOffer[]
++  selectedOffer   BudgetOffer?                @relation("SelectedOffer", fields: [selectedOfferId], references: [id])
++  client          usuarios                    @relation(fields: [clientId], references: [id], onDelete: Cascade)
++  distributions   BudgetRequestProfessional[]
++
++  @@index([clientId])
++  @@index([status])
++  @@index([category])
++  @@index([createdAt])
++}
++
++model BudgetRequestProfessional {
++  id             String                 @id @default(cuid())
++  requestId      String
++  professionalId String
++  sentAt         DateTime               @default(now())
++  responded      Boolean                @default(false)
++  respondedAt    DateTime?
++  expiresAt      DateTime
++  status         String                 @default("SENT")
++  notes          String?
++  createdAt      DateTime               @default(now())
++  professional   perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
++  request        BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
++
++  @@unique([requestId, professionalId])
++  @@index([requestId])
++  @@index([professionalId])
++  @@index([status])
++  @@index([expiresAt])
++  @@index([responded])
++}
++
++model BudgetOffer {
++  id                  String                 @id @default(cuid())
++  requestId           String
++  professionalId      String
++  price               Float
++  estimatedDays       Int?
++  comments            String?
++  photos              String                 @default("[]")
++  availabilityDetails String?
++  offerStatus         String                 @default("PENDING")
++  isSelected          Boolean                @default(false)
++  createdAt           DateTime               @default(now())
++  updatedAt           DateTime               @updatedAt
++  professional        perfiles_profesionales @relation(fields: [professionalId], references: [usuario_id], onDelete: Cascade)
++  request             BudgetRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
++  selectedRequest     BudgetRequest[]        @relation("SelectedOffer")
++
++  @@unique([requestId, professionalId])
++  @@index([requestId])
++  @@index([professionalId])
++  @@index([price])
++  @@index([createdAt])
++  @@index([offerStatus])
++  @@index([isSelected])
++}
++
++model commission_settings {
++  id                    String   @id @default(cuid())
++  commission_percentage Float
++  minimum_fee           Float
++  active                Boolean  @default(true)
++  updated_at            DateTime @updatedAt
++  updated_by            String?
++
++  @@index([active])
++  @@index([updated_at])
++}
++
++model urgent_requests {
++  id             String                      @id @default(cuid())
++  client_id      String
++  service_id     String?
++  description    String
++  location       String
++  radius_km      Float                       @default(5.0)
++  status         String                      @default("pending")
++  price_estimate Float?
++  created_at     DateTime                    @default(now())
++  updated_at     DateTime                    @updatedAt
++  assignments    urgent_assignments[]
++  candidates     urgent_request_candidates[]
++  service        servicios?                  @relation(fields: [service_id], references: [id])
++  client         usuarios                    @relation("urgent_requests_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
++
++  @@index([status], map: "idx_urgent_status")
++  @@index([created_at])
++  @@index([client_id])
++  @@index([status, created_at])
++  @@map("urgent_requests")
++}
++
++model urgent_request_candidates {
++  id                String          @id @default(cuid())
++  urgent_request_id String
++  professional_id   String
++  distance_km       Float
++  responded         Boolean         @default(false)
++  accepted          Boolean         @default(false)
++  created_at        DateTime        @default(now())
++  professional      usuarios        @relation("urgent_request_candidates_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
++
++  @@index([urgent_request_id])
++  @@index([professional_id])
++  @@index([distance_km], map: "idx_urgent_candidate_distance")
++  @@index([responded])
++  @@index([accepted])
++  @@map("urgent_request_candidates")
++}
++
++model urgent_assignments {
++  id                String          @id @default(cuid())
++  urgent_request_id String
++  professional_id   String
++  assigned_at       DateTime        @default(now())
++  status            String          @default("accepted")
++  updated_at        DateTime        @updatedAt
++  professional      usuarios        @relation("urgent_assignments_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
++  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
++
++  @@index([urgent_request_id])
++  @@index([professional_id])
++  @@index([status])
++  @@index([assigned_at])
++  @@map("urgent_assignments")
++}
++
++model urgent_pricing_rules {
++  id               String   @id @default(cuid())
++  service_category String
++  base_multiplier  Float    @default(1.5)
++  min_price        Float    @default(0)
++  updated_at       DateTime @updatedAt
++
++  @@index([service_category])
++  @@index([updated_at])
++  @@map("urgent_pricing_rules")
++}
++
++model notification_preferences {
++  id             String   @id @default(cuid())
++  usuario_id     String
++  tipo           String
++  inapp          Boolean  @default(true)
++  push           Boolean  @default(true)
++  email          Boolean  @default(true)
++  actualizado_en DateTime @updatedAt
++  usuarios       usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
++
++  @@unique([usuario_id, tipo])
++  @@index([usuario_id], map: "idx_preference_user")
++  @@index([tipo])
++  @@map("notification_preferences")
++}
++
++model notification_queue {
++  id                 String         @id @default(cuid())
++  notificacion_id    String
++  intentos_reintento Int            @default(0)
++  programado_en      DateTime
++  creado_en          DateTime       @default(now())
++  notificacion       notificaciones @relation(fields: [notificacion_id], references: [id], onDelete: Cascade)
++
++  @@index([notificacion_id])
++  @@index([programado_en])
++  @@index([creado_en])
++  @@map("notification_queue")
++}
++
++model admin_profile {
++  id          String    @id @default(cuid())
++  user_id     String    @unique
++  role        String    @default("support")
++  permissions String    @default("{}")
++  is_active   Boolean   @default(true)
++  last_login  DateTime?
++  created_at  DateTime  @default(now())
++  updated_at  DateTime  @updatedAt
++  user        usuarios  @relation(fields: [user_id], references: [id], onDelete: Cascade)
++
++  @@index([role])
++  @@index([is_active])
++  @@map("admin_profile")
++}
++
++model admin_audit_log {
++  id          String   @id @default(cuid())
++  admin_id    String
++  action      String
++  target_type String
++  target_id   String?
++  details     String   @default("{}")
++  ip_address  String?
++  user_agent  String?
++  created_at  DateTime @default(now())
++  admin       usuarios @relation("AdminAuditLogs", fields: [admin_id], references: [id], onDelete: Cascade)
++
++  @@index([admin_id])
++  @@index([action])
++  @@index([target_type])
++  @@index([created_at])
++  @@map("admin_audit_log")
++}
++
++model moderation_reports {
++  id               String    @id @default(cuid())
++  reporter_id      String
++  target_type      String
++  target_id        String
++  reason           String
++  description      String?
++  status           String    @default("open")
++  priority         String    @default("medium")
++  assigned_to      String?
++  assigned_at      DateTime?
++  resolved_at      DateTime?
++  resolution_notes String?
++  created_at       DateTime  @default(now())
++  updated_at       DateTime  @updatedAt
++  assigned_admin   usuarios? @relation("AssignedModerationReports", fields: [assigned_to], references: [id])
++  reporter         usuarios  @relation("CreatedModerationReports", fields: [reporter_id], references: [id], onDelete: Cascade)
++
++  @@index([status])
++  @@index([priority])
++  @@index([target_type])
++  @@index([assigned_to])
++  @@index([created_at])
++  @@map("moderation_reports")
++}
++
++model certifications {
++  id                   String                 @id @default(cuid())
++  professional_id      String
++  name                 String
++  issuing_organization String
++  issue_date           DateTime?
++  expiry_date          DateTime?
++  credential_id        String?
++  credential_url       String?
++  created_at           DateTime               @default(now())
++  updated_at           DateTime               @updatedAt
++  professional         perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@map("certifications")
++}
++
++model experiences {
++  id             String                 @id @default(cuid())
++  professional_id String
++  company_name    String
++  position        String
++  start_date      DateTime
++  end_date        DateTime?
++  description     String?
++  is_current      Boolean                @default(false)
++  created_at      DateTime               @default(now())
++  updated_at      DateTime               @updatedAt
++  professional    perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@index([start_date])
++  @@map("experiences")
++}
++
++model portfolio_photos {
++  id             String                 @id @default(cuid())
++  professional_id String
++  photo_url      String
++  title          String?
++  description    String?
++  category       String?
++  is_featured    Boolean                @default(false)
++  uploaded_at    DateTime               @default(now())
++  updated_at     DateTime               @updatedAt
++  professional   perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
++
++  @@index([professional_id])
++  @@index([is_featured])
++  @@map("portfolio_photos")
++}
++
++model settings {
++  key         String   @id
++  value       String
++  description String?
++  category    String   @default("general")
++  is_public   Boolean  @default(false)
++  updated_by  String?
++  created_at  DateTime @default(now())
++  updated_at  DateTime @updatedAt
++
++  @@index([category])
++  @@index([is_public])
++  @@map("settings")
++}
++
++model typing_indicators {
++  id             String   @id @default(cuid())
++  conversation_id String
++  user_id        String
++  is_typing      Boolean  @default(true)
++  created_at     DateTime @default(now())
++  updated_at     DateTime @updatedAt
++
++  @@unique([conversation_id, user_id])
++  @@index([conversation_id])
++  @@index([user_id])
++  @@index([is_typing])
++  @@index([updated_at])
++  @@map("typing_indicators")
++}

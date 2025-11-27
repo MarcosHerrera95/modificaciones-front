@@ -61,7 +61,6 @@ model coverage_zones {
 
   @@index([is_active], map: "idx_coverage_zones_active")
   @@index([city, state], map: "idx_coverage_zones_city")
-  @@ignore
 }
 
 model cuentas_bancarias {
@@ -151,6 +150,7 @@ model conversations {
   is_active      Boolean  @default(true)
   created_at     DateTime @default(now())
   updated_at     DateTime @updatedAt
+  last_message_at DateTime?
   client         usuarios @relation("conversations_client_idTousuarios", fields: [client_id], references: [id])
   professional   usuarios @relation("conversations_professional_idTousuarios", fields: [professional_id], references: [id])
   messages       mensajes[]
@@ -167,7 +167,7 @@ model conversations {
 
 model mensajes {
   id                                          String        @id @default(uuid())
-  conversation_id                             String?
+  conversation_id                             String
   sender_id                                   String
   recipient_id                                String
   message                                     String?
@@ -176,8 +176,8 @@ model mensajes {
   read_at                                     DateTime?
   created_at                                  DateTime      @default(now())
   conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id])
-  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id])
+  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id], onDelete: Cascade)
 
   @@index([created_at])
   @@index([conversation_id])
@@ -265,12 +265,16 @@ model perfiles_profesionales {
   verificado_en              DateTime?
   url_documento_verificacion String?
   coverage_zone_id           String?
+  matricula                  String?                     @unique
   profile_completion_score   Int?                        @default(0)
   profile_views_count        Int?                        @default(0)
   last_profile_update        DateTime?                   @default(now())
   budgetOffers               BudgetOffer[]
   budgetRequestDistributions BudgetRequestProfessional[]
+  certifications             certifications[]
   coverage_zones             coverage_zones?             @relation(fields: [coverage_zone_id], references: [id], onDelete: NoAction, onUpdate: NoAction) @ignore
+  experiences                experiences[]
+  portfolio_photos           portfolio_photos[]
   usuarios                   usuarios                    @relation(fields: [usuario_id], references: [id])
   professional_specialties   professional_specialties[]
 
@@ -283,6 +287,12 @@ model perfiles_profesionales {
   @@index([calificacion_promedio])
   @@index([zona_cobertura])
   @@index([especialidad])
+  @@index([matricula])
+  @@index([matricula, zona_cobertura])
+  @@index([estado_verificacion, calificacion_promedio])
+  @@index([especialidad, estado_verificacion])
+  @@index([esta_disponible, calificacion_promedio])
+  @@index([zona_cobertura, especialidad])
 }
 
 model professional_specialties {
@@ -313,7 +323,7 @@ model refresh_tokens {
 }
 
 model resenas {
-  id           String    @id
+  id String @id @default(cuid())
   servicio_id  String    @unique
   cliente_id   String
   calificacion Int
@@ -423,34 +433,35 @@ model specialties {
 }
 
 model usuarios {
-  id                                                                     String                       @id
-  email                                                                  String                       @unique
-  hash_contrasena                                                        String?
-  nombre                                                                 String
-  telefono                                                               String?
-  rol                                                                    String                       @default("cliente")
-  esta_verificado                                                        Boolean                      @default(false)
-  bloqueado                                                              Boolean                      @default(false)
-  bloqueado_hasta                                                        DateTime?
-  failed_login_attempts                                                  Int                          @default(0)
-  token_verificacion                                                     String?                      @unique
-  token_expiracion                                                       DateTime?
-  creado_en                                                              DateTime                     @default(now())
-  actualizado_en                                                         DateTime?
-  google_id                                                              String?                      @unique
-  facebook_id                                                            String?                      @unique
-  url_foto_perfil                                                        String?
-  fcm_token                                                              String?
-  sms_enabled                                                            Boolean                      @default(false)
-  direccion                                                              String?
-  preferencias_servicio                                                  String?
-  notificaciones_push                                                    Boolean                      @default(true)
-  notificaciones_email                                                   Boolean                      @default(true)
-  notificaciones_sms                                                     Boolean                      @default(false)
-  notificaciones_servicios                                               Boolean                      @default(true)
-  notificaciones_mensajes                                                Boolean                      @default(true)
-  notificaciones_pagos                                                   Boolean                      @default(true)
-  notificaciones_marketing                                               Boolean                      @default(false)
+   id String @id @default(cuid())
+   email                                                                  String                       @unique
+   hash_contrasena                                                        String?
+   nombre                                                                 String
+   telefono                                                               String?
+   dni                                                                    String?                      @unique
+   rol                                                                    String                       @default("cliente")
+   esta_verificado                                                        Boolean                      @default(false)
+   bloqueado                                                              Boolean                      @default(false)
+   bloqueado_hasta                                                        DateTime?
+   failed_login_attempts                                                  Int                          @default(0)
+   token_verificacion                                                     String?                      @unique
+   token_expiracion                                                       DateTime?
+   creado_en                                                              DateTime                     @default(now())
+   actualizado_en                                                         DateTime?
+   google_id                                                              String?                      @unique
+   facebook_id                                                            String?                      @unique
+   url_foto_perfil                                                        String?
+   fcm_token                                                              String?
+   sms_enabled                                                            Boolean                      @default(false)
+   direccion                                                              String?
+   preferencias_servicio                                                  String?
+   notificaciones_push                                                    Boolean                      @default(true)
+   notificaciones_email                                                   Boolean                      @default(true)
+   notificaciones_sms                                                     Boolean                      @default(false)
+   notificaciones_servicios                                               Boolean                      @default(true)
+   notificaciones_mensajes                                                Boolean                      @default(true)
+   notificaciones_pagos                                                   Boolean                      @default(true)
+   notificaciones_marketing                                               Boolean                      @default(false)
   budgetRequests                                                         BudgetRequest[]
   admin_audit_logs                                                       admin_audit_log[]            @relation("AdminAuditLogs")
   admin_profile                                                          admin_profile?
@@ -501,6 +512,9 @@ model usuarios {
   @@index([telefono])
   @@index([esta_verificado])
   @@index([rol])
+  @@index([dni])
+  @@index([dni, rol])
+  @@index([dni, esta_verificado])
 }
 
 model verification_requests {
@@ -958,6 +972,58 @@ model moderation_reports {
   @@map("moderation_reports")
 }
 
+model certifications {
+  id                   String                 @id @default(cuid())
+  professional_id      String
+  name                 String
+  issuing_organization String
+  issue_date           DateTime?
+  expiry_date          DateTime?
+  credential_id        String?
+  credential_url       String?
+  created_at           DateTime               @default(now())
+  updated_at           DateTime               @updatedAt
+  professional         perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@map("certifications")
+}
+
+model experiences {
+  id             String                 @id @default(cuid())
+  professional_id String
+  company_name    String
+  position        String
+  start_date      DateTime
+  end_date        DateTime?
+  description     String?
+  is_current      Boolean                @default(false)
+  created_at      DateTime               @default(now())
+  updated_at      DateTime               @updatedAt
+  professional    perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@index([start_date])
+  @@map("experiences")
+}
+
+model portfolio_photos {
+  id             String                 @id @default(cuid())
+  professional_id String
+  photo_url      String
+  title          String?
+  description    String?
+  category       String?
+  is_featured    Boolean                @default(false)
+  uploaded_at    DateTime               @default(now())
+  updated_at     DateTime               @updatedAt
+  professional   perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
+
+  @@index([professional_id])
+  @@index([is_featured])
+  @@map("portfolio_photos")
+}
+
 model settings {
   key         String   @id
   value       String
@@ -971,4 +1037,20 @@ model settings {
   @@index([category])
   @@index([is_public])
   @@map("settings")
+}
+
+model typing_indicators {
+  id             String   @id @default(cuid())
+  conversation_id String
+  user_id        String
+  is_typing      Boolean  @default(true)
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  @@unique([conversation_id, user_id])
+  @@index([conversation_id])
+  @@index([user_id])
+  @@index([is_typing])
+  @@index([updated_at])
+  @@map("typing_indicators")
 }

@@ -160,6 +160,7 @@ const ChatWindow = ({ conversationId, otherUser }) => {
   }, [messages]);
 
   const loadMessageHistory = async () => {
+    console.log(`📜 ChatWindow loadMessageHistory called for conversationId: ${conversationId}`);
     try {
       setLoading(true);
       const token = localStorage.getItem('changanet_token');

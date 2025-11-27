@@ -1,0 +1,48 @@
+diff --git a/changanet/changanet-frontend/src/context/AuthProvider.jsx b/changanet/changanet-frontend/src/context/AuthProvider.jsx
+index abc123..def456 100644
+--- a/changanet/changanet-frontend/src/context/AuthProvider.jsx
++++ b/changanet/changanet-frontend/src/context/AuthProvider.jsx
+@@ -45,7 +45,7 @@ const AuthProvider = ({ children }) => {
+     try {
+       const token = localStorage.getItem('changanet_token');
+       if (!token) {
+-        const response = await fetch(`${apiBaseUrl}/api/profile`, {
++        const response = await fetch(`${apiBaseUrl}/api/auth/me`, {
+           headers: { 'Authorization': `Bearer ${token}` }
+         });
+         // ... rest of validation logic
+
+diff --git a/changanet/changanet-frontend/src/components/GoogleLoginButton.jsx b/changanet/changanet-frontend/src/components/GoogleLoginButton.jsx
+index abc123..def456 100644
+--- a/changanet/changanet-frontend/src/components/GoogleLoginButton.jsx
++++ b/changanet/changanet-frontend/src/components/GoogleLoginButton.jsx
+@@ -50,7 +50,7 @@ const GoogleLoginButton = ({ onLoginSuccess, onLoginError }) => {
+     body: JSON.stringify({
+       uid: user.uid,
+       email: user.email,
+-      foto: user.photoURL,
++      photoURL: user.photoURL,
+       nombre: user.displayName || 'Usuario Google',
+       rol: 'cliente'
+     });
+
+diff --git a/changanet/changanet-backend/src/controllers/authController.js b/changanet/changanet-backend/src/controllers/authController.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/controllers/authController.js
++++ b/changanet/changanet-backend/src/controllers/authController.js
+@@ -659,9 +659,9 @@ const resetPassword = async (req, res) => {
+     const passwordValidation = validatePasswordStrength(newPassword);
+     if (!passwordValidation.isValid) {
+       logger.warn('Password reset failed: weak password', {
+-        userId: user.id,
+-        email: user.email,
+         passwordScore: passwordValidation.score,
+         warnings: passwordValidation.warnings,
+         ip: req.ip
+@@ -237,7 +237,6 @@ const googleLogin = async (req, res) => {
+   try {
+     const { sendVerificationEmail } = require('../services/emailService');
+     // Los usuarios de Google no necesitan verificación por email
+-    // Dependencia innecesaria eliminada
+
+     const { uid, email, nombre, photoURL, rol } = req.body;

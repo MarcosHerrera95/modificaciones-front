@@ -13,27 +13,11 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/authenticate');
 const multer = require('multer');
+const { profilePhotoUpload, galleryPhotoUpload } = require('../middleware/multerConfig');
 const ProfessionalProfileValidation = require('../middleware/professionalProfileValidation');
 const ProfessionalProfileController = require('../controllers/professionalProfileController');
 
 const router = express.Router();
-
-// Configuración de multer para subida de imágenes
-const storage = multer.memoryStorage();
-const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB límite
-  },
-  fileFilter: (req, file, cb) => {
-    // Solo permitir imágenes
-    if (file.mimetype && file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Solo se permiten archivos de imagen'), false);
-    }
-  }
-});
 
 // Middleware de autenticación para todas las rutas
 router.use(authenticateToken);
@@ -41,6 +25,10 @@ router.use(authenticateToken);
 // ============================================================================
 // RUTAS DE PERFILES PROFESIONALES
 // ============================================================================
+
+// Rutas con subida de archivos
+router.put('/me/photos', profilePhotoUpload.fields([{ name: 'foto_perfil' }, { name: 'foto_portada' }]), ProfessionalProfileController.updateProfilePhotos);
+router.post('/me/gallery', galleryPhotoUpload.array('fotos', 20), ProfessionalProfileController.uploadGalleryPhotos);
 
 /**
  * GET /api/professionals/me
@@ -60,7 +48,7 @@ router.get('/me',
  */
 router.put('/me',
   ProfessionalProfileValidation.validateUserRole('profesional'),
-  upload.fields([
+  profilePhotoUpload.fields([
     { name: 'foto_perfil', maxCount: 1 },
     { name: 'foto_portada', maxCount: 1 }
   ]),
@@ -99,7 +87,7 @@ router.post('/me/specialties',
  * Obtiene todas las especialidades disponibles
  * Puede agruparse por categoría
  */
-router.get('/../specialties',
+router.get('/specialties',
   ProfessionalProfileController.getSpecialties
 );
 
@@ -108,7 +96,7 @@ router.get('/../specialties',
  * Busca especialidades por término de búsqueda
  * Incluye autocompletado
  */
-router.get('/../specialties/search',
+router.get('/specialties/search',
   ProfessionalProfileValidation.validateSpecialtySearch,
   ProfessionalProfileController.searchSpecialties
 );
@@ -142,7 +130,7 @@ router.put('/me/coverage-zone',
  * Obtiene todas las zonas de cobertura disponibles
  * Puede agruparse por provincia/estado
  */
-router.get('/../zones',
+router.get('/zones',
   ProfessionalProfileController.getCoverageZones
 );
 
@@ -175,7 +163,7 @@ router.put('/me/rates',
  * GET /api/rate-types
  * Obtiene los tipos de tarifa disponibles
  */
-router.get('/../rate-types',
+router.get('/rate-types',
   ProfessionalProfileController.getRateTypes
 );
 
@@ -183,7 +171,7 @@ router.get('/../rate-types',
  * GET /api/rate-ranges
  * Obtiene los rangos de tarifas recomendados por categoría
  */
-router.get('/../rate-ranges',
+router.get('/rate-ranges',
   ProfessionalProfileController.getRateRanges
 );
 
@@ -229,12 +217,12 @@ router.get('/me/completion',
       // Calcular score de completitud basado en campos llenados
       const completionFields = [
         'especialidad',
-        'anos_experiencia', 
+        'anos_experiencia',
         'zona_cobertura',
         'tipo_tarifa',
         'tarifa_hora',
         'descripcion',
-        'url_foto_perfil'
+        'foto_perfil'
       ];
       
       const filledFields = completionFields.filter(field => 
@@ -336,7 +324,7 @@ router.post('/me/validate',
  */
 router.get('/me/validate-photo',
   ProfessionalProfileValidation.validateUserRole('profesional'),
-  upload.single('foto'),
+  profilePhotoUpload.single('foto'),
   (req, res) => {
     if (!req.file) {
       return res.status(400).json({
@@ -360,6 +348,36 @@ router.get('/me/validate-photo',
       message: 'Archivo válido para subida'
     });
   }
+);
+
+/**
+ * POST /api/professionals
+ * Crea un nuevo perfil profesional
+ */
+router.post('/',
+  ProfessionalProfileValidation.validateUserRole('profesional'),
+  ProfessionalProfileValidation.validateProfileUpdate,
+  ProfessionalProfileController.createProfile
+);
+
+/**
+ * PATCH /api/professionals/:id/verify
+ * Verifica un perfil profesional
+ */
+router.patch('/:id/verify',
+  ProfessionalProfileValidation.validateUserRole('admin'), // Assuming admin can verify
+  ProfessionalProfileValidation.validateProfessionalId,
+  ProfessionalProfileController.verifyProfile
+);
+
+/**
+ * DELETE /api/professionals/:id
+ * Elimina un perfil profesional
+ */
+router.delete('/:id',
+  ProfessionalProfileValidation.validateUserRole('admin'), // Assuming admin can delete
+  ProfessionalProfileValidation.validateProfessionalId,
+  ProfessionalProfileController.deleteProfile
 );
 
 // ============================================================================

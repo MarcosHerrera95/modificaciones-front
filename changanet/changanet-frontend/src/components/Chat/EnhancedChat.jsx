@@ -20,6 +20,7 @@ import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import TypingIndicator from './TypingIndicator';
 import LoadingSpinner from '../LoadingSpinner';
+import DOMPurify from 'isomorphic-dompurify';
 
 const EnhancedChat = ({ 
   conversationId, 
@@ -39,7 +40,8 @@ const EnhancedChat = ({
     markAsRead,
     setTyping,
     getTypingUsers,
-    settings
+    settings,
+    archiveConversation
   } = useChat();
 
   const [newMessage, setNewMessage] = useState('');
@@ -51,8 +53,10 @@ const EnhancedChat = ({
   const [typingUsers, setTypingUsers] = useState([]);
 
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Cargar mensajes al montar el componente
   useEffect(() => {
@@ -64,8 +68,8 @@ const EnhancedChat = ({
   // Marcar mensajes como leídos cuando se receive
   useEffect(() => {
     const conversationMessages = messages[conversationId] || [];
-    const unreadMessages = conversationMessages.filter(msg => 
-      msg.destinatario_id === user.id && !msg.esta_leido
+    const unreadMessages = conversationMessages.filter(msg =>
+      msg.recipient_id === user.id && msg.status !== 'read'
     );
 
     if (unreadMessages.length > 0 && settings.autoMarkAsRead) {
@@ -99,6 +103,27 @@ const EnhancedChat = ({
     }
   }, [messages, conversationId, scrollToBottom]);
 
+  // Infinite scroll handler
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const isNearTop = scrollTop <= 100; // Trigger when within 100px of top
+
+    if (isNearTop && hasMore && !isLoadingMessages && !isLoadingMore) {
+      loadMoreMessages();
+    }
+  }, [hasMore, isLoadingMessages, isLoadingMore, loadMoreMessages]);
+
+  // Add scroll listener
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [handleScroll]);
+
   // Enviar mensaje
   const handleSendMessage = useCallback(async () => {
     if (!newMessage.trim() && !imageFile) return;
@@ -106,25 +131,30 @@ const EnhancedChat = ({
 
     try {
       setIsSending(true);
-      
+
       let fileUrl = null;
       let messageType = 'text';
 
       // Subir imagen si existe
       if (imageFile) {
         messageType = 'image';
-        // TODO: Implementar subida de imagen usando storageService
-        // fileUrl = await uploadImage(imageFile);
+        fileUrl = await uploadImageToServer(imageFile);
       }
 
+      // Sanitizar mensaje antes de enviar
+      const sanitizedMessage = DOMPurify.sanitize(newMessage.trim(), {
+        ALLOWED_TAGS: [], // No permitir HTML
+        ALLOWED_ATTR: []  // No permitir atributos
+      });
+
       // Enviar mensaje
-      await sendMessage(conversationId, newMessage.trim(), messageType, fileUrl);
+      await sendMessage(conversationId, sanitizedMessage, messageType, fileUrl);
 
       // Limpiar formulario
       setNewMessage('');
       setImageFile(null);
       setShowImagePreview(false);
-      
+
     } catch (error) {
       console.error('Error enviando mensaje:', error);
       alert('Error al enviar mensaje. Por favor, inténtalo de nuevo.');
@@ -140,14 +170,20 @@ const EnhancedChat = ({
 
   // Manejar cambio en input de mensaje
   const handleMessageChange = useCallback((value) => {
-    setNewMessage(value);
-    
+    // Sanitizar mensaje en tiempo real
+    const sanitizedValue = DOMPurify.sanitize(value, {
+      ALLOWED_TAGS: [], // No permitir HTML
+      ALLOWED_ATTR: []  // No permitir atributos
+    });
+
+    setNewMessage(sanitizedValue);
+
     // Enviar indicador de typing
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    if (value.trim()) {
+    if (sanitizedValue.trim()) {
       setTyping(conversationId, true);
       typingTimeoutRef.current = setTimeout(() => {
         setTyping(conversationId, false);
@@ -157,14 +193,15 @@ const EnhancedChat = ({
     }
   }, [conversationId, setTyping]);
 
-  // Cargar más mensajes (paginación)
+  // Cargar más mensajes (paginación infinita)
   const loadMoreMessages = useCallback(async () => {
-    if (!hasMore || isLoadingMessages) return;
-    
+    if (!hasMore || isLoadingMessages || isLoadingMore) return;
+
     try {
+      setIsLoadingMore(true);
       const nextPage = page + 1;
       const newMessages = await loadMessages(conversationId, nextPage, 50);
-      
+
       if (newMessages.length === 0) {
         setHasMore(false);
       } else {
@@ -172,8 +209,10 @@ const EnhancedChat = ({
       }
     } catch (error) {
       console.error('Error cargando más mensajes:', error);
+    } finally {
+      setIsLoadingMore(false);
     }
-  }, [page, hasMore, isLoadingMessages, conversationId, loadMessages]);
+  }, [page, hasMore, isLoadingMessages, isLoadingMore, conversationId, loadMessages]);
 
   // Manejar selección de imagen
   const handleImageSelect = useCallback((event) => {
@@ -193,6 +232,54 @@ const EnhancedChat = ({
 
       setImageFile(file);
       setShowImagePreview(true);
+    }
+  }, []);
+
+  // Función para subir imagen al servidor
+  const uploadImageToServer = useCallback(async (file) => {
+    try {
+      const token = localStorage.getItem('changanet_token');
+      const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3002';
+
+      // Primero obtener URL de subida
+      const uploadUrlResponse = await fetch(`${API_BASE_URL}/api/chat/upload-image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type
+        })
+      });
+
+      if (!uploadUrlResponse.ok) {
+        throw new Error('Error obteniendo URL de subida');
+      }
+
+      const uploadData = await uploadUrlResponse.json();
+
+      // Subir archivo directamente a storage
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const uploadResponse = await fetch(uploadData.upload_url, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type
+        }
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error('Error subiendo archivo');
+      }
+
+      return uploadData.file_url;
+    } catch (error) {
+      console.error('Error subiendo imagen:', error);
+      throw new Error('Error al subir la imagen. Inténtalo de nuevo.');
     }
   }, []);
 
@@ -241,7 +328,27 @@ const EnhancedChat = ({
             <span className="text-xs text-gray-500">
               {isConnected ? 'Conectado' : 'Desconectado'}
             </span>
-            
+
+            {/* Botón archivar */}
+            <button
+              onClick={async () => {
+                if (window.confirm('¿Estás seguro de que quieres archivar esta conversación? Ya no aparecerá en tu lista de conversaciones.')) {
+                  try {
+                    await archiveConversation(conversationId);
+                    if (onClose) onClose();
+                  } catch (error) {
+                    alert('Error al archivar la conversación. Inténtalo de nuevo.');
+                  }
+                }
+              }}
+              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Archivar conversación"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+              </svg>
+            </button>
+
             {/* Botón cerrar */}
             {onClose && (
               <button
@@ -258,25 +365,22 @@ const EnhancedChat = ({
       )}
 
       {/* Área de mensajes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {/* Botón cargar más mensajes */}
-        {hasMore && (
-          <div className="flex justify-center">
-            <button
-              onClick={loadMoreMessages}
-              disabled={isLoadingMessages}
-              className="px-4 py-2 text-sm text-blue-600 hover:text-blue-800 disabled:text-gray-400 transition-colors"
-            >
-              {isLoadingMessages ? 'Cargando...' : 'Cargar mensajes anteriores'}
-            </button>
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-3"
+      >
+        {/* Indicador de carga para scroll infinito */}
+        {isLoadingMore && (
+          <div className="flex justify-center py-2">
+            <LoadingSpinner message="Cargando mensajes..." />
           </div>
         )}
 
         {/* Mensajes */}
         {conversationMessages.map((message, index) => {
-          const isOwn = message.remitente_id === user.id;
-          const showAvatar = index === 0 || 
-            conversationMessages[index - 1].remitente_id !== message.remitente_id;
+          const isOwn = message.sender_id === user.id;
+          const showAvatar = index === 0 ||
+            conversationMessages[index - 1].sender_id !== message.sender_id;
 
           return (
             <MessageBubble

@@ -45,10 +45,10 @@ const RATE_LIMITS = {
   chat: {
     windowMs: 60 * 60 * 1000, // 1 hora
     max: {
-      anonymous: process.env.NODE_ENV === 'production' ? 30 : 1000,    // 30 en prod, 1000 en dev
-      cliente: process.env.NODE_ENV === 'production' ? 30 : 1000,
-      profesional: process.env.NODE_ENV === 'production' ? 30 : 1000,
-      admin: process.env.NODE_ENV === 'production' ? 30 : 1000
+      anonymous: process.env.NODE_ENV === 'production' ? 30 : 5000,    // 30 en prod, 5000 en dev
+      cliente: process.env.NODE_ENV === 'production' ? 30 : 5000,
+      profesional: process.env.NODE_ENV === 'production' ? 30 : 5000,
+      admin: process.env.NODE_ENV === 'production' ? 30 : 5000
     },
     message: {
       success: false,

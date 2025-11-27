@@ -6,7 +6,7 @@
  * @impacto Social: Chat funcional entre profesional y cliente
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ChatWindow from '../components/ChatWindow';
@@ -30,8 +30,23 @@ const Chat = () => {
   const [error, setError] = useState('');
   const [isLoadingConversation, setIsLoadingConversation] = useState(false); // Control de solicitudes múltiples
   const [rateLimitHit, setRateLimitHit] = useState(false); // Control de rate limiting
+  const [authError, setAuthError] = useState(false); // Control de errores de autenticación
+  const [requestInProgress, setRequestInProgress] = useState(false); // Control de solicitudes en progreso
+
+  // Diagnostic counters
+  const useEffectCounter = useRef(0);
+  const loadConversationCounter = useRef(0);
 
   useEffect(() => {
+    useEffectCounter.current += 1;
+    console.log(`🔄 Chat useEffect triggered #${useEffectCounter.current}:`, {
+      user: !!user,
+      conversationId,
+      isLoadingConversation,
+      rateLimitHit,
+      timestamp: new Date().toISOString()
+    });
+
     // Verificar permisos
     if (!user) {
       navigate('/');
@@ -45,24 +60,32 @@ const Chat = () => {
       return;
     }
 
-    // Si ya hay una solicitud en curso o se alcanzó el rate limit, no proceder
-    if (isLoadingConversation || rateLimitHit) {
-      console.log(`⚠️ ${isLoadingConversation ? 'Solicitud en curso' : 'Rate limit alcanzado'}, omitiendo...`);
+    // Si ya hay una solicitud en curso, se alcanzó el rate limit, hay error de autenticación, o hay solicitud en progreso, no proceder
+    if (isLoadingConversation || rateLimitHit || authError || requestInProgress) {
+      console.log(`⚠️ ${isLoadingConversation ? 'Solicitud en curso' : rateLimitHit ? 'Rate limit alcanzado' : authError ? 'Error de autenticación' : 'Solicitud en progreso'}, omitiendo...`);
       return;
     }
 
     // Solo cargar si tenemos conversationId válido
     if (conversationId && conversationId !== 'undefined' && conversationId !== 'null') {
-      // Cargar conversación y datos del otro usuario con debounce
+      console.log('📡 Iniciando carga de conversación con debounce...');
+      // Cargar conversación y datos del otro usuario con debounce aumentado
       const loadWithDebounce = setTimeout(() => {
+        console.log('🚀 Ejecutando loadConversationAndUserData después de debounce');
         loadConversationAndUserData();
-      }, 100); // Debounce de 100ms para evitar llamadas múltiples
+      }, 500); // Debounce aumentado a 500ms para evitar llamadas múltiples
 
-      return () => clearTimeout(loadWithDebounce);
+      return () => {
+        console.log('🧹 Limpiando timeout de debounce');
+        clearTimeout(loadWithDebounce);
+      };
     }
-  }, [user, conversationId, navigate, isLoadingConversation, rateLimitHit]);
+  }, [user, conversationId, navigate]); // Removido isLoadingConversation y rateLimitHit de dependencias para evitar loops infinitos
 
   const loadConversationAndUserData = async (currentConversationId = conversationId) => {
+    loadConversationCounter.current += 1;
+    console.log(`📡 loadConversationAndUserData called #${loadConversationCounter.current} with conversationId: ${currentConversationId}`);
+
     // Control de solicitudes múltiples
     if (isLoadingConversation) {
       console.log('⚠️ Ya hay una solicitud en curso, omitiendo...');
@@ -104,8 +127,23 @@ const Chat = () => {
         });
 
         if (!createResponse.ok) {
-          throw new Error(`Error al crear conversación: ${createResponse.status}`);
-        }
+           if (createResponse.status === 403) {
+             // Error de autenticación - marcar como error de auth y no reintentar
+             console.error('🚫 Error de autenticación al crear conversación');
+             setAuthError(true);
+             throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+           } else if (createResponse.status === 429) {
+             // Rate limit alcanzado
+             console.warn('🚫 Rate limit alcanzado al crear conversación');
+             setRateLimitHit(true);
+             // Esperar 5 segundos antes de permitir otra solicitud
+             setTimeout(() => {
+               setRateLimitHit(false);
+             }, 5000);
+             throw new Error('Demasiadas solicitudes. Intenta nuevamente en unos segundos.');
+           }
+           throw new Error(`Error al crear conversación: ${createResponse.status}`);
+         }
 
         const createData = await createResponse.json();
         finalConversationId = createData.conversation?.id;
@@ -122,16 +160,21 @@ const Chat = () => {
       });
 
       if (!conversationResponse.ok) {
-        if (conversationResponse.status === 429) {
-          // Rate limit alcanzado
-          console.warn('🚫 Rate limit alcanzado, esperando antes de reintentar...');
-          setRateLimitHit(true);
-          // Esperar 5 segundos antes de permitir otra solicitud
-          setTimeout(() => {
-            setRateLimitHit(false);
-          }, 5000);
-          throw new Error('Demasiadas solicitudes. Intenta nuevamente en unos segundos.');
-        } else if (conversationResponse.status === 404) {
+         if (conversationResponse.status === 403) {
+           // Error de autenticación - marcar como error de auth y no reintentar
+           console.error('🚫 Error de autenticación al cargar conversación');
+           setAuthError(true);
+           throw new Error('Sesión expirada. Por favor, inicia sesión nuevamente.');
+         } else if (conversationResponse.status === 429) {
+           // Rate limit alcanzado
+           console.warn('🚫 Rate limit alcanzado, esperando antes de reintentar...');
+           setRateLimitHit(true);
+           // Esperar 5 segundos antes de permitir otra solicitud
+           setTimeout(() => {
+             setRateLimitHit(false);
+           }, 5000);
+           throw new Error('Demasiadas solicitudes. Intenta nuevamente en unos segundos.');
+         } else if (conversationResponse.status === 404) {
           // Si es un solo UUID, no intentar resolver, crear conversación
           if (currentConversationId && !currentConversationId.includes('-')) {
             console.log('ConversationId es un solo UUID, no hay resolución necesaria');
@@ -151,8 +194,8 @@ const Chat = () => {
       setConversation(conversationData);
 
       // Determinar cuál es el otro usuario (no el actual)
-      const otherUserId = conversationData.usuario1_id === user.id ?
-        conversationData.usuario2_id : conversationData.usuario1_id;
+      const otherUserId = conversationData.client_id === user.id ?
+        conversationData.professional_id : conversationData.client_id;
 
       if (!otherUserId) {
         throw new Error('No se pudo determinar el otro usuario en la conversación');

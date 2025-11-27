@@ -13,6 +13,7 @@
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('./storageService');
 const { getCachedProfessionalProfile, cacheProfessionalProfile, invalidateProfessionalProfile } = require('./cacheService');
+const unifiedWebSocketService = require('./unifiedWebSocketService');
 
 const prisma = new PrismaClient();
 
@@ -74,6 +75,16 @@ class ProfessionalProfileService {
       // Incrementar contador de visualizaciones si es perfil público
       if (!includePrivate) {
         await this.incrementProfileViews(professionalId);
+
+        // Emitir evento WebSocket para visualización de perfil
+        try {
+          unifiedWebSocketService.emitToUser(professionalId, 'profile_viewed', {
+            viewerId: null, // No sabemos quién lo vio
+            timestamp: new Date().toISOString()
+          });
+        } catch (wsError) {
+          console.warn('Error emitting WebSocket event for profile view:', wsError);
+        }
       }
 
       // Formatear respuesta
@@ -277,7 +288,24 @@ class ProfessionalProfileService {
 
       // Calcular y retornar perfil actualizado
       const finalProfile = await this.getProfessionalProfile(professionalId, true);
-      
+
+      // Emitir evento WebSocket para actualización de perfil
+      try {
+        unifiedWebSocketService.emitToUser(professionalId, 'profile_updated', {
+          profile: finalProfile,
+          timestamp: new Date().toISOString()
+        });
+
+        // Emitir evento global para notificaciones de actualización
+        unifiedWebSocketService.emitGlobal('professional_profile_updated', {
+          professionalId,
+          profile: finalProfile,
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.warn('Error emitting WebSocket event for profile update:', wsError);
+      }
+
       console.log('✅ Professional profile updated successfully');
       return {
         success: true,
@@ -341,6 +369,115 @@ class ProfessionalProfileService {
       });
     } catch (error) {
       console.error('Error incrementing profile views:', error);
+    }
+  }
+
+  /**
+   * Crea un nuevo perfil profesional
+   */
+  async createProfessionalProfile(professionalId, profileData) {
+    try {
+      const profile = await prisma.perfiles_profesionales.create({
+        data: {
+          usuario_id: professionalId,
+          ...profileData,
+          estado_verificacion: 'no_solicitado',
+          esta_disponible: true,
+          profile_completion_score: 0,
+          profile_views_count: 0,
+          last_profile_update: new Date()
+        }
+      });
+
+      // Emitir evento WebSocket para creación de perfil
+      try {
+        unifiedWebSocketService.emitToUser(professionalId, 'profile_created', {
+          profile,
+          timestamp: new Date().toISOString()
+        });
+
+        unifiedWebSocketService.emitGlobal('professional_profile_created', {
+          professionalId,
+          profile,
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.warn('Error emitting WebSocket event for profile creation:', wsError);
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Error creating professional profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verifica un perfil profesional
+   */
+  async verifyProfessionalProfile(professionalId, adminId) {
+    try {
+      const profile = await prisma.perfiles_profesionales.update({
+        where: { usuario_id: professionalId },
+        data: {
+          estado_verificacion: 'aprobado',
+          verificado_en: new Date()
+        }
+      });
+
+      // Emitir evento WebSocket para verificación de perfil
+      try {
+        unifiedWebSocketService.emitToUser(professionalId, 'profile_verified', {
+          verified: true,
+          verifiedAt: new Date().toISOString(),
+          verifiedBy: adminId
+        });
+
+        unifiedWebSocketService.emitGlobal('professional_profile_verified', {
+          professionalId,
+          verifiedBy: adminId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.warn('Error emitting WebSocket event for profile verification:', wsError);
+      }
+
+      return profile;
+    } catch (error) {
+      console.error('Error verifying professional profile:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Elimina un perfil profesional
+   */
+  async deleteProfessionalProfile(professionalId) {
+    try {
+      // Eliminar especialidades relacionadas primero
+      await prisma.professional_specialties.deleteMany({
+        where: { professional_id: professionalId }
+      });
+
+      // Eliminar el perfil
+      const deletedProfile = await prisma.perfiles_profesionales.delete({
+        where: { usuario_id: professionalId }
+      });
+
+      // Emitir evento WebSocket para eliminación de perfil
+      try {
+        unifiedWebSocketService.emitGlobal('professional_profile_deleted', {
+          professionalId,
+          timestamp: new Date().toISOString()
+        });
+      } catch (wsError) {
+        console.warn('Error emitting WebSocket event for profile deletion:', wsError);
+      }
+
+      return deletedProfile;
+    } catch (error) {
+      console.error('Error deleting professional profile:', error);
+      throw error;
     }
   }
 

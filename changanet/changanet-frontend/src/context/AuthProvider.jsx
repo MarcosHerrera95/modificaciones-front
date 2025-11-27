@@ -28,6 +28,9 @@ export class AuthProvider extends React.Component {
 
         // Validar que el usuario existe en el backend
         this.validateUserToken(userData, token);
+
+        // Configurar renovación automática de tokens
+        this.setupTokenAutoRenewal();
       } catch (error) {
         console.error('Error parsing user data from localStorage:', error);
         // Limpiar datos corruptos
@@ -245,6 +248,86 @@ export class AuthProvider extends React.Component {
     }
   };
 
+  // Configurar renovación automática de tokens
+  setupTokenAutoRenewal = () => {
+    // Verificar token cada 5 minutos
+    this.tokenCheckInterval = setInterval(async () => {
+      const token = localStorage.getItem('changanet_token');
+      if (token && this.isTokenExpiringSoon(token)) {
+        console.log('🔄 Token expiring soon, attempting automatic renewal...');
+        await this.refreshToken();
+      }
+    }, 5 * 60 * 1000); // 5 minutos
+
+    // Configurar interceptor para renovar tokens automáticamente en requests fallidos
+    this.setupRequestInterceptor();
+  };
+
+  // Verificar si el token está próximo a expirar (menos de 10 minutos)
+  isTokenExpiringSoon = (token) => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000; // Convertir a milisegundos
+      const currentTime = Date.now();
+      const timeUntilExpiry = expirationTime - currentTime;
+
+      // Considerar expirando si quedan menos de 10 minutos
+      return timeUntilExpiry < (10 * 60 * 1000);
+    } catch (error) {
+      console.warn('Error parsing token for expiry check:', error);
+      return true; // Si no podemos parsear, asumir que está expirando
+    }
+  };
+
+  // Configurar interceptor para requests HTTP
+  setupRequestInterceptor = () => {
+    // Guardar referencia original de fetch solo una vez
+    if (!window.originalFetch) {
+      window.originalFetch = window.fetch;
+    }
+
+    window.fetch = async (...args) => {
+      const [url, options = {}] = args;
+
+      // Solo interceptar requests a nuestro backend
+      const apiBaseUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3004';
+      if (!url.startsWith(apiBaseUrl)) {
+        return window.originalFetch(...args);
+      }
+
+      // Agregar token de autorización si existe
+      const token = localStorage.getItem('changanet_token');
+      if (token && !options.headers?.Authorization) {
+        options.headers = {
+          ...options.headers,
+          'Authorization': `Bearer ${token}`
+        };
+      }
+
+      let response = await window.originalFetch(url, options);
+
+      // Si obtenemos 401, intentar renovar token automáticamente
+      if (response.status === 401) {
+        console.log('🚨 401 received, attempting token refresh...');
+
+        const refreshResult = await this.refreshToken();
+        if (refreshResult.success) {
+          // Reintentar la request con el nuevo token
+          const newToken = localStorage.getItem('changanet_token');
+          options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${newToken}`
+          };
+
+          console.log('🔄 Retrying request with refreshed token...');
+          response = await window.originalFetch(url, options);
+        }
+      }
+
+      return response;
+    };
+  };
+
   // Método para refrescar tokens automáticamente con mejor manejo de errores
   refreshToken = async () => {
     try {
@@ -272,32 +355,44 @@ export class AuthProvider extends React.Component {
         // Actualizar tokens en localStorage
         localStorage.setItem('changanet_token', data.token);
         localStorage.setItem('changanet_refresh_token', data.refreshToken);
-        
+
         // Actualizar estado del usuario si está disponible
         if (data.user) {
           this.setState({ user: data.user });
           localStorage.setItem('changanet_user', JSON.stringify(data.user));
         }
 
-        console.log('Token refreshed successfully');
+        console.log('✅ Token refreshed successfully');
         return { success: true, token: data.token };
       } else {
         throw new Error('Invalid refresh response format');
       }
     } catch (error) {
-      console.error('Error refreshing token:', error);
-      
+      console.error('❌ Error refreshing token:', error);
+
       // Si falla el refresh, hacer logout y redirigir a login
       this.logout();
-      
+
       // Solo mostrar error si no es un problema de red
       if (!error.message.includes('Failed to fetch')) {
         return { success: false, error: 'Sesión expirada. Por favor, inicia sesión nuevamente.' };
       }
-      
+
       return { success: false, error: 'Error de conexión. Inténtalo nuevamente.' };
     }
   };
+
+  componentWillUnmount() {
+    // Limpiar interval de verificación de tokens
+    if (this.tokenCheckInterval) {
+      clearInterval(this.tokenCheckInterval);
+    }
+
+    // Restaurar fetch original si fue modificado
+    if (window.originalFetch) {
+      window.fetch = window.originalFetch;
+    }
+  }
 
   logout = async () => {
     try {
@@ -312,6 +407,11 @@ export class AuthProvider extends React.Component {
       }
     } catch (error) {
       console.warn('Error calling logout endpoint:', error);
+    }
+
+    // Limpiar interval de verificación de tokens
+    if (this.tokenCheckInterval) {
+      clearInterval(this.tokenCheckInterval);
     }
 
     // Limpiar localStorage

@@ -32,7 +32,8 @@ const {
   searchMessages,
   closeConversation,
   markMessagesAsRead,
-  getConversation
+  getConversation,
+  archiveConversation
 } = require('../controllers/unifiedChatController');
 
 const prisma = new PrismaClient();
@@ -143,5 +144,10 @@ router.get('/search/:conversationId', searchMessages);
 // Cerrar/desactivar conversación
 // Uso: Opción para cerrar conversaciones inactivas
 router.delete('/conversations/:conversationId', closeConversation);
+
+// PUT /api/chat/conversations/:conversationId/archive
+// Archivar conversación (REQ-MSG-08)
+// Uso: Archivar conversaciones para ocultarlas de la lista principal
+router.put('/conversations/:conversationId/archive', archiveConversation);
 
 module.exports = router;

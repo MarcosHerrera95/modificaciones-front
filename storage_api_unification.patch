@@ -1,0 +1,150 @@
+diff --git a/changanet/changanet-backend/src/services/storageService.js b/changanet/changanet-backend/src/services/storageService.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/services/storageService.js
++++ b/changanet/changanet-backend/src/services/storageService.js
+@@ -1,15 +1,25 @@
+ /**
+  * StorageService - Servicio unificado para gestión de archivos
+  * Unifica Cloudinary y Google Cloud Storage bajo una interfaz común
+  */
+
+-const cloudinary = require('cloudinary').v2;
+-const { Storage } = require('@google-cloud/storage');
++const cloudinary = require('cloudinary').v2;
++const { Storage } = require('@google-cloud/storage');
++const path = require('path');
++const fs = require('fs').promises;
+
+ class StorageService {
+   constructor() {
+     this.provider = process.env.STORAGE_PROVIDER || 'cloudinary'; // 'cloudinary' | 'gcs'
++
++    // Configuración Cloudinary
+     cloudinary.config({
+       cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+       api_key: process.env.CLOUDINARY_API_KEY,
+       api_secret: process.env.CLOUDINARY_API_SECRET
+     });
++
++    // Configuración Google Cloud Storage
++    this.gcs = new Storage({
++      keyFilename: process.env.GCS_KEY_FILE,
++      projectId: process.env.GCS_PROJECT_ID
++    });
++    this.bucketName = process.env.GCS_BUCKET_NAME;
+   }
+
+   /**
+@@ -25,6 +35,15 @@ class StorageService {
+     try {
+       const result = await cloudinary.uploader.upload(filePathOrBuffer, options);
+       return result;
++    } catch (error) {
++      console.error('Cloudinary upload failed:', error);
++      throw error;
++    }
++  }
++
++  /**
++   * Upload to Google Cloud Storage
++   */
++  async uploadToGCS(filePathOrBuffer, options = {}) {
++    try {
+       const bucket = this.gcs.bucket(this.bucketName);
+       const fileName = options.public_id || `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+       const file = bucket.file(fileName);
+@@ -32,7 +51,7 @@ class StorageService {
+       const stream = file.createWriteStream({
+         metadata: {
+           contentType: options.resource_type === 'image' ? 'image/jpeg' : 'application/octet-stream',
+-        },
++        }
+       });
+
+       return new Promise((resolve, reject) => {
+@@ -50,6 +69,15 @@ class StorageService {
+         });
+       });
+     } catch (error) {
++      console.error('GCS upload failed:', error);
++      throw error;
++    }
++  }
++
++  /**
++   * Unified upload method
++   */
++  async uploadImage(filePathOrBuffer, options = {}) {
++    try {
+       if (this.provider === 'gcs') {
+         return await this.uploadToGCS(filePathOrBuffer, options);
+       } else {
+@@ -57,6 +85,15 @@ class StorageService {
+       }
+     } catch (error) {
+       console.error('Unified upload failed:', error);
++      // Fallback to other provider if primary fails
++      if (this.provider === 'cloudinary') {
++        console.log('Falling back to GCS...');
++        return await this.uploadToGCS(filePathOrBuffer, options);
++      } else {
++        console.log('Falling back to Cloudinary...');
++        return await this.uploadToCloudinary(filePathOrBuffer, options);
++      }
+     }
+   }
+
+   /**
+@@ -65,6 +102,15 @@ class StorageService {
+   async deleteImage(publicId) {
+     try {
+       if (this.provider === 'gcs') {
++        const bucket = this.gcs.bucket(this.bucketName);
++        const file = bucket.file(publicId);
++        await file.delete();
++        return { result: 'ok' };
++      } else {
+         const result = await cloudinary.uploader.destroy(publicId);
+         return result;
+       }
+     } catch (error) {
++      console.error('Delete image failed:', error);
+       throw error;
+     }
+   }
+@@ -72,6 +118,15 @@ class StorageService {
+   /**
+    * Get image URL with transformations
+    */
+   getImageUrl(publicId, options = {}) {
++    if (this.provider === 'gcs') {
++      const bucket = this.gcs.bucket(this.bucketName);
++      const file = bucket.file(publicId);
++      return file.publicUrl();
++    } else {
+     return cloudinary.url(publicId, options);
++    }
+   }
+
+   /**
+@@ -79,6 +134,15 @@ class StorageService {
+    */
+   async getImageInfo(publicId) {
+     try {
++      if (this.provider === 'gcs') {
++        const bucket = this.gcs.bucket(this.bucketName);
++        const file = bucket.file(publicId);
++        const [metadata] = await file.getMetadata();
++        return metadata;
++      } else {
+       const result = await cloudinary.api.resource(publicId);
+       return result;
++      }
+     } catch (error) {
+       console.error('Get image info failed:', error);
+       throw error;
+@@ -87,4 +151,5 @@ class StorageService {
+ }
+
+ module.exports = new StorageService();
++module.exports.StorageService = StorageService;

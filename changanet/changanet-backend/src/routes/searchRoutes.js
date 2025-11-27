@@ -14,8 +14,11 @@
 // - user_lat/user_lng: Coordenadas para cálculo de distancia
 
 const express = require('express');
+const { PrismaClient } = require('@prisma/client');
 const { searchProfessionals } = require('../controllers/searchController');
 const { searchRateLimiter, suggestionsRateLimiter } = require('../middleware/advancedRateLimiting');
+
+const prisma = new PrismaClient();
 
 const router = express.Router();
 
@@ -38,22 +41,100 @@ router.get('/suggestions', suggestionsRateLimiter, async (req, res) => {
       });
     }
 
-    // TODO: Implementar lógica de sugerencias desde base de datos
-    // Por ahora, devolver sugerencias básicas
-    const mockSuggestions = [
-      { type: 'specialty', value: 'plomero', category: 'servicios' },
-      { type: 'specialty', value: 'electricista', category: 'servicios' },
-      { type: 'location', value: 'Buenos Aires', category: 'ciudades' },
-      { type: 'location', value: 'Palermo', category: 'barrios' }
-    ].filter(item =>
-      item.value.toLowerCase().includes(q.toLowerCase())
-    ).slice(0, parseInt(limit));
+    const searchTerm = q.trim().toLowerCase();
+    const maxLimit = Math.min(parseInt(limit) || 10, 20); // Máximo 20 sugerencias
+
+    // Buscar especialidades que coincidan
+    const specialtySuggestions = await prisma.perfiles_profesionales.findMany({
+      where: {
+        especialidad: {
+          contains: searchTerm,
+          mode: 'insensitive'
+        }
+      },
+      select: {
+        especialidad: true
+      },
+      distinct: ['especialidad'],
+      take: Math.ceil(maxLimit / 2) // Mitad para especialidades
+    });
+
+    // Buscar zonas/barrios que coincidan
+    const locationSuggestions = await prisma.perfiles_profesionales.findMany({
+      where: {
+        zona_cobertura: {
+          contains: searchTerm,
+          mode: 'insensitive'
+        }
+      },
+      select: {
+        zona_cobertura: true
+      },
+      distinct: ['zona_cobertura'],
+      take: Math.ceil(maxLimit / 2) // Mitad para ubicaciones
+    });
+
+    // Formatear sugerencias de especialidades
+    const specialtyResults = specialtySuggestions.map(item => ({
+      type: 'specialty',
+      value: item.especialidad,
+      category: 'servicios',
+      matchType: 'contains'
+    }));
+
+    // Formatear sugerencias de ubicaciones
+    const locationResults = locationSuggestions.map(item => ({
+      type: 'location',
+      value: item.zona_cobertura,
+      category: 'ubicaciones',
+      matchType: 'contains'
+    }));
+
+    // Combinar y limitar resultados
+    const allSuggestions = [...specialtyResults, ...locationResults].slice(0, maxLimit);
+
+    // Si no hay resultados exactos, buscar coincidencias parciales más amplias
+    if (allSuggestions.length === 0) {
+      const broadSpecialtySuggestions = await prisma.perfiles_profesionales.findMany({
+        where: {
+          OR: [
+            { especialidad: { contains: searchTerm, mode: 'insensitive' } },
+            { zona_cobertura: { contains: searchTerm, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          especialidad: true,
+          zona_cobertura: true
+        },
+        distinct: ['especialidad', 'zona_cobertura'],
+        take: maxLimit
+      });
+
+      const broadResults = broadSpecialtySuggestions.flatMap(item => [
+        {
+          type: 'specialty',
+          value: item.especialidad,
+          category: 'servicios',
+          matchType: 'broad'
+        },
+        {
+          type: 'location',
+          value: item.zona_cobertura,
+          category: 'ubicaciones',
+          matchType: 'broad'
+        }
+      ]).filter((item, index, self) =>
+        index === self.findIndex(s => s.value === item.value && s.type === item.type)
+      );
+
+      allSuggestions.push(...broadResults.slice(0, maxLimit));
+    }
 
     res.json({
       success: true,
-      suggestions: mockSuggestions,
+      suggestions: allSuggestions,
       query: q,
-      count: mockSuggestions.length
+      count: allSuggestions.length
     });
 
   } catch (error) {

@@ -28,20 +28,39 @@ const MessageBubble = ({ message, isOwn, showAvatar, otherUserName }) => {
 
   const getStatusIcon = (status) => {
     switch (status) {
+      case 'sending':
+        return (
+          <svg className="w-3 h-3 text-gray-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        );
       case 'sent':
-        return '✓';
+        return (
+          <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+        );
       case 'delivered':
-        return '✓✓';
+        return (
+          <svg className="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" transform="translate(2, 0)" />
+          </svg>
+        );
       case 'read':
         return (
-          <span className="text-blue-500">
-            ✓✓
-          </span>
+          <svg className="w-3 h-3 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         );
       case 'failed':
-        return '❌';
+        return (
+          <svg className="w-3 h-3 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        );
       default:
-        return '';
+        return null;
     }
   };
 
@@ -50,19 +69,19 @@ const MessageBubble = ({ message, isOwn, showAvatar, otherUserName }) => {
       case 'image':
         return (
           <div className="space-y-2">
-            {message.url_imagen && (
+            {message.image_url && (
               <img
-                src={message.url_imagen}
+                src={message.image_url}
                 alt="Imagen compartida"
                 className="max-w-xs rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => window.open(message.url_imagen, '_blank')}
+                onClick={() => window.open(message.image_url, '_blank')}
                 onError={(e) => {
                   e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlbiBubyBkaXNwb25pYmxlPC90ZXh0Pjwvc3ZnPg==';
                 }}
               />
             )}
-            {message.contenido && (
-              <p className="text-sm">{message.contenido}</p>
+            {message.message && (
+              <p className="text-sm">{message.message}</p>
             )}
           </div>
         );
@@ -103,7 +122,7 @@ const MessageBubble = ({ message, isOwn, showAvatar, otherUserName }) => {
         return (
           <div className="flex items-center justify-center p-2">
             <div className="bg-gray-100 text-gray-600 text-sm px-3 py-1 rounded-full">
-              {message.contenido}
+              {message.message}
             </div>
           </div>
         );
@@ -112,9 +131,9 @@ const MessageBubble = ({ message, isOwn, showAvatar, otherUserName }) => {
         return (
           <div className="space-y-1">
             <p className="text-sm whitespace-pre-wrap break-words">
-              {message.contenido}
+              {message.message}
             </p>
-            
+
             {/* Indicador de mensaje editado */}
             {message.is_edited && (
               <p className="text-xs text-gray-400 italic">
@@ -160,12 +179,12 @@ const MessageBubble = ({ message, isOwn, showAvatar, otherUserName }) => {
           {/* Footer con tiempo y estado */}
           <div className={`flex items-center justify-end mt-1 space-x-1 ${isOwn ? 'text-blue-600' : 'text-gray-500'}`}>
             <span className="text-xs">
-              {formatTime(message.creado_en || message.created_at)}
+              {formatTime(message.created_at)}
             </span>
             
             {/* Estado del mensaje */}
             {isOwn && (
-              <span className="text-xs ml-1">
+              <span className="text-xs ml-1 flex items-center">
                 {getStatusIcon(message.status || 'sent')}
               </span>
             )}

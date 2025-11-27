@@ -1,0 +1,544 @@
+diff --git a/changanet/changanet-backend/prisma/schema.prisma b/changanet/changanet-backend/prisma/schema.prisma
+index abc123..def456 100644
+--- a/changanet/changanet-backend/prisma/schema.prisma
++++ b/changanet/changanet-backend/prisma/schema.prisma
+@@ -168,8 +168,8 @@ model mensajes {
+   conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+   sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id])
+   recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id])
++  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id], onDelete: Cascade)
++  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+   @@index([created_at])
+   @@index([conversation_id])
+
+diff --git a/changanet/changanet-backend/src/controllers/unifiedChatController.js b/changanet/changanet-backend/src/controllers/unifiedChatController.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/controllers/unifiedChatController.js
++++ b/changanet/changanet-backend/src/controllers/unifiedChatController.js
+@@ -27,6 +27,13 @@ const { getFromCache, setInCache } = require('../services/cacheService');
+ const sharp = require('sharp');
+ const axios = require('axios');
+
++const {
++  formatMessage,
++  formatConversation,
++  isValidUUID,
++  canAccessConversation,
++  sanitizeMessageContent,
++  isDuplicateMessage,
++  getUnreadCounts
++} = require('../utils/chatUtils');
+ const { validateConversationParticipant, validateMessagePermissions } = require('../middleware/participantValidation');
+
+ const prisma = new PrismaClient();
+@@ -80,7 +87,7 @@ exports.createConversation = async (req, res) => {
+     // ✅ VALIDACIÓN: Verificar que los IDs son UUIDs válidos
+     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+-    if (!uuidRegex.test(clientId) || !uuidRegex.test(professionalId)) {
++    if (!isValidUUID(clientId) || !isValidUUID(professionalId)) {
+       return res.status(400).json({
+         error: 'clientId y professionalId deben ser UUIDs válidos',
+         code: 'INVALID_UUID'
+@@ -464,17 +471,9 @@ exports.sendMessage = async (req, res) => {
+     // ✅ SANITIZACIÓN AVANZADA: Validar y limpiar contenido con DOMPurify
+     if (content && content.length > 1000) {
+       return res.status(400).json({
+         error: 'El mensaje no puede exceder 1000 caracteres',
+         code: 'MESSAGE_TOO_LONG'
+       });
+     }
+
+-    // Sanitizar contenido con DOMPurify para prevenir XSS
+-    const sanitizedContent = content ?
+-      DOMPurify.sanitize(content, {
+-        ALLOWED_TAGS: [], // No permitir HTML
+-        ALLOWED_ATTR: []  // No permitir atributos
+-      }).trim() : null;
+-
++    // Sanitizar contenido usando utilidad centralizada
++    const sanitizedContent = sanitizeMessageContent(content);
++
+     if (sanitizedContent && sanitizedContent.length === 0) {
+       return res.status(400).json({
+         error: 'El mensaje no puede estar vacío después de la sanitización',
+@@ -485,6 +484,13 @@ exports.sendMessage = async (req, res) => {
+     // Verificar que el recipientId es válido en la conversación
+     if (recipientId !== conversation.client_id &&
+         recipientId !== conversation.professional_id) {
+       return res.status(400).json({
+         error: 'recipientId no es un participante válido de la conversación',
+         code: 'INVALID_RECIPIENT'
+       });
+     }
+
++    // ✅ DEDUPLICACIÓN: Verificar mensajes duplicados recientes
++    if (sanitizedContent) {
++      const isDuplicate = await isDuplicateMessage(conversationId, senderId, sanitizedContent);
++      if (isDuplicate) {
++        return res.status(400).json({
++          error: 'Mensaje duplicado detectado. Evita enviar el mismo mensaje repetidamente.',
++          code: 'DUPLICATE_MESSAGE'
++        });
++      }
++    }
++
+     // Validar contenido de imagen si se proporciona image_url
+     if (image_url) {
+       const isValidImage = await validateImageContent(image_url);
+@@ -583,6 +589,23 @@ exports.sendMessage = async (req, res) => {
+     // ✅ NOTIFICACIONES: Enviar notificaciones (REQ-19)
+     try {
+       const { notifyNewMessage } = require('../services/chatService');
+       await notifyNewMessage(recipientId, senderId, sanitizedContent || '[Imagen]');
+     } catch (notificationError) {
+       console.warn('Error enviando notificación:', notificationError.message);
+     }
+
++    // ✅ WEBSOCKET: Emitir evento a participantes conectados
++    try {
++      const { setWebSocketService } = require('../services/notificationService');
++      const webSocketService = setWebSocketService();
++      if (webSocketService) {
++        // Formatear mensaje para WebSocket
++        const wsMessage = {
++          id: message.id,
++          conversationId: conversationId,
++          message: message.message,
++          image_url: message.image_url,
++          status: message.status,
++          created_at: message.created_at,
++          sender: message.sender
++        };
++
++        // Emitir a la sala de conversación
++        webSocketService.io.to(`conversation_${conversationId}`).emit('message', wsMessage);
++
++        console.log(`📡 WebSocket: Mensaje emitido a conversación ${conversationId}`);
++      }
++    } catch (wsError) {
++      console.warn('Error emitiendo evento WebSocket:', wsError.message);
++    }
++
+     // Respuesta formateada
+     const formattedMessage = formatMessage(message);
+
+@@ -637,6 +660,9 @@ exports.getUserConversations = async (req, res) => {
+     // ✅ OPTIMIZACIÓN N+1: Obtener conteos de mensajes no leídos
+     const unreadCountMap = await getUnreadCounts(userId);
+
+     // Formatear respuesta usando utilidad
+     const formattedConversations = conversations.map(conv => {
+       const unreadCount = unreadCountMap.get(conv.id) || 0;
+       return formatConversation(conv, userId, unreadCount);
+     });
+
+@@ -705,7 +731,7 @@ exports.getMessageHistory = async (req, res) => {
+     // Formatear mensajes (ordenar cronológicamente ascendente)
+     const formattedMessages = messages.reverse().map(msg => ({
+       id: msg.id,
+       message: msg.message,
+       image_url: msg.image_url,
+       status: msg.status,
+       created_at: msg.created_at,
+       read_at: msg.read_at,
+       sender: {
+         id: msg.sender.id,
+         nombre: msg.sender.nombre,
+         foto_perfil: msg.sender.url_foto_perfil,
+         rol: msg.sender.rol
+       }
+     }));
+
++    // Formatear mensajes usando utilidad
++    const formattedMessages = messages.reverse().map(formatMessage);
+
+@@ -1054,6 +1080,13 @@ exports.getConversation = async (req, res) => {
+     if (conversation.client_id !== currentUserId && conversation.professional_id !== currentUserId) {
+       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
+     }
+
++    // ✅ LÓGICA MENSAJES NO LEÍDOS: Contar mensajes no leídos para el usuario actual
++    const unreadCount = await prisma.mensajes.count({
++      where: {
++        conversation_id: conversationId,
++        recipient_id: currentUserId,
++        status: { not: 'read' }
++      }
++    });
++
+     res.json({
+       id: conversation.id,
+       client_id: conversation.client_id,
+@@ -1061,6 +1094,7 @@ exports.getConversation = async (req, res) {
+       created_at: conversation.created_at,
+       is_active: conversation.is_active
+     });
++      unread_count: unreadCount
++    });
+
+diff --git a/changanet/changanet-backend/src/middleware/participantValidation.js b/changanet/changanet-backend/src/middleware/participantValidation.js
+new file mode 100644
+index 000000..abc123
+--- /dev/null
++++ b/changanet/changanet-backend/src/middleware/participantValidation.js
+@@ -0,0 +1,89 @@
++/**
++ * Middleware de validación de participantes en conversaciones
++ * Verifica que el usuario actual sea participante válido de la conversación
++ */
++
++const { PrismaClient } = require('@prisma/client');
++const prisma = new PrismaClient();
++
++/**
++ * Middleware para validar que el usuario es participante de la conversación
++ * @param {string} conversationIdParam - Nombre del parámetro que contiene el conversationId (default: 'conversationId')
++ */
++exports.validateConversationParticipant = (conversationIdParam = 'conversationId') => {
++  return async (req, res, next) => {
++    try {
++      const { id: currentUserId } = req.user;
++      const conversationId = req.params[conversationIdParam] || req.body[conversationIdParam];
++
++      if (!conversationId) {
++        return res.status(400).json({
++          error: 'conversationId es requerido',
++          code: 'MISSING_CONVERSATION_ID'
++        });
++      }
++
++      // Verificar que la conversación existe
++      const conversation = await prisma.conversations.findUnique({
++        where: { id: conversationId },
++        include: {
++          client: { select: { id: true } },
++          professional: { select: { id: true } }
++        }
++      });
++
++      if (!conversation) {
++        return res.status(404).json({
++          error: 'Conversación no encontrada',
++          code: 'CONVERSATION_NOT_FOUND'
++        });
++      }
++
++      // Verificar que el usuario actual es participante
++      if (conversation.client_id !== currentUserId &&
++          conversation.professional_id !== currentUserId) {
++        return res.status(403).json({
++          error: 'No tienes acceso a esta conversación',
++          code: 'UNAUTHORIZED'
++        });
++      }
++
++      // Agregar conversación al request para uso posterior
++      req.conversation = conversation;
++      next();
++
++    } catch (error) {
++      console.error('Error en validación de participante:', error);
++      res.status(500).json({
++        error: 'Error interno del servidor',
++        code: 'INTERNAL_ERROR'
++      });
++    }
++  };
++};
++
++/**
++ * Middleware para validar que el usuario puede enviar mensajes
++ * Verifica permisos adicionales como bloqueos, etc.
++ */
++exports.validateMessagePermissions = async (req, res, next) => {
++  try {
++    const { id: currentUserId } = req.user;
++
++    // Verificar si el usuario está bloqueado
++    const user = await prisma.usuarios.findUnique({
++      where: { id: currentUserId },
++      select: {
++        bloqueado: true,
++        bloqueado_hasta: true,
++        esta_verificado: true
++      }
++    });
++
++    if (!user) {
++      return res.status(404).json({
++        error: 'Usuario no encontrado',
++        code: 'USER_NOT_FOUND'
++      });
++    }
++
++    if (user.bloqueado) {
++      return res.status(403).json({
++        error: 'Tu cuenta está bloqueada. Contacta al soporte.',
++        code: 'ACCOUNT_BLOCKED'
++      });
++    }
++
++    // Verificar si el bloqueo temporal ha expirado
++    if (user.bloqueado_hasta && new Date() < new Date(user.bloqueado_hasta)) {
++      return res.status(403).json({
++        error: `Tu cuenta está bloqueada hasta ${user.bloqueado_hasta}`,
++        code: 'ACCOUNT_TEMPORARILY_BLOCKED'
++      });
++    }
++
++    next();
++
++  } catch (error) {
++    console.error('Error en validación de permisos de mensaje:', error);
++    res.status(500).json({
++      error: 'Error interno del servidor',
++      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+diff --git a/changanet/changanet-backend/src/routes/messageRoutes.js b/changanet/changanet-backend/src/routes/messageRoutes.js
+deleted file mode 100644
+index abc123..000000
+--- a/changanet/changanet-backend/src/routes/messageRoutes.js
++++ /dev/null
+@@ -1,40 +0,0 @@
+-// src/routes/messageRoutes.js
+-// Rutas para mensajería interna
+-// Implementa sección 7.4 del PRD: Mensajería Interna
+-//
+-// FUNCIONALIDADES IMPLEMENTADAS:
+-// - Chat en tiempo real con Socket.IO
+-// - API REST para operaciones de mensajes
+-// - Historial de conversaciones con paginación
+-// - Validación de permisos para chats de servicios
+-//
+-// ENDPOINTS:
+-// GET /api/messages?with=userId - Obtener historial con usuario
+-// POST /api/messages - Enviar mensaje (con soporte para servicio_id)
+-// PUT /api/messages/read - Marcar mensajes como leídos
+-
+-const express = require('express');
+-const { authenticateToken } = require('../middleware/authenticate');
+-const {
+-  getMessageHistory,
+-  sendMessage,
+-  markMessagesAsRead
+-} = require('../controllers/messageController');
+-
+-const router = express.Router();
+-
+-// Todas las rutas requieren autenticación
+-router.use(authenticateToken);
+-
+-// Obtener historial de mensajes con otro usuario
+-// REQ-20: Mantiene historial de conversaciones
+-router.get('/', getMessageHistory);
+-
+-// Enviar mensaje (usado principalmente por Socket.IO, pero disponible como REST API)
+-// REQ-17: Envío de mensajes de texto, REQ-18: Envío de imágenes
+-router.post('/', sendMessage);
+-
+-// Marcar mensajes como leídos
+-router.put('/read', markMessagesAsRead);
+-
+-module.exports = router;
+
+diff --git a/changanet/changanet-backend/src/server.js b/changanet/changanet-backend/src/server.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/server.js
++++ b/changanet/changanet-backend/src/server.js
+@@ -71,7 +71,6 @@ const authRoutes = require('./routes/authRoutes');
+ const profileRoutes = require('./routes/profileRoutes');
+ const searchRoutes = require('./routes/searchRoutes');
+ const messageRoutes = require('./routes/messageRoutes');
+ const reviewRoutes = require('./routes/reviewRoutes');
+ const availabilityRoutes = require('./routes/availabilityRoutes');
+ const notificationRoutes = require('./routes/notificationRoutes');
+@@ -334,7 +333,6 @@ app.use('/api/search', searchRoutes);
+ app.use('/api', advancedSearchRoutes); // Rutas avanzadas con métricas
+
+ // Rutas de mensajería con autenticación requerida
+-app.use('/api/messages', authenticateToken, messageRoutes);
+
+ // ✅ RUTAS UNIFICADAS DE CHAT (REQUERIMIENTOS REQ-16 a REQ-20)
+ // Implementación completa y consolidada según especificaciones PRD
+
+diff --git a/changanet/changanet-backend/src/utils/chatUtils.js b/changanet/changanet-backend/src/utils/chatUtils.js
+new file mode 100644
+index 000000..abc123
+--- /dev/null
++++ b/changanet/changanet-backend/src/utils/chatUtils.js
+@@ -0,0 +1,140 @@
++/**
++ * Utilidades para el sistema de chat
++ * Funciones helper para manipulación de datos de chat
++ */
++
++/**
++ * Formatea un mensaje para respuesta API
++ * @param {Object} message - Mensaje de la BD
++ * @returns {Object} Mensaje formateado
++ */
++exports.formatMessage = (message) => {
++  return {
++    id: message.id,
++    message: message.message,
++    image_url: message.image_url,
++    status: message.status,
++    created_at: message.created_at,
++    read_at: message.read_at,
++    sender: message.sender ? {
++      id: message.sender.id,
++      nombre: message.sender.nombre,
++      foto_perfil: message.sender.url_foto_perfil,
++      rol: message.sender.rol
++    } : null
++  };
++};
++
++/**
++ * Formatea una conversación para respuesta API
++ * @param {Object} conversation - Conversación de la BD
++ * @param {string} userId - ID del usuario actual
++ * @param {number} unreadCount - Conteo de mensajes no leídos
++ * @returns {Object} Conversación formateada
++ */
++exports.formatConversation = (conversation, userId, unreadCount = 0) => {
++  const otherUser = conversation.client_id === userId ? conversation.professional : conversation.client;
++  const lastMessage = conversation.messages?.[0] || null;
++
++  return {
++    id: conversation.id,
++    otherUser: {
++      id: otherUser.id,
++      nombre: otherUser.nombre,
++      rol: otherUser.rol,
++      foto_perfil: otherUser.url_foto_perfil,
++      verificado: otherUser.esta_verificado
++    },
++    lastMessage: lastMessage ? exports.formatMessage(lastMessage) : null,
++    unread_count: unreadCount,
+    created_at: conversation.created_at,
+    updated_at: conversation.updated_at,
+    is_active: conversation.is_active
+  };
+};
+
++/**
++ * Valida si un UUID es válido
++ * @param {string} uuid - UUID a validar
++ * @returns {boolean} True si es válido
++ */
++exports.isValidUUID = (uuid) => {
++  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
++  return uuidRegex.test(uuid);
++};
++
++/**
++ * Verifica si un usuario puede acceder a una conversación
++ * @param {Object} conversation - Conversación
++ * @param {string} userId - ID del usuario
++ * @returns {boolean} True si tiene acceso
++ */
++exports.canAccessConversation = (conversation, userId) => {
++  return conversation.client_id === userId || conversation.professional_id === userId;
++};
++
++/**
++ * Genera un ID único para conversaciones
++ * @param {string} clientId - ID del cliente
++ * @param {string} professionalId - ID del profesional
++ * @returns {string} ID único
++ */
++exports.generateConversationId = (clientId, professionalId) => {
++  // Ordenar IDs para consistencia
++  const [id1, id2] = [clientId, professionalId].sort();
++  return `${id1}_${id2}`;
++};
++
++/**
++ * Sanitiza contenido de mensaje
++ * @param {string} content - Contenido a sanitizar
++ * @returns {string} Contenido sanitizado
++ */
++exports.sanitizeMessageContent = (content) => {
++  if (!content) return null;
++
++  // Remover scripts y contenido peligroso
++  const sanitized = content
++    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
++    .replace(/javascript:/gi, '')
++    .replace(/on\w+\s*=/gi, '') // Remover event handlers
++    .trim();
++
++  return sanitized.length > 0 ? sanitized : null;
++};
++
++/**
++ * Verifica si un mensaje es duplicado
++ * @param {string} conversationId - ID de conversación
++ * @param {string} senderId - ID del remitente
++ * @param {string} content - Contenido del mensaje
++ * @param {number} windowMs - Ventana de tiempo en ms (default: 30 segundos)
++ * @returns {Promise<boolean>} True si es duplicado
++ */
++exports.isDuplicateMessage = async (conversationId, senderId, content, windowMs = 30000) => {
++  const { PrismaClient } = require('@prisma/client');
++  const prisma = new PrismaClient();
++
++  try {
++    const recentMessage = await prisma.mensajes.findFirst({
++      where: {
++        conversation_id: conversationId,
+        sender_id: senderId,
+        message: content,
+        created_at: {
+          gte: new Date(Date.now() - windowMs)
+        }
+      }
+    });
+
+    return !!recentMessage;
+  } catch (error) {
+    console.error('Error verificando mensaje duplicado:', error);
+    return false; // En caso de error, permitir el mensaje
+  }
+};
+
++/**
++ * Obtiene conteo de mensajes no leídos para un usuario
++ * @param {string} userId - ID del usuario
++ * @returns {Promise<Object>} Mapa de conversationId -> unreadCount
++ */
++exports.getUnreadCounts = async (userId) => {
++  const { PrismaClient } = require('@prisma/client');
++  const prisma = new PrismaClient();
++
++  try {
++    const unreadCounts = await prisma.mensajes.groupBy({
++      by: ['conversation_id'],
+      where: {
+        conversation_id: { in: conversationIds },
+        recipient_id: userId,
+        status: { not: 'read' }
+      },
+      _count: {
+        id: true
+      }
+    });
+
+    // Convertir a mapa
+    const countMap = new Map();
+    unreadCounts.forEach(count => {
+      countMap.set(count.conversation_id, count._count.id);
+    });
+
+    return countMap;
+  } catch (error) {
+    console.error('Error obteniendo conteos de mensajes no leídos:', error);
+    return new Map();
+  }
+};

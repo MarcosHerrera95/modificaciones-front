@@ -1,0 +1,160 @@
+diff --git a/changanet/changanet-backend/src/middleware/multerConfig.js b/changanet/changanet-backend/src/middleware/multerConfig.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/middleware/multerConfig.js
++++ b/changanet/changanet-backend/src/middleware/multerConfig.js
+@@ -1,25 +1,65 @@
+ /**
+  * Multer Configuration
+  * Configuración centralizada de multer para subida de archivos
+  */
+
+-const multer = require('multer');
+-const path = require('path');
++const multer = require('multer');
++const path = require('path');
++const fs = require('fs').promises;
+
+ // Configuración de almacenamiento en memoria para procesamiento
+ const memoryStorage = multer.memoryStorage();
+
+ // Configuración de almacenamiento en disco (fallback)
+-const diskStorage = multer.diskStorage({
+-  destination: (req, file, cb) => {
+-    cb(null, 'uploads/');
+-  },
+-  filename: (req, file, cb) => {
+-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+-  }
+-});
++const diskStorage = multer.diskStorage({
++  destination: async (req, file, cb) => {
++    const uploadDir = path.join(__dirname, '../../uploads');
++    try {
++      await fs.mkdir(uploadDir, { recursive: true });
++      cb(null, uploadDir);
++    } catch (error) {
++      cb(error);
++    }
++  },
++  filename: (req, file, cb) => {
++    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
++    const extension = path.extname(file.originalname);
++    const basename = path.basename(file.originalname, extension);
++    cb(null, `${basename}-${uniqueSuffix}${extension}`);
++  }
++});
+
+ // Filtro de archivos
+ const fileFilter = (req, file, cb) => {
++  // Tipos MIME permitidos
+   const allowedMimes = {
+     image: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+     document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+     video: ['video/mp4', 'video/avi', 'video/mov']
+   };
+
++  // Verificar tipo de archivo según campo
++  const fieldName = file.fieldname;
++  let allowedTypes = [];
++
++  if (fieldName.includes('photo') || fieldName.includes('foto') || fieldName.includes('image')) {
++    allowedTypes = allowedMimes.image;
++  } else if (fieldName.includes('document') || fieldName.includes('doc')) {
++    allowedTypes = allowedMimes.document;
++  } else if (fieldName.includes('video')) {
++    allowedTypes = allowedMimes.video;
++  } else {
++    // Por defecto permitir imágenes
++    allowedTypes = allowedMimes.image;
++  }
++
+   if (allowedTypes.includes(file.mimetype)) {
+     cb(null, true);
+   } else {
+@@ -27,6 +67,7 @@ const fileFilter = (req, file, cb) => {
+   }
+ };
+
++// Configuración base
+ const baseConfig = {
+   fileFilter,
+   limits: {
+@@ -34,6 +75,7 @@ const baseConfig = {
+     files: 10 // máximo 10 archivos
+   }
+ };
++
+
+ // Configuración para fotos de perfil
+ const profilePhotoConfig = {
+@@ -41,6 +83,7 @@ const profilePhotoConfig = {
+   limits: {
+     fileSize: 5 * 1024 * 1024, // 5MB
+     files: 2 // foto de perfil + portada
++  }
+ };
+
+ // Configuración para documentos de verificación
+@@ -48,6 +91,7 @@ const verificationDocumentConfig = {
+   ...baseConfig,
+   limits: {
+     fileSize: 10 * 1024 * 1024, // 10MB
++    files: 2 // frente y reverso
+   }
+ };
+
+@@ -55,6 +99,7 @@ const verificationDocumentConfig = {
+ const galleryPhotoConfig = {
+   ...baseConfig,
+   limits: {
++    fileSize: 5 * 1024 * 1024, // 5MB por foto
+     files: 20 // máximo 20 fotos en galería
+   }
+ };
+@@ -62,6 +107,7 @@ const galleryPhotoConfig = {
+ // Configuración para cotizaciones
+ const quotePhotoConfig = {
+   ...baseConfig,
++  limits: {
+     fileSize: 5 * 1024 * 1024, // 5MB
+     files: 10 // máximo 10 fotos por cotización
+   }
+@@ -69,4 +115,5 @@ const quotePhotoConfig = {
+ };
+
+ // Exportar middlewares configurados
+-module.exports = {
++module.exports = {
+   profilePhotoUpload: multer({ ...profilePhotoConfig, storage: memoryStorage }),
+   verificationDocumentUpload: multer({ ...verificationDocumentConfig, storage: memoryStorage }),
+   galleryPhotoUpload: multer({ ...galleryPhotoConfig, storage: memoryStorage }),
+   quotePhotoUpload: multer({ ...quotePhotoConfig, storage: memoryStorage }),
++
++  // Configuraciones individuales para uso directo
++  memoryStorage,
++  diskStorage,
++  fileFilter
+ };
+
+diff --git a/changanet/changanet-backend/src/routes/professionalRoutes.js b/changanet/changanet-backend/src/routes/professionalRoutes.js
+index abc123..def456 100644
+--- a/changanet/changanet-backend/src/routes/professionalRoutes.js
++++ b/changanet/changanet-backend/src/routes/professionalRoutes.js
+@@ -1,6 +1,7 @@
+ const express = require('express');
+ const router = express.Router();
+ const professionalController = require('../controllers/professionalController');
++const { profilePhotoUpload, galleryPhotoUpload } = require('../middleware/multerConfig');
+
+ // Rutas para perfiles profesionales
+ router.get('/me', professionalController.getMyProfile);
+@@ -8,6 +9,8 @@ router.put('/me', professionalController.updateMyProfile);
+ router.get('/specialties', professionalController.getSpecialties);
+ router.get('/zones', professionalController.getCoverageZones);
+
++// Rutas con subida de archivos
++router.put('/me/photos', profilePhotoUpload.fields([{ name: 'foto_perfil' }, { name: 'foto_portada' }]), professionalController.updateProfilePhotos);
++router.post('/me/gallery', galleryPhotoUpload.array('fotos', 20), professionalController.uploadGalleryPhotos);
+
+ module.exports = router;

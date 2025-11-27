@@ -1066,14 +1066,14 @@ exports.verifyEmail = async (req, res) => {
 exports.googleLogin = async (req, res) => {
   try {
     console.log('🟡 Google OAuth request received:', req.body);
-    const { uid, email, nombre, photo, rol } = req.body;
+    const { uid, email, nombre, photoURL, rol } = req.body;
 
-    console.log('🟡 Google OAuth attempt:', { 
-      email, 
-      uid, 
-      nombre, 
+    console.log('🟡 Google OAuth attempt:', {
+      email,
+      uid,
+      nombre,
       rol,
-      photo: photo || 'NO PHOTO PROVIDED' // 🔍 DEBUG PHOTO
+      photoURL: photoURL || 'NO PHOTO PROVIDED' // 🔍 DEBUG PHOTO
     });
 
     // Validar campos requeridos
@@ -1112,7 +1112,7 @@ exports.googleLogin = async (req, res) => {
     if (user) {
       console.log('🟡 EXISTING USER SCENARIO:');
       console.log('🟡 Current google_id:', user.google_id);
-      console.log('🟡 Incoming photo from Google:', photo);
+      console.log('🟡 Incoming photoURL from Google:', photoURL);
       console.log('🟡 Current photo in DB:', user.url_foto_perfil);
       
       // Usuario existe, actualizar información si es necesario
@@ -1125,7 +1125,7 @@ exports.googleLogin = async (req, res) => {
           data: {
             google_id: uid,
             nombre: nombre, // Actualizar nombre si cambió
-            url_foto_perfil: photo || user.url_foto_perfil, // 🔍 CRÍTICO: siempre usar photo de Google si está disponible
+            url_foto_perfil: photoURL || user.url_foto_perfil, // 🔍 CRÍTICO: siempre usar photoURL de Google si está disponible
             esta_verificado: true, // Los usuarios de Google están verificados
           }
         });
@@ -1149,18 +1149,18 @@ exports.googleLogin = async (req, res) => {
       } else {
         console.log('🟡 User already has Google ID - CHECK IF PHOTO NEEDS UPDATE');
         
-        // 🔍 NUEVA LÓGICA: Actualizar photo de Google siempre que sea diferente
-        const shouldUpdatePhoto = photo && photo !== user.url_foto_perfil;
-        
+        // 🔍 NUEVA LÓGICA: Actualizar photoURL de Google siempre que sea diferente
+        const shouldUpdatePhoto = photoURL && photoURL !== user.url_foto_perfil;
+
         if (shouldUpdatePhoto) {
-          console.log('🟡 PHOTO UPDATE NEEDED - Google photo different from current');
+          console.log('🟡 PHOTO UPDATE NEEDED - Google photoURL different from current');
           console.log('🟡 Current DB photo:', user.url_foto_perfil);
-          console.log('🟡 New Google photo:', photo);
-          
+          console.log('🟡 New Google photoURL:', photoURL);
+
           user = await prisma.usuarios.update({
             where: { id: user.id },
             data: {
-              url_foto_perfil: photo, // 🔍 ACTUALIZAR SIEMPRE LA FOTO DE GOOGLE
+              url_foto_perfil: photoURL, // 🔍 ACTUALIZAR SIEMPRE LA FOTO DE GOOGLE
               nombre: nombre, // Actualizar nombre si cambió
             }
           });
@@ -1176,10 +1176,10 @@ exports.googleLogin = async (req, res) => {
           
         } else {
           console.log('🟡 NO PHOTO UPDATE NEEDED');
-          if (!photo) {
-            console.log('🟡 No Google photo provided in this login');
+          if (!photoURL) {
+            console.log('🟡 No Google photoURL provided in this login');
           } else {
-            console.log('🟡 Google photo same as current DB photo');
+            console.log('🟡 Google photoURL same as current DB photo');
           }
           console.log('🟡 Current photo stays as:', user.url_foto_perfil);
         }
@@ -1211,7 +1211,7 @@ exports.googleLogin = async (req, res) => {
           nombre,
           email,
           google_id: uid,
-          url_foto_perfil: photo, // 🔍 GUARDANDO FOTO DE GOOGLE
+          url_foto_perfil: photoURL, // 🔍 GUARDANDO FOTO DE GOOGLE
           rol: userRole,
           esta_verificado: true, // Los usuarios de Google están verificados automáticamente
           hash_contrasena: null, // No tienen contraseña local

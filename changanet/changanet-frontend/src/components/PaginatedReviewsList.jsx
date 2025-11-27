@@ -5,60 +5,33 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useReviews } from '../context/ReviewContext';
 
 const PaginatedReviewsList = ({ professionalId }) => {
-  const navigate = useNavigate();
-  const [reviews, setReviews] = useState([]);
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalReviews: 0,
-    hasNextPage: false,
-    hasPreviousPage: false
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { loadProfessionalReviews, reviewsByProfessional, reviewsLoading, reviewsError, calculateAverageRating } = useReviews();
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Función para cargar reseñas
-  const fetchReviews = async (page = 1) => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const response = await fetch(`/api/reviews/professional/${professionalId}?page=${page}&limit=10`, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Error al cargar reseñas');
-      }
-      
-      const data = await response.json();
-      setReviews(data.reviews || []);
-      setPagination(data.pagination || {});
-    } catch (err) {
-      console.error('Error:', err);
-      setError('Error al cargar reseñas. Por favor, inténtalo de nuevo.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Cargar reseñas al montar el componente
+  // Cargar reseñas al montar el componente y cuando cambia la página
   useEffect(() => {
     if (professionalId) {
-      fetchReviews(1);
+      loadProfessionalReviews(professionalId, currentPage);
     }
-  }, [professionalId]);
+  }, [professionalId, currentPage, loadProfessionalReviews]);
 
   // Función para cambiar de página
   const handlePageChange = (newPage) => {
-    fetchReviews(newPage);
+    setCurrentPage(newPage);
     // Scroll al inicio de la lista
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  // Obtener datos del contexto
+  const cacheKey = `${professionalId}-${currentPage}`;
+  const reviewData = reviewsByProfessional.get(cacheKey);
+  const loading = reviewsLoading.has(cacheKey);
+  const error = reviewsError.get(cacheKey);
+  const reviews = reviewData?.reviews || [];
+  const pagination = reviewData?.pagination || {};
 
   // Función para renderizar las estrellas
   const renderStars = (rating) => {
@@ -94,7 +67,7 @@ const PaginatedReviewsList = ({ professionalId }) => {
       <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl">
         <p>{error}</p>
         <button
-          onClick={() => fetchReviews(pagination.currentPage)}
+          onClick={() => loadProfessionalReviews(professionalId, currentPage, true)}
           className="mt-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
         >
           Intentar de nuevo
@@ -113,7 +86,7 @@ const PaginatedReviewsList = ({ professionalId }) => {
               Total de reseñas: {pagination.totalReviews}
             </h3>
             <p className="text-sm text-gray-600">
-              Página {pagination.currentPage} de {pagination.totalPages}
+              Página {currentPage} de {pagination.totalPages}
             </p>
           </div>
         </div>
@@ -195,7 +168,7 @@ const PaginatedReviewsList = ({ professionalId }) => {
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-6">
           <button
-            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            onClick={() => handlePageChange(currentPage - 1)}
             disabled={!pagination.hasPreviousPage}
             className={`px-4 py-2 rounded-lg ${
               pagination.hasPreviousPage
@@ -211,14 +184,14 @@ const PaginatedReviewsList = ({ professionalId }) => {
             {[...Array(pagination.totalPages)].map((_, index) => {
               const pageNum = index + 1;
               // Mostrar solo algunas páginas para evitar demasiados botones
-              const isVisiblePage = 
-                pageNum === 1 || 
-                pageNum === pagination.totalPages || 
-                (pageNum >= pagination.currentPage - 1 && pageNum <= pagination.currentPage + 1);
+              const isVisiblePage =
+                pageNum === 1 ||
+                pageNum === pagination.totalPages ||
+                (pageNum >= currentPage - 1 && pageNum <= currentPage + 1);
               
               if (!isVisiblePage) {
                 // Mostrar elipsis
-                if (pageNum === pagination.currentPage - 2 || pageNum === pagination.currentPage + 2) {
+                if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
                   return (
                     <span key={`ellipsis-${pageNum}`} className="text-gray-500">
                       ...
@@ -233,7 +206,7 @@ const PaginatedReviewsList = ({ professionalId }) => {
                   key={pageNum}
                   onClick={() => handlePageChange(pageNum)}
                   className={`w-10 h-10 rounded-lg ${
-                    pageNum === pagination.currentPage
+                    pageNum === currentPage
                       ? 'bg-emerald-600 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                   } transition-colors`}
@@ -246,7 +219,7 @@ const PaginatedReviewsList = ({ professionalId }) => {
           </div>
 
           <button
-            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            onClick={() => handlePageChange(currentPage + 1)}
             disabled={!pagination.hasNextPage}
             className={`px-4 py-2 rounded-lg ${
               pagination.hasNextPage

@@ -572,10 +572,10 @@ class ProfessionalProfileController {
       }
 
       const suggestions = await rateService.calculateSuggestedRates(
-        experienceYears, 
+        experienceYears,
         specialty
       );
-      
+
       res.json({
         success: true,
         suggestions,
@@ -586,6 +586,125 @@ class ProfessionalProfileController {
       res.status(500).json({
         error: 'Error interno del servidor',
         message: 'Error al calcular tarifas sugeridas'
+      });
+    }
+  }
+
+  /**
+   * POST /api/professionals
+   * Crea un nuevo perfil profesional
+   */
+  static async createProfile(req, res) {
+    try {
+      const { userId } = req.user;
+
+      if (req.user.role !== 'profesional') {
+        return res.status(403).json({
+          error: 'Acceso denegado',
+          message: 'Solo los profesionales pueden crear perfiles'
+        });
+      }
+
+      // Verificar que no tenga perfil ya
+      const existingProfile = await professionalProfileService.getProfessionalProfile(userId, true).catch(() => null);
+      if (existingProfile) {
+        return res.status(400).json({
+          error: 'Perfil ya existe',
+          message: 'Ya tienes un perfil profesional configurado'
+        });
+      }
+
+      const profileData = req.body;
+      const profile = await professionalProfileService.createProfessionalProfile(userId, profileData);
+
+      res.status(201).json({
+        success: true,
+        profile,
+        message: 'Perfil profesional creado exitosamente'
+      });
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      res.status(500).json({
+        error: 'Error interno del servidor',
+        message: 'Error al crear el perfil profesional'
+      });
+    }
+  }
+
+  /**
+   * PATCH /api/professionals/:id/verify
+   * Verifica un perfil profesional
+   */
+  static async verifyProfile(req, res) {
+    try {
+      const { id } = req.params;
+      const { userId } = req.user;
+
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          error: 'Acceso denegado',
+          message: 'Solo los administradores pueden verificar perfiles'
+        });
+      }
+
+      const profile = await professionalProfileService.verifyProfessionalProfile(id, userId);
+
+      res.json({
+        success: true,
+        profile,
+        message: 'Perfil profesional verificado exitosamente'
+      });
+    } catch (error) {
+      console.error('Error verifying profile:', error);
+
+      if (error.message.includes('no encontrado')) {
+        return res.status(404).json({
+          error: 'Perfil no encontrado',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        error: 'Error interno del servidor',
+        message: 'Error al verificar el perfil profesional'
+      });
+    }
+  }
+
+  /**
+   * DELETE /api/professionals/:id
+   * Elimina un perfil profesional
+   */
+  static async deleteProfile(req, res) {
+    try {
+      const { id } = req.params;
+
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          error: 'Acceso denegado',
+          message: 'Solo los administradores pueden eliminar perfiles'
+        });
+      }
+
+      const deletedProfile = await professionalProfileService.deleteProfessionalProfile(id);
+
+      res.json({
+        success: true,
+        message: 'Perfil profesional eliminado exitosamente'
+      });
+    } catch (error) {
+      console.error('Error deleting profile:', error);
+
+      if (error.message.includes('no encontrado')) {
+        return res.status(404).json({
+          error: 'Perfil no encontrado',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        error: 'Error interno del servidor',
+        message: 'Error al eliminar el perfil profesional'
       });
     }
   }

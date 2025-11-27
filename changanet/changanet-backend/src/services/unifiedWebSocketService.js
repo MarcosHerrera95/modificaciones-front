@@ -12,7 +12,8 @@
  * Cliente → Servidor:
  * - join(conversationId) - Unirse a conversación
  * - message({ conversationId, senderId, content, imageUrl }) - Enviar mensaje
- * - typing({ conversationId, isTyping }) - Estado escribiendo
+ * - typing({ conversationId }) - Usuario empezó a escribir
+ * - stopTyping({ conversationId }) - Usuario dejó de escribir
  * 
  * Servidor → Cliente:
  * - message(msg) - Nuevo mensaje recibido
@@ -29,8 +30,16 @@
 
 const { PrismaClient } = require('@prisma/client');
 const { notifyNewMessage } = require('./chatService');
+const { RateLimiterMemory } = require('rate-limiter-flexible');
 
 const prisma = new PrismaClient();
+
+// Rate limiter: 10 mensajes por minuto por usuario
+const messageRateLimiter = new RateLimiterMemory({
+  keyPrefix: 'chat_messages',
+  points: 10, // Número de mensajes permitidos
+  duration: 60, // Por minuto
+});
 
 class UnifiedWebSocketService {
   constructor(io) {
@@ -198,7 +207,7 @@ class UnifiedWebSocketService {
     });
 
     // EVENTO: Enviar mensaje (REQ-17, REQ-18)
-    socket.on('receiveMessage', async (data) => {
+    socket.on('message', async (data) => {
       try {
         const { conversationId, content, imageUrl } = data;
 
@@ -210,6 +219,19 @@ class UnifiedWebSocketService {
 
         if (content && content.length > 1000) {
           socket.emit('error', { message: 'El mensaje no puede exceder 1000 caracteres' });
+          return;
+        }
+
+        // Rate limiting: 10 mensajes por minuto por usuario
+        try {
+          await messageRateLimiter.consume(userId);
+        } catch (rejRes) {
+          const msBeforeNext = rejRes.msBeforeNext;
+          socket.emit('error', {
+            message: 'Demasiados mensajes enviados. Inténtalo de nuevo en unos minutos.',
+            code: 'RATE_LIMIT_EXCEEDED',
+            msBeforeNext
+          });
           return;
         }
 
@@ -253,16 +275,18 @@ class UnifiedWebSocketService {
         // Formatear mensaje para envío
         const formattedMessage = {
           id: message.id,
+          conversationId: conversationId,
           conversation_id: conversationId,
-          content: message.message,
+          message: message.message,
           image_url: message.image_url,
           status: message.status,
           created_at: message.created_at,
-          sender: message.sender
+          sender: message.sender,
+          sender_id: message.sender.id
         };
 
         // Enviar mensaje a todos en la conversación
-        this.io.to(`conversation_${conversationId}`).emit('receiveMessage', formattedMessage);
+        this.io.to(`conversation_${conversationId}`).emit('message', formattedMessage);
 
         // ✅ NOTIFICACIONES (REQ-19): Enviar notificación push + email
         try {
@@ -327,10 +351,10 @@ class UnifiedWebSocketService {
       }
     });
 
-    // EVENTO: Estado de escritura (REQ-16 adicional)
+    // EVENTO: Usuario empezó a escribir (REQ-MSG-13)
     socket.on('typing', async (data) => {
       try {
-        const { conversationId, isTyping } = data;
+        const { conversationId } = data;
 
         // Verificar autorización
         const conversation = await prisma.conversations.findUnique({
@@ -342,17 +366,84 @@ class UnifiedWebSocketService {
           return; // Silenciosamente ignorar
         }
 
-        // Actualizar estado de typing
-        if (isTyping) {
-          if (!this.typingUsers.has(conversationId)) {
-            this.typingUsers.set(conversationId, new Set());
+        // Crear/actualizar indicador de escritura en base de datos
+        await prisma.typing_indicators.upsert({
+          where: {
+            conversation_id_user_id: {
+              conversation_id: conversationId,
+              user_id: userId
+            }
+          },
+          update: {
+            is_typing: true,
+            updated_at: new Date()
+          },
+          create: {
+            conversation_id: conversationId,
+            user_id: userId,
+            is_typing: true
           }
-          this.typingUsers.get(conversationId).add(userId);
-        } else {
-          const typingSet = this.typingUsers.get(conversationId);
-          if (typingSet) {
-            typingSet.delete(userId);
+        });
+
+        // Actualizar estado en memoria
+        if (!this.typingUsers.has(conversationId)) {
+          this.typingUsers.set(conversationId, new Set());
+        }
+        this.typingUsers.get(conversationId).add(userId);
+
+        // Notificar a otros usuarios en la conversación
+        socket.to(`conversation_${conversationId}`).emit('typing', {
+          conversationId,
+          userId,
+          userName: socket.user.nombre,
+          isTyping: true
+        });
+
+        console.log(`✍️ Usuario ${userId} empezó a escribir en conversación ${conversationId}`);
+
+      } catch (error) {
+        console.error('Error en evento typing:', error);
+      }
+    });
+
+    // EVENTO: Usuario dejó de escribir (REQ-MSG-13)
+    socket.on('stopTyping', async (data) => {
+      try {
+        const { conversationId } = data;
+
+        // Verificar autorización
+        const conversation = await prisma.conversations.findUnique({
+          where: { id: conversationId }
+        });
+
+        if (!conversation ||
+            (conversation.client_id !== userId && conversation.professional_id !== userId)) {
+          return; // Silenciosamente ignorar
+        }
+
+        // Actualizar indicador de escritura en base de datos
+        await prisma.typing_indicators.upsert({
+          where: {
+            conversation_id_user_id: {
+              conversation_id: conversationId,
+              user_id: userId
+            }
+          },
+          update: {
+            is_typing: false,
+            updated_at: new Date()
+          },
+          create: {
+            conversation_id: conversationId,
+            user_id: userId,
+            is_typing: false
           }
+        });
+
+        // Actualizar estado en memoria
+        const typingSet = this.typingUsers.get(conversationId);
+        if (typingSet) {
+          typingSet.delete(userId);
         }
 
         // Notificar a otros usuarios en la conversación
@@ -360,11 +451,13 @@ class UnifiedWebSocketService {
           conversationId,
           userId,
           userName: socket.user.nombre,
-          isTyping
+          isTyping: false
         });
 
+        console.log(`🛑 Usuario ${userId} dejó de escribir en conversación ${conversationId}`);
+
       } catch (error) {
-        console.error('Error en evento typing:', error);
+        console.error('Error en evento stopTyping:', error);
       }
     });
 
@@ -424,11 +517,28 @@ class UnifiedWebSocketService {
         }
       });
       
-      // Limpiar typing users
-      this.typingUsers.forEach((typingSet, conversationId) => {
+      // Limpiar typing users de memoria y base de datos
+      this.typingUsers.forEach(async (typingSet, conversationId) => {
         if (typingSet.has(userId)) {
           typingSet.delete(userId);
-          
+
+          // Limpiar indicador de escritura de la base de datos
+          try {
+            await prisma.typing_indicators.updateMany({
+              where: {
+                conversation_id: conversationId,
+                user_id: userId,
+                is_typing: true
+              },
+              data: {
+                is_typing: false,
+                updated_at: new Date()
+              }
+            });
+          } catch (error) {
+            console.error('Error limpiando typing indicators en desconexión:', error);
+          }
+
           // Notificar que dejó de escribir
           socket.to(`conversation_${conversationId}`).emit('typing', {
             conversationId,

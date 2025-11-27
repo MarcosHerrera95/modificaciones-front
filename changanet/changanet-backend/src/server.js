@@ -71,7 +71,6 @@ try {
 const authRoutes = require('./routes/authRoutes');
 const profileRoutes = require('./routes/profileRoutes');
 const searchRoutes = require('./routes/searchRoutes');
-const messageRoutes = require('./routes/messageRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
@@ -331,8 +330,7 @@ const advancedSearchRoutes = require('./routes/advancedSearchRoutes');
 app.use('/api/search', searchRoutes);
 app.use('/api', advancedSearchRoutes); // Rutas avanzadas con métricas
 
-// Rutas de mensajería con autenticación requerida
-app.use('/api/messages', authenticateToken, messageRoutes);
+// ✅ Rutas de mensajería consolidadas en /api/chat (eliminadas rutas duplicadas /api/messages)
 
 // ✅ RUTAS UNIFICADAS DE CHAT (REQUERIMIENTOS REQ-16 a REQ-20)
 // Implementación completa y consolidada según especificaciones PRD
@@ -512,3 +510,4 @@ if (process.env.NODE_ENV !== 'test') {
 
 // Exportar app para pruebas
 module.exports = app; 
+"// Trigger reload" 

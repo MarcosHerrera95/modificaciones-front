@@ -205,12 +205,30 @@ const useProfessionals = () => {
       const data = await response.json();
       console.log('✅ Received data from API:', data);
       console.log('🔍 DEBUGGING API - Response data type:', typeof data);
+      console.log('🔍 DEBUGGING API - Data keys:', Object.keys(data));
       console.log('🔍 DEBUGGING API - Professionals data:', data.professionals);
+      console.log('🔍 DEBUGGING API - Professionals data type:', typeof data.professionals);
+      console.log('🔍 DEBUGGING API - Is professionals array:', Array.isArray(data.professionals));
       const newProfessionals = data.professionals || [];
       console.log('✅ New professionals array:', newProfessionals);
       console.log('✅ New professionals length:', newProfessionals.length);
       console.log('🔍 DEBUGGING - New professionals type:', typeof newProfessionals);
       console.log('🔍 DEBUGGING - Is new professionals array:', Array.isArray(newProfessionals));
+
+      // DIAGNOSTIC LOGS FOR VALIDATION
+      console.log('🔍 VALIDATION: newProfessionals after extraction:', newProfessionals, 'length:', newProfessionals.length);
+      if (newProfessionals.length === 0) {
+        console.warn('⚠️ VALIDATION: API returned empty professionals array - this may cause empty list');
+      }
+
+      // Additional validation
+      if (data.professionals === null || data.professionals === undefined) {
+        console.error('❌ API returned null/undefined for professionals');
+      } else if (!Array.isArray(data.professionals)) {
+        console.error('❌ API returned non-array for professionals:', data.professionals);
+      } else if (data.professionals.length === 0) {
+        console.warn('⚠️ API returned empty professionals array - no professionals in database');
+      }
 
       // Log each professional's ID for debugging
       if (newProfessionals.length > 0) {
@@ -231,11 +249,18 @@ const useProfessionals = () => {
       }
 
       console.log('🔍 CRITICAL - About to set state with professionals:', newProfessionals);
+      console.log('🔍 LOAD_MORE_CHECK: loadMore =', loadMore, 'current professionals length before:', professionals.length);
 
       // Si estamos cargando más, agregar a los existentes
       if (loadMore) {
-        setProfessionals(prev => [...prev, ...newProfessionals]);
+        console.log('🔍 APPENDING: will append', newProfessionals.length, 'items to existing', professionals.length);
+        setProfessionals(prev => {
+          const updated = [...prev, ...newProfessionals];
+          console.log('🔍 STATE_UPDATE: After append, professionals will have', updated.length, 'items');
+          return updated;
+        });
       } else {
+        console.log('🔍 SETTING_STATE: setting to newProfessionals with', newProfessionals.length, 'items');
         setProfessionals(newProfessionals);
       }
 
@@ -255,6 +280,7 @@ const useProfessionals = () => {
       // Force immediate state update to ensure UI shows real data
       console.log('🔄 FORCE UPDATE - Setting professionals state immediately');
       setProfessionals(newProfessionals);
+      console.log('🔍 VALIDATION: Final state set to newProfessionals length:', newProfessionals.length);
       setLoading(false);
 
       // Verificar si hay más resultados
@@ -373,6 +399,12 @@ const useProfessionals = () => {
     }
     return prof;
   });
+
+  // DIAGNOSTIC: Log final returned professionals
+  console.log('🔍 HOOK_RETURN: Returning professionalsWithDistance with length:', professionalsWithDistance.length);
+  if (professionalsWithDistance.length === 0) {
+    console.warn('⚠️ HOOK_RETURN: Returning empty professionals array - UI will show no professionals');
+  }
 
   return {
     professionals: professionalsWithDistance,

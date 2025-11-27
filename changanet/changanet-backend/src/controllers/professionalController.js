@@ -1,24 +1,61 @@
 // src/controllers/professionalController.js
 const { PrismaClient } = require('@prisma/client');
+const DOMPurify = require('isomorphic-dompurify');
 const prisma = new PrismaClient();
+
+/**
+ * Sanitiza parámetros de entrada para prevenir ataques XSS
+ * @param {Object} params - Parámetros a sanitizar
+ * @returns {Object} Parámetros sanitizados
+ */
+function sanitizeSearchParams(params) {
+  const sanitized = {};
+
+  // Sanitizar strings con DOMPurify
+  const stringFields = ['zona_cobertura', 'especialidad'];
+  stringFields.forEach(field => {
+    if (params[field]) {
+      sanitized[field] = DOMPurify.sanitize(params[field], {
+        ALLOWED_TAGS: [],
+        ALLOWED_ATTR: []
+      }).trim();
+    }
+  });
+
+  // Copiar valores numéricos sin modificación
+  const numericFields = ['precio_min', 'precio_max', 'page', 'limit'];
+  numericFields.forEach(field => {
+    if (params[field] !== undefined && params[field] !== null) {
+      sanitized[field] = params[field];
+    }
+  });
+
+  // Manejar campos especiales
+  if (params.sort_by) sanitized.sort_by = params.sort_by;
+
+  return sanitized;
+}
 
 /**
  * Buscar profesionales con filtros y ordenamiento
  * REQ-11, REQ-12, REQ-13, REQ-14, REQ-15
  */
 exports.getProfessionals = async (req, res) => {
-  try {
-    const {
-      zona_cobertura,
-      precio_min,
-      precio_max,
-      especialidad,
-      sort_by = 'calificacion_promedio',
-      page = 1,
-      limit = 10
-    } = req.query;
+   try {
+     // Sanitizar parámetros de entrada
+     const sanitizedParams = sanitizeSearchParams(req.query);
 
-    console.log('🔍 Buscando profesionales con filtros:', req.query);
+     const {
+       zona_cobertura,
+       precio_min,
+       precio_max,
+       especialidad,
+       sort_by = 'calificacion_promedio',
+       page = 1,
+       limit = 10
+     } = sanitizedParams;
+
+     console.log('🔍 Buscando profesionales con filtros:', sanitizedParams);
 
     // Validar parámetros
     const validSortOptions = ['calificacion_promedio', 'tarifa_hora', 'distancia', 'disponibilidad'];
@@ -164,6 +201,9 @@ exports.getProfessionals = async (req, res) => {
 
     // Buscar profesionales usando Prisma con include (REQ-15)
     // Nota: Ordenamos después de obtener los resultados debido a la estructura de Prisma
+    console.log('🔍 DEBUGGING - Prisma where clause:', JSON.stringify(where, null, 2));
+    console.log('🔍 DEBUGGING - Skip:', skip, 'Take:', limitNum);
+
     const professionals = await prisma.usuarios.findMany({
       where,
       include: {
@@ -174,7 +214,9 @@ exports.getProfessionals = async (req, res) => {
             tarifa_hora: true,
             calificacion_promedio: true,
             estado_verificacion: true,
-            descripcion: true
+            descripcion: true,
+            latitud: true,
+            longitud: true
           }
         }
       },
@@ -182,13 +224,21 @@ exports.getProfessionals = async (req, res) => {
       take: limitNum
     });
 
+    console.log('🔍 DEBUGGING - Raw professionals from DB:', professionals.length);
+    console.log('🔍 DEBUGGING - First professional sample:', professionals[0] ? {
+      id: professionals[0].id,
+      nombre: professionals[0].nombre,
+      rol: professionals[0].rol,
+      perfil: professionals[0].perfiles_profesionales
+    } : 'No professionals found');
+
     // Ordenar los resultados en JavaScript según el criterio solicitado
     const sortedProfessionals = professionals.sort((a, b) => {
       const profA = a.perfiles_profesionales;
       const profB = b.perfiles_profesionales;
-      
+
       if (!profA || !profB) return 0;
-      
+
       switch (sort_by) {
         case 'calificacion_promedio':
           return (profB.calificacion_promedio || 0) - (profA.calificacion_promedio || 0);
@@ -219,15 +269,19 @@ exports.getProfessionals = async (req, res) => {
       tarifa_hora: prof.perfiles_profesionales?.tarifa_hora,
       calificacion_promedio: prof.perfiles_profesionales?.calificacion_promedio,
       estado_verificacion: prof.perfiles_profesionales?.estado_verificacion,
-      descripcion: prof.perfiles_profesionales?.descripcion
+      descripcion: prof.perfiles_profesionales?.descripcion,
+      latitud: prof.perfiles_profesionales?.latitud,
+      longitud: prof.perfiles_profesionales?.longitud
     }));
 
+    const totalQuery = where;
+    console.log('🔍 DEBUGGING - Total count query:', JSON.stringify(totalQuery, null, 2));
+
     const total = await prisma.usuarios.count({
-      where: {
-        rol: 'profesional',
-        perfiles_profesionales: { isNot: null }
-      }
+      where: totalQuery
     });
+
+    console.log('🔍 DEBUGGING - Total count result:', total);
 
     const totalPages = Math.ceil(total / limitNum);
 

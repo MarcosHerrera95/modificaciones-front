@@ -1,7 +1,8 @@
 // src/components/ProfessionalCard.jsx
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useChat } from '../context/ChatContext';
 import { useFavorites } from '../hooks/useFavorites';
 import QuoteRequestModal from './modals/QuoteRequestModal';
 import ProfessionalDetailModal from './modals/ProfessionalDetailModal';
@@ -9,17 +10,19 @@ import VerifiedBadge from './VerifiedBadge';
 import RatingDisplay from './RatingDisplay';
 import { getDistanceMatrix, getSimulatedCoordinates, calculateHaversineDistance } from '../services/mapService';
 
-const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSelection = false }) => {
+const ProfessionalCard = React.memo(({ professional, isSelected = false, onSelect, showSelection = false }) => {
   console.log('🎨 ProfessionalCard - Received professional:', professional);
   console.log('🎨 ProfessionalCard - usuario_id:', professional?.usuario_id);
 
   const { user } = useAuth();
+  const { openConversation } = useChat();
   const { isFavorite, toggleFavorite } = useFavorites();
   const [showQuoteModal, setShowQuoteModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [distance, setDistance] = useState('Calculando...');
   const [loading, setLoading] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const distanceCalculatedRef = useRef(false);
 
   // Si ya viene la distancia calculada desde el hook, usarla
@@ -62,6 +65,31 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
     }
   };
 
+  const handleChat = async () => {
+    if (!user) {
+      alert('Debes iniciar sesión para chatear con profesionales.');
+      return;
+    }
+    if (user.rol !== 'cliente') {
+      alert('Solo los clientes pueden iniciar conversaciones con profesionales.');
+      return;
+    }
+
+    setChatLoading(true);
+    try {
+      const conversationId = await openConversation(user.id, professional.usuario_id);
+      // Aquí podrías navegar a la página de chat o abrir un modal de chat
+      // Por ahora, solo mostramos el ID de conversación
+      console.log('Conversación iniciada:', conversationId);
+      alert(`Conversación iniciada con ${professional.usuario.nombre}`);
+    } catch (error) {
+      console.error('Error iniciando conversación:', error);
+      alert('Error al iniciar la conversación. Inténtalo de nuevo.');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
   // Calcular distancia usando Google Maps API o fallback
   const calculateDistance = useCallback(async () => {
     if (!professional?.zona_cobertura) return;
@@ -93,8 +121,16 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
         clientLon = -58.3816;
       }
 
-      // Obtener coordenadas del profesional
-      const profCoords = getSimulatedCoordinates(professional.zona_cobertura);
+      // Obtener coordenadas del profesional - usar reales si disponibles, sino simuladas
+      let profCoords;
+      if (professional.latitud && professional.longitud) {
+        profCoords = {
+          lat: parseFloat(professional.latitud),
+          lng: parseFloat(professional.longitud)
+        };
+      } else {
+        profCoords = getSimulatedCoordinates(professional.zona_cobertura);
+      }
 
       // Verificar si tenemos API key de Google Maps
       const hasGoogleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -295,6 +331,21 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
               Ver Perfil
             </button>
             <button
+              onClick={handleChat}
+              disabled={chatLoading}
+              className="flex-1 bg-blue-500 text-white hover:bg-blue-600 font-medium transition-all duration-200 flex items-center justify-center text-xs px-3 py-2 rounded-lg min-h-[32px] shadow-sm disabled:opacity-50"
+              aria-label={`Iniciar chat con ${professional.usuario.nombre}`}
+            >
+              {chatLoading ? (
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+              ) : (
+                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              )}
+              {chatLoading ? 'Iniciando...' : 'Chat'}
+            </button>
+            <button
               onClick={handleQuoteRequest}
               className="flex-1 bg-gradient-to-r from-amber-500 to-orange-500 text-white px-3 py-2 rounded-lg hover:from-amber-600 hover:to-orange-600 transition-all duration-200 font-medium text-xs flex items-center justify-center min-h-[32px] shadow-sm"
             >
@@ -321,6 +372,8 @@ const ProfessionalCard = ({ professional, isSelected = false, onSelect, showSele
       />
     </div>
   );
-};
+});
+
+ProfessionalCard.displayName = 'ProfessionalCard';
 
 export default ProfessionalCard;

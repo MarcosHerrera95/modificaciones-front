@@ -21,25 +21,17 @@
 // src/controllers/profileController.js
 const { PrismaClient } = require('@prisma/client');
 const { uploadImage, deleteImage } = require('../services/storageService');
-const { getCachedProfessionalProfile, cacheProfessionalProfile, invalidateProfessionalProfile } = require('../services/cacheService');
 const prisma = new PrismaClient();
 
 /**
- * Obtiene perfil público de un profesional
- * Incluye caché para optimización de rendimiento
- * REQ-07, REQ-09: Muestra especialidad y zona de cobertura
+ * Obtiene perfil público de un usuario (profesional o cliente)
+ * REQ-07, REQ-09: Muestra especialidad y zona de cobertura para profesionales
  */
 exports.getProfile = async (req, res) => {
   const { professionalId } = req.params;
 
   try {
-    // Intentar obtener perfil del caché
-    const cachedProfile = await getCachedProfessionalProfile(professionalId);
-    if (cachedProfile) {
-      console.log('👤 Perfil obtenido del caché');
-      return res.status(200).json(cachedProfile);
-    }
-
+    // Primero intentar obtener perfil de profesional
     const profile = await prisma.perfiles_profesionales.findUnique({
       where: { usuario_id: professionalId },
       include: {
@@ -52,15 +44,45 @@ exports.getProfile = async (req, res) => {
       },
     });
 
-    if (!profile) return res.status(404).json({ error: 'Perfil no encontrado.' });
+    if (profile) {
+      console.log('✅ Perfil profesional obtenido');
+      return res.status(200).json(profile);
+    }
 
-    // Almacenar en caché
-    await cacheProfessionalProfile(professionalId, profile);
-    console.log('💾 Perfil almacenado en caché');
+    // Si no es profesional, buscar usuario básico (cliente)
+    console.log(`🔍 Usuario ${professionalId} no es profesional, buscando como cliente...`);
+    const user = await prisma.usuarios.findUnique({
+      where: { id: professionalId },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        url_foto_perfil: true,
+        esta_verificado: true
+      }
+    });
 
-    res.status(200).json(profile);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado.' });
+    }
+
+    // Devolver en formato compatible con el frontend (usuario envuelto)
+    const clientProfile = {
+      usuario: {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email,
+        rol: user.rol,
+        url_foto_perfil: user.url_foto_perfil,
+        esta_verificado: user.esta_verificado
+      }
+    };
+
+    console.log('✅ Perfil de cliente obtenido');
+    res.status(200).json(clientProfile);
   } catch (error) {
-    console.error(error);
+    console.error('Error al obtener perfil:', error);
     res.status(500).json({ error: 'Error al obtener el perfil.' });
   }
 };
@@ -179,9 +201,8 @@ exports.updateProfile = async (req, res) => {
         });
       }
 
-      // Invalidate profile cache after update
-      await invalidateProfessionalProfile(userId);
-      console.log('🗑️ Professional profile cache invalidated');
+      // Profile updated successfully
+      console.log('✅ Professional profile updated successfully');
 
       console.log('✅ Professional profile updated successfully');
       res.status(200).json({

@@ -1,18 +1,20 @@
 /**
  * Componente mejorado para crear/editar reseñas
- * Incluye validaciones robustas y mejor experiencia de usuario
+ * Incluye validaciones robustas, sanitización y mejor experiencia de usuario
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useReviews } from '../context/ReviewContext';
 import ImageUpload from './ImageUpload';
+import DOMPurify from 'dompurify';
 
 const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
   const { user } = useAuth();
+  const { submitReview, checkReviewEligibility, submittingReview } = useReviews();
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [photo, setPhoto] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [canReview, setCanReview] = useState(false);
   const [checkingReview, setCheckingReview] = useState(true);
@@ -29,26 +31,15 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
   
   // Verificar si el usuario puede dejar reseña al cargar el componente
   useEffect(() => {
-    const checkReviewEligibility = async () => {
+    const checkEligibility = async () => {
       if (!user || !servicio_id) return;
-      
+
       try {
         setCheckingReview(true);
-        const response = await fetch(`/api/reviews/check/${servicio_id}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setCanReview(data.canReview);
-          if (!data.canReview && data.reason) {
-            setError(data.reason);
-          }
-        } else {
-          setCanReview(false);
-          setError('Error al verificar elegibilidad para reseñar');
+        const data = await checkReviewEligibility(servicio_id);
+        setCanReview(data.canReview);
+        if (!data.canReview && data.reason) {
+          setError(data.reason);
         }
       } catch (error) {
         console.error('Error verificando elegibilidad para reseña:', error);
@@ -58,9 +49,9 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
         setCheckingReview(false);
       }
     };
-    
-    checkReviewEligibility();
-  }, [user, servicio_id]);
+
+    checkEligibility();
+  }, [user, servicio_id, checkReviewEligibility]);
   
   // Validar comentario en tiempo real
   useEffect(() => {
@@ -108,11 +99,11 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
     return true;
   };
   
-  const handleSubmit = async (e, isPreview = false) => {
+  const handleSubmit = useCallback(async (e, isPreview = false) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
-    
+
     // Si estamos en modo preview, cambiar a modo de edición
     if (isPreview) {
       setPreviewMode(false);
@@ -126,7 +117,10 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
       }
       return;
     }
-    
+
+    // Sanitizar comentario
+    const sanitizedComment = DOMPurify.sanitize(comment.trim());
+
     // Validar formulario
     if (!validateForm()) {
       // Scroll al error
@@ -136,64 +130,40 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
       }
       return;
     }
-    
-    setLoading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('servicio_id', servicio_id);
-      formData.append('calificacion', rating);
-      formData.append('comentario', comment);
-      if (photo) {
-        formData.append('url_foto', photo);
-      }
-      
-      const response = await fetch('/api/reviews', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: formData
-      });
-      
-      if (response.ok) {
-        const review = await response.json();
-        setSuccessMessage('Reseña enviada exitosamente');
-        onReviewSubmitted(review);
-        
-        // Reset form
-        setRating(5);
-        setComment('');
-        setPhoto(null);
-        setCanReview(false);
-        
-        // Scroll al mensaje de éxito
-        setTimeout(() => {
-          const successElement = document.querySelector('.success-message');
-          if (successElement) {
-            successElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 100);
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Error al enviar la reseña');
-        // Scroll al error
-        const errorElement = document.querySelector('.error-message');
-        if (errorElement) {
-          errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const result = await submitReview({
+      servicio_id,
+      calificacion: rating,
+      comentario: sanitizedComment,
+      url_foto: photo
+    }, (review) => {
+      setSuccessMessage('Reseña enviada exitosamente');
+      onReviewSubmitted(review);
+
+      // Reset form
+      setRating(5);
+      setComment('');
+      setPhoto(null);
+      setCanReview(false);
+
+      // Scroll al mensaje de éxito
+      setTimeout(() => {
+        const successElement = document.querySelector('.success-message');
+        if (successElement) {
+          successElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-      }
-    } catch {
-      setError('Error de conexión. Inténtalo de nuevo.');
+      }, 100);
+    });
+
+    if (!result.success) {
+      setError(result.error);
       // Scroll al error
       const errorElement = document.querySelector('.error-message');
       if (errorElement) {
         errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [servicio_id, rating, comment, photo, submitReview, onReviewSubmitted]);
   
   const handleRatingChange = (newRating) => {
     setRating(newRating);
@@ -390,10 +360,10 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
               {/* Botón de enviar */}
               <button
                 type="submit"
-                disabled={loading}
+                disabled={submittingReview}
                 className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-6 py-3 rounded-2xl hover:from-amber-500 hover:to-orange-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
               >
-                {loading ? (
+                {submittingReview ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Enviando reseña...
@@ -421,10 +391,10 @@ const ReviewForm = ({ servicio_id, onReviewSubmitted }) => {
               <button
                 type="button"
                 onClick={(e) => handleSubmit(e, false)}
-                disabled={loading}
+                disabled={submittingReview}
                 className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-6 py-3 rounded-2xl hover:from-amber-500 hover:to-orange-600 transition-all duration-200 font-medium shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
               >
-                {loading ? (
+                {submittingReview ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     Enviando reseña...

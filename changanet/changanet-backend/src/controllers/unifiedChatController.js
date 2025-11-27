@@ -29,8 +29,46 @@ const { nanoid } = require('nanoid'); // Para IDs consistentes
 const Joi = require('joi');
 const DOMPurify = require('isomorphic-dompurify');
 const { getFromCache, setInCache } = require('../services/cacheService');
+const sharp = require('sharp');
+const axios = require('axios');
+const {
+  formatMessage,
+  formatConversation,
+  isValidUUID,
+  canAccessConversation,
+  sanitizeMessageContent,
+  isDuplicateMessage,
+  getUnreadCounts
+} = require('../utils/chatUtils');
+const { validateConversationParticipant, validateMessagePermissions } = require('../middleware/participantValidation');
 
 const prisma = new PrismaClient();
+
+/**
+ * Función para validar contenido de imagen usando Sharp
+ * @param {string} imageUrl - URL de la imagen a validar
+ * @returns {Promise<boolean>} - True si es una imagen válida
+ */
+const validateImageContent = async (imageUrl) => {
+  try {
+    // Descargar la imagen
+    const response = await axios.get(imageUrl, {
+      responseType: 'arraybuffer',
+      timeout: 10000, // 10 segundos timeout
+      maxContentLength: 10 * 1024 * 1024 // Máximo 10MB
+    });
+
+    // Usar Sharp para validar el contenido
+    const buffer = Buffer.from(response.data);
+    const metadata = await sharp(buffer).metadata();
+
+    // Verificar que tenga dimensiones (es una imagen válida)
+    return metadata.width > 0 && metadata.height > 0;
+  } catch (error) {
+    console.error('Error validando contenido de imagen:', error.message);
+    return false;
+  }
+};
 
 /**
  * POST /api/chat/conversations
@@ -50,10 +88,8 @@ exports.createConversation = async (req, res) => {
     }
 
     // ✅ VALIDACIÓN: Verificar que los IDs son UUIDs válidos
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    
-    if (!uuidRegex.test(clientId) || !uuidRegex.test(professionalId)) {
-      return res.status(400).json({ 
+    if (!isValidUUID(clientId) || !isValidUUID(professionalId)) {
+      return res.status(400).json({
         error: 'clientId y professionalId deben ser UUIDs válidos',
         code: 'INVALID_UUID'
       });
@@ -251,32 +287,13 @@ exports.getUserConversations = async (req, res) => {
       take: limit
     });
 
-    // Formatear respuesta
-    const formattedConversations = conversations.map(conv => {
-      const otherUser = conv.client_id === userId ? conv.professional : conv.client;
-      const lastMessage = conv.messages[0] || null;
+    // ✅ OPTIMIZACIÓN N+1: Obtener conteos de mensajes no leídos
+    const unreadCountMap = await getUnreadCounts(userId);
 
-      return {
-        id: conv.id,
-        otherUser: {
-          id: otherUser.id,
-          nombre: otherUser.nombre,
-          rol: otherUser.rol,
-          foto_perfil: otherUser.url_foto_perfil,
-          verificado: otherUser.esta_verificado
-        },
-        lastMessage: lastMessage ? {
-          id: lastMessage.id,
-          content: lastMessage.message,
-          image_url: lastMessage.image_url,
-          status: lastMessage.status,
-          created_at: lastMessage.created_at,
-          sender_id: lastMessage.sender_id
-        } : null,
-        created_at: conv.created_at,
-        updated_at: conv.updated_at,
-        is_active: conv.is_active
-      };
+    // Formatear respuesta usando utilidad
+    const formattedConversations = conversations.map(conv => {
+      const unreadCount = unreadCountMap.get(conv.id) || 0;
+      return formatConversation(conv, userId, unreadCount);
     });
 
     // Contar total para paginación
@@ -384,21 +401,8 @@ exports.getMessageHistory = async (req, res) => {
       where: { conversation_id: conversationId }
     });
 
-    // Formatear mensajes (ordenar cronológicamente ascendente)
-    const formattedMessages = messages.reverse().map(msg => ({
-      id: msg.id,
-      content: msg.message,
-      image_url: msg.image_url,
-      status: msg.status,
-      created_at: msg.created_at,
-      read_at: msg.read_at,
-      sender: {
-        id: msg.sender.id,
-        nombre: msg.sender.nombre,
-        foto_perfil: msg.sender.url_foto_perfil,
-        rol: msg.sender.rol
-      }
-    }));
+    // Formatear mensajes usando utilidad
+    const formattedMessages = messages.reverse().map(formatMessage);
 
     res.status(200).json({
       messages: formattedMessages,
@@ -454,7 +458,7 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // ✅ SANITIZACIÓN AVANZADA: Validar y limpiar contenido con DOMPurify
+    // ✅ SANITIZACIÓN AVANZADA: Validar y limpiar contenido
     if (content && content.length > 1000) {
       return res.status(400).json({
         error: 'El mensaje no puede exceder 1000 caracteres',
@@ -462,14 +466,10 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // Sanitizar contenido con DOMPurify para prevenir XSS
-    const sanitizedContent = content ?
-      DOMPurify.sanitize(content, {
-        ALLOWED_TAGS: [], // No permitir HTML
-        ALLOWED_ATTR: []  // No permitir atributos
-      }).trim() : null;
+    // Sanitizar contenido usando utilidad centralizada
+    const sanitizedContent = sanitizeMessageContent(content);
 
-    if (sanitizedContent && sanitizedContent.length === 0) {
+    if (content && !sanitizedContent) {
       return res.status(400).json({
         error: 'El mensaje no puede estar vacío después de la sanitización',
         code: 'EMPTY_MESSAGE'
@@ -502,12 +502,34 @@ exports.sendMessage = async (req, res) => {
     }
 
     // Verificar que el recipientId es válido en la conversación
-    if (recipientId !== conversation.client_id && 
+    if (recipientId !== conversation.client_id &&
         recipientId !== conversation.professional_id) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'recipientId no es un participante válido de la conversación',
         code: 'INVALID_RECIPIENT'
       });
+    }
+
+    // ✅ DEDUPLICACIÓN: Verificar mensajes duplicados recientes
+    if (sanitizedContent) {
+      const isDuplicate = await isDuplicateMessage(conversationId, senderId, sanitizedContent);
+      if (isDuplicate) {
+        return res.status(400).json({
+          error: 'Mensaje duplicado detectado. Evita enviar el mismo mensaje repetidamente.',
+          code: 'DUPLICATE_MESSAGE'
+        });
+      }
+    }
+
+    // Validar contenido de imagen si se proporciona image_url
+    if (image_url) {
+      const isValidImage = await validateImageContent(image_url);
+      if (!isValidImage) {
+        return res.status(400).json({
+          error: 'El archivo proporcionado no es una imagen válida',
+          code: 'INVALID_IMAGE_CONTENT'
+        });
+      }
     }
 
     // Crear el mensaje
@@ -548,15 +570,33 @@ const message = await prisma.mensajes.create({
       console.warn('Error enviando notificación:', notificationError.message);
     }
 
-    // Respuesta formateada
-    const formattedMessage = {
-      id: message.id,
-      content: message.message,
-      image_url: message.image_url,
-      status: message.status,
-      created_at: message.created_at,
-      sender: message.sender
-    };
+    // ✅ WEBSOCKET: Emitir evento a participantes conectados
+    try {
+      const { setWebSocketService } = require('../services/notificationService');
+      const webSocketService = setWebSocketService();
+      if (webSocketService) {
+        // Formatear mensaje para WebSocket
+        const wsMessage = {
+          id: message.id,
+          conversationId: conversationId,
+          message: message.message,
+          image_url: message.image_url,
+          status: message.status,
+          created_at: message.created_at,
+          sender: message.sender
+        };
+
+        // Emitir a la sala de conversación
+        webSocketService.io.to(`conversation_${conversationId}`).emit('message', wsMessage);
+
+        console.log(`📡 WebSocket: Mensaje emitido a conversación ${conversationId}`);
+      }
+    } catch (wsError) {
+      console.warn('Error emitiendo evento WebSocket:', wsError.message);
+    }
+
+    // Respuesta formateada usando utilidad
+    const formattedMessage = formatMessage(message);
 
     res.status(201).json({
       message: formattedMessage,
@@ -762,17 +802,12 @@ exports.searchMessages = async (req, res) => {
       take: 50 // Límite de resultados
     });
 
-    // Formatear resultados
+    // Formatear resultados usando utilidad
     const formattedResults = messages.map(msg => ({
-      id: msg.id,
-      content: msg.message,
-      image_url: msg.image_url,
-      status: msg.status,
-      created_at: msg.created_at,
-      sender: msg.sender,
+      ...formatMessage(msg),
       // Agregar snippet de contexto para destacar coincidencias
-      snippet: q && msg.message ? 
-        msg.message.substring(0, 100) + (msg.message.length > 100 ? '...' : '') : 
+      snippet: q && msg.message ?
+        msg.message.substring(0, 100) + (msg.message.length > 100 ? '...' : '') :
         null
     }));
 
@@ -954,6 +989,61 @@ exports.markMessagesAsRead = async (req, res) => {
 };
 
 /**
+ * PUT /api/chat/conversations/:conversationId/archive
+ * Archivar conversación (REQ-MSG-08)
+ */
+exports.archiveConversation = async (req, res) => {
+  const { id: currentUserId } = req.user;
+  const { conversationId } = req.params;
+
+  try {
+    // Verificar que la conversación existe
+    const conversation = await prisma.conversations.findUnique({
+      where: { id: conversationId },
+      include: {
+        client: { select: { id: true } },
+        professional: { select: { id: true } }
+      }
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        error: 'Conversación no encontrada',
+        code: 'CONVERSATION_NOT_FOUND'
+      });
+    }
+
+    // Verificar que el usuario actual es participante
+    if (conversation.client_id !== currentUserId &&
+        conversation.professional_id !== currentUserId) {
+      return res.status(403).json({
+        error: 'No tienes acceso a esta conversación',
+        code: 'UNAUTHORIZED'
+      });
+    }
+
+    // Archivar conversación
+    await prisma.conversations.update({
+      where: { id: conversationId },
+      data: { is_active: false }
+    });
+
+    console.log(`✅ Conversación ${conversationId} archivada por usuario ${currentUserId}`);
+
+    res.status(200).json({
+      message: 'Conversación archivada exitosamente'
+    });
+
+  } catch (error) {
+    console.error('Error archivando conversación:', error);
+    res.status(500).json({
+      error: 'Error interno del servidor al archivar conversación',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};
+
+/**
  * GET /api/chat/conversation/:conversationId
  * Obtener información detallada de una conversación específica
  */
@@ -978,12 +1068,22 @@ exports.getConversation = async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta conversación' });
     }
 
+    // ✅ LÓGICA MENSAJES NO LEÍDOS: Contar mensajes no leídos para el usuario actual
+    const unreadCount = await prisma.mensajes.count({
+      where: {
+        conversation_id: conversationId,
+        recipient_id: currentUserId,
+        status: { not: 'read' }
+      }
+    });
+
     res.json({
       id: conversation.id,
       client_id: conversation.client_id,
       professional_id: conversation.professional_id,
       created_at: conversation.created_at,
-      is_active: conversation.is_active
+      is_active: conversation.is_active,
+      unread_count: unreadCount
     });
   } catch (error) {
     console.error('Error obteniendo conversación:', error);
