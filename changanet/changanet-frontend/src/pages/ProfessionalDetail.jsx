@@ -8,6 +8,7 @@ import BackButton from '../components/BackButton';
 import ProfilePicture from '../components/ProfilePicture';
 import ReviewStats from '../components/ReviewStats';
 import PaginatedReviewsList from '../components/PaginatedReviewsList';
+import AvailabilityCalendar from '../components/AvailabilityCalendar';
 
 const ProfessionalDetail = () => {
   const { user } = useAuth();
@@ -50,6 +51,37 @@ const ProfessionalDetail = () => {
       setError('Error al cargar la información del profesional');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScheduleServiceFromCalendar = async (slot) => {
+    try {
+      // Use the correct backend endpoint for booking
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/availability/${slot.id}/book`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+        },
+        body: JSON.stringify({
+          descripcion: `Servicio agendado para ${new Date(slot.fecha).toLocaleDateString('es-AR')} ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}-${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al agendar el servicio');
+      }
+
+      // Show success message
+      alert(`✅ Servicio agendado exitosamente con ${professional.usuario?.nombre}!\n\n📅 Fecha: ${new Date(slot.fecha).toLocaleDateString('es-AR')}\n🕐 Horario: ${new Date(slot.hora_inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${new Date(slot.hora_fin).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}\n\n📧 Recibirás una confirmación por email y notificación push.`);
+
+      // Navigate to client services page
+      navigate('/cliente/servicios');
+
+    } catch (error) {
+      console.error('Error scheduling service:', error);
+      alert(`❌ Error al agendar el servicio: ${error.message}`);
     }
   };
 
@@ -157,6 +189,7 @@ const ProfessionalDetail = () => {
             <nav className="flex flex-wrap">
               {[
                 { id: 'about', label: 'Sobre Mí', icon: '👤' },
+                { id: 'availability', label: 'Disponibilidad', icon: '📅' },
                 { id: 'gallery', label: 'Galería de Trabajos', icon: '🖼️' },
                 { id: 'reviews', label: 'Reseñas', icon: '⭐' }
               ].map(tab => (
@@ -177,7 +210,20 @@ const ProfessionalDetail = () => {
           </div>
 
           <div className="p-8">
-            {activeTab === 'about' && (
+           {activeTab === 'availability' && user && user.rol === 'cliente' && (
+             <div className="animate-fade-in">
+               <h2 className="text-3xl font-bold mb-6 text-gray-800">Disponibilidad y Agenda</h2>
+               <p className="text-gray-600 mb-8">
+                 Revisa los horarios disponibles de {professional.usuario?.nombre} y agenda un servicio directamente.
+               </p>
+               <AvailabilityCalendar
+                 professionalId={professionalId}
+                 onScheduleService={handleScheduleServiceFromCalendar}
+               />
+             </div>
+           )}
+
+           {activeTab === 'about' && (
               <div className="animate-fade-in">
                 <h2 className="text-3xl font-bold mb-6 text-gray-800">Sobre Mí</h2>
                 <div className="prose prose-lg max-w-none text-gray-600 mb-8">
