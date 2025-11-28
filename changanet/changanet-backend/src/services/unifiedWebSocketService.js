@@ -103,6 +103,7 @@ class UnifiedWebSocketService {
 
     this.io.on('connection', (socket) => {
       this.handleConnection(socket);
+      this.handleAdminConnection(socket);
     });
   }
 
@@ -602,6 +603,60 @@ class UnifiedWebSocketService {
       }
     });
 
+    // ==================================================
+    // EVENTOS PARA NOTIFICACIONES
+    // ==================================================
+
+    // EVENTO: Suscribirse a notificaciones en tiempo real
+    socket.on('subscribe_notifications', () => {
+      socket.join(`notifications_${userId}`);
+      console.log(`🔔 Usuario ${userId} suscrito a notificaciones en tiempo real`);
+    });
+
+    // EVENTO: Desuscribirse de notificaciones
+    socket.on('unsubscribe_notifications', () => {
+      socket.leave(`notifications_${userId}`);
+      console.log(`🔕 Usuario ${userId} desuscrito de notificaciones`);
+    });
+
+    // EVENTO: Marcar notificación como leída desde WebSocket
+    socket.on('notification_read', async (data) => {
+      try {
+        const { notificationId } = data;
+
+        // Verificar que la notificación pertenece al usuario
+        const notification = await prisma.notificaciones.findFirst({
+          where: {
+            id: notificationId,
+            usuario_id: userId
+          }
+        });
+
+        if (!notification) {
+          socket.emit('error', { message: 'Notificación no encontrada' });
+          return;
+        }
+
+        // Marcar como leída
+        await prisma.notificaciones.update({
+          where: { id: notificationId },
+          data: {
+            estado: 'read',
+            leido_en: new Date()
+          }
+        });
+
+        // Confirmar al cliente
+        socket.emit('notification_read_confirmed', { notificationId });
+
+        console.log(`✅ Notificación ${notificationId} marcada como leída por usuario ${userId}`);
+
+      } catch (error) {
+        console.error('Error marcando notificación como leída:', error);
+        socket.emit('error', { message: 'Error al marcar notificación como leída' });
+      }
+    });
+
     // EVENTO: Error handler
     socket.on('error', (error) => {
       console.error(`❌ WebSocket error para usuario ${userId}:`, error);
@@ -670,31 +725,36 @@ class UnifiedWebSocketService {
   async notifyUrgentRequestToProfessionals(urgentRequest, candidates) {
     try {
       const notification = {
-        type: 'urgent_request',
+        type: 'urgent_request_available',
         urgentRequestId: urgentRequest.id,
         client: {
           nombre: urgentRequest.client.nombre,
           id: urgentRequest.client_id
         },
         description: urgentRequest.description,
-        location: urgentRequest.location,
+        location: {
+          lat: urgentRequest.latitude,
+          lng: urgentRequest.longitude
+        },
         radiusKm: urgentRequest.radius_km,
         priceEstimate: urgentRequest.price_estimate,
         createdAt: urgentRequest.created_at,
         candidates: candidates.map(c => ({
           professionalId: c.professional_id,
           distance: c.distance_km
-        }))
+        })),
+        timestamp: new Date()
       };
 
-      // Enviar a todos los profesionales conectados
+      // Enviar a todos los profesionales conectados a urgencias
       this.io.to('urgent_professionals').emit('urgent_request_available', notification);
 
       // También enviar a salas personales de los candidatos
       for (const candidate of candidates) {
         this.io.to(`user_${candidate.professional_id}`).emit('urgent_request_assigned', {
           ...notification,
-          distance: candidate.distance_km
+          yourDistance: candidate.distance_km,
+          priority: this.calculateUrgentPriority(candidate.distance_km, urgentRequest.radius_km)
         });
       }
 
@@ -715,20 +775,66 @@ class UnifiedWebSocketService {
         professional: {
           nombre: assignment.professional.nombre,
           id: assignment.professional_id,
-          telefono: assignment.professional.telefono
+          telefono: assignment.professional.telefono,
+          calificacion_promedio: assignment.professional.calificacion_promedio
         },
         assignedAt: assignment.assigned_at,
-        status: 'assigned'
+        status: 'assigned',
+        estimatedArrival: this.calculateEstimatedArrival(assignment.distance_km),
+        timestamp: new Date()
       };
 
       // Notificar al cliente
-      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_status_update', notification);
+      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_accepted', notification);
+
+      // Notificar a otros candidatos que no fueron seleccionados
+      this.notifyUrgentRequestRejectedToOthers(urgentRequest.id, assignment.professional_id);
 
       console.log(`✅ Notificación de aceptación enviada al cliente ${urgentRequest.client_id}`);
       return true;
     } catch (error) {
       console.error('Error notificando aceptación:', error);
       return false;
+    }
+  }
+
+  // Notificar rechazo a otros candidatos
+  async notifyUrgentRequestRejectedToOthers(urgentRequestId, acceptedProfessionalId) {
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+
+      const otherCandidates = await prisma.urgent_request_candidates.findMany({
+        where: {
+          urgent_request_id: urgentRequestId,
+          professional_id: { not: acceptedProfessionalId },
+          responded: false
+        }
+      });
+
+      const notification = {
+        type: 'urgent_request_assigned_to_other',
+        urgentRequestId,
+        message: 'Esta solicitud urgente fue asignada a otro profesional.',
+        timestamp: new Date()
+      };
+
+      for (const candidate of otherCandidates) {
+        this.io.to(`user_${candidate.professional_id}`).emit('urgent_request_rejected', notification);
+      }
+
+      // Marcar como respondidos
+      await prisma.urgent_request_candidates.updateMany({
+        where: {
+          urgent_request_id: urgentRequestId,
+          professional_id: { not: acceptedProfessionalId },
+          responded: false
+        },
+        data: { responded: true, accepted: false }
+      });
+
+    } catch (error) {
+      console.error('Error notificando rechazo a otros candidatos:', error);
     }
   }
 
@@ -739,7 +845,8 @@ class UnifiedWebSocketService {
         type: 'urgent_request_status_update',
         urgentRequestId: urgentRequest.id,
         status: urgentRequest.status,
-        ...statusUpdate
+        ...statusUpdate,
+        timestamp: new Date()
       };
 
       // Notificar al cliente
@@ -748,7 +855,10 @@ class UnifiedWebSocketService {
       // Si hay asignación, notificar al profesional también
       if (urgentRequest.assignments && urgentRequest.assignments.length > 0) {
         const assignment = urgentRequest.assignments[0];
-        this.io.to(`user_${assignment.professional_id}`).emit('urgent_assignment_status_update', notification);
+        this.io.to(`user_${assignment.professional_id}`).emit('urgent_assignment_status_update', {
+          ...notification,
+          role: 'professional'
+        });
       }
 
       console.log(`📡 Notificación de estado enviada para solicitud ${urgentRequest.id}`);
@@ -757,6 +867,342 @@ class UnifiedWebSocketService {
       console.error('Error notificando actualización de estado:', error);
       return false;
     }
+  }
+
+  // Notificar cancelación de solicitud urgente
+  async notifyUrgentRequestCancelled(urgentRequest, cancelledBy) {
+    try {
+      const notification = {
+        type: 'urgent_request_cancelled',
+        urgentRequestId: urgentRequest.id,
+        cancelledBy,
+        status: 'cancelled',
+        timestamp: new Date()
+      };
+
+      // Notificar a todos los candidatos
+      const candidates = await prisma.urgent_request_candidates.findMany({
+        where: { urgent_request_id: urgentRequest.id }
+      });
+
+      for (const candidate of candidates) {
+        this.io.to(`user_${candidate.professional_id}`).emit('urgent_request_cancelled', notification);
+      }
+
+      // Notificar al cliente
+      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_cancelled', notification);
+
+      console.log(`❌ Notificación de cancelación enviada para solicitud ${urgentRequest.id}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando cancelación:', error);
+      return false;
+    }
+  }
+
+  // Notificar completación de solicitud urgente
+  async notifyUrgentRequestCompleted(urgentRequest, completedBy) {
+    try {
+      const notification = {
+        type: 'urgent_request_completed',
+        urgentRequestId: urgentRequest.id,
+        completedBy,
+        status: 'completed',
+        timestamp: new Date()
+      };
+
+      // Notificar a ambas partes
+      this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_request_completed', notification);
+
+      if (urgentRequest.assignments && urgentRequest.assignments.length > 0) {
+        const assignment = urgentRequest.assignments[0];
+        this.io.to(`user_${assignment.professional_id}`).emit('urgent_assignment_completed', notification);
+      }
+
+      console.log(`✅ Notificación de completación enviada para solicitud ${urgentRequest.id}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando completación:', error);
+      return false;
+    }
+  }
+
+  // Notificar warnings de SLA
+  async notifyUrgentSLAWarning(urgentRequestId, slaType, timeRemaining) {
+    try {
+      const notification = {
+        type: 'urgent_sla_warning',
+        urgentRequestId,
+        slaType,
+        timeRemaining,
+        priority: 'high',
+        timestamp: new Date()
+      };
+
+      // Obtener el cliente de la solicitud
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const urgentRequest = await prisma.urgent_requests.findUnique({
+        where: { id: urgentRequestId },
+        select: { client_id: true }
+      });
+
+      if (urgentRequest) {
+        // Notificar al cliente
+        this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_sla_warning', notification);
+      }
+
+      console.log(`⚠️ SLA warning notificado para solicitud ${urgentRequestId}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando SLA warning:', error);
+      return false;
+    }
+  }
+
+  // Notificar breach de SLA
+  async notifyUrgentSLABreach(urgentRequestId, slaType, breachDuration) {
+    try {
+      const notification = {
+        type: 'urgent_sla_breached',
+        urgentRequestId,
+        slaType,
+        breachDuration,
+        priority: 'critical',
+        timestamp: new Date()
+      };
+
+      // Obtener el cliente de la solicitud
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      const urgentRequest = await prisma.urgent_requests.findUnique({
+        where: { id: urgentRequestId },
+        select: { client_id: true }
+      });
+
+      if (urgentRequest) {
+        // Notificar al cliente
+        this.io.to(`user_${urgentRequest.client_id}`).emit('urgent_sla_breached', notification);
+      }
+
+      // Notificar a administradores
+      this.emitToAdmins('urgent_sla_breached', notification);
+
+      console.log(`💥 SLA breach notificado para solicitud ${urgentRequestId}`);
+      return true;
+    } catch (error) {
+      console.error('Error notificando SLA breach:', error);
+      return false;
+    }
+  }
+
+  // Calcular prioridad basada en distancia
+  calculateUrgentPriority(distanceKm, radiusKm) {
+    const distanceRatio = distanceKm / radiusKm;
+    if (distanceRatio <= 0.3) return 'high';
+    if (distanceRatio <= 0.7) return 'medium';
+    return 'low';
+  }
+
+  // Calcular tiempo estimado de llegada
+  calculateEstimatedArrival(distanceKm) {
+    // Estimación simple: 2 minutos por km + 5 minutos base
+    const estimatedMinutes = Math.round(distanceKm * 2) + 5;
+    return new Date(Date.now() + estimatedMinutes * 60 * 1000);
+  }
+
+  // Método para emitir a administradores (legacy)
+  emitToAdminsLegacy(event, data) {
+    // Asumiendo que hay una sala 'admins' o lógica para identificar admins
+    this.io.to('admins').emit(event, data);
+  }
+
+  // ==================================================
+  // MÉTODOS PARA NOTIFICACIONES
+  // ==================================================
+
+  // Emitir notificación a un usuario específico
+  emitNotificationToUser(userId, notification) {
+    // Emitir a la sala personal del usuario
+    this.io.to(`user_${userId}`).emit('notification', notification);
+
+    // También emitir a la sala de notificaciones si está suscrito
+    this.io.to(`notifications_${userId}`).emit('notification', notification);
+  }
+
+  // Emitir actualización de contador de notificaciones
+  emitNotificationCountUpdate(userId, unreadCount) {
+    const update = {
+      type: 'unread_count_update',
+      unreadCount,
+      timestamp: new Date()
+    };
+
+    this.io.to(`user_${userId}`).emit('notification_count_update', update);
+    this.io.to(`notifications_${userId}`).emit('notification_count_update', update);
+  }
+
+  // Emitir cuando una notificación es marcada como leída
+  emitNotificationRead(userId, notificationId, unreadCount) {
+    const update = {
+      type: 'notification_read',
+      notificationId,
+      unreadCount,
+      timestamp: new Date()
+    };
+
+    this.io.to(`user_${userId}`).emit('notification_read', update);
+    this.io.to(`notifications_${userId}`).emit('notification_read', update);
+  }
+
+  // ================= ADMIN WEB SOCKET CHANNELS =================
+
+  /**
+   * Join admin channels for real-time updates
+   */
+  joinAdminChannels(socket, adminId) {
+    socket.join(`admin_${adminId}`);
+    socket.join('admins'); // General admin channel
+    console.log(`✅ Admin ${adminId} joined admin channels`);
+  }
+
+  /**
+   * Leave admin channels
+   */
+  leaveAdminChannels(socket, adminId) {
+    socket.leave(`admin_${adminId}`);
+    socket.leave('admins');
+    console.log(`👋 Admin ${adminId} left admin channels`);
+  }
+
+  /**
+   * Emit to all admins (broadcast)
+   */
+  emitToAdmins(event, data) {
+    this.io.to('admins').emit(event, {
+      ...data,
+      timestamp: new Date(),
+      channel: 'admin_broadcast'
+    });
+  }
+
+  /**
+   * Emit to specific admin
+   */
+  emitToAdmin(adminId, event, data) {
+    this.io.to(`admin_${adminId}`).emit(event, {
+      ...data,
+      timestamp: new Date(),
+      channel: 'admin_direct'
+    });
+  }
+
+  /**
+   * Emit admin notifications (new verifications, disputes, etc.)
+   */
+  emitAdminNotification(type, data) {
+    const notification = {
+      type,
+      data,
+      timestamp: new Date(),
+      channel: 'admin_notifications'
+    };
+
+    this.emitToAdmins('admin_notification', notification);
+  }
+
+  /**
+   * Emit system alerts to admins
+   */
+  emitSystemAlert(level, message, details = {}) {
+    const alert = {
+      level, // 'info', 'warning', 'error', 'critical'
+      message,
+      details,
+      timestamp: new Date(),
+      channel: 'system_alerts'
+    };
+
+    this.emitToAdmins('system_alert', alert);
+    console.log(`🚨 System alert [${level}]: ${message}`);
+  }
+
+  /**
+   * Emit real-time stats updates to admins
+   */
+  emitStatsUpdate(statsData) {
+    this.emitToAdmins('stats_update', {
+      stats: statsData,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Emit user activity updates
+   */
+  emitUserActivity(adminId, activity) {
+    this.emitToAdmin(adminId, 'user_activity', {
+      activity,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Emit audit log entries in real-time
+   */
+  emitAuditLogEntry(entry) {
+    this.emitToAdmins('audit_log_entry', {
+      entry,
+      timestamp: new Date()
+    });
+  }
+
+  /**
+   * Handle admin WebSocket connections
+   */
+  handleAdminConnection(socket) {
+    console.log('🔗 Admin WebSocket connection established');
+
+    // Authenticate admin (this should be done via JWT token)
+    socket.on('authenticate_admin', (data) => {
+      try {
+        const { adminId, token } = data;
+
+        // Here you would validate the admin JWT token
+        // For now, we'll trust the adminId
+
+        this.joinAdminChannels(socket, adminId);
+
+        socket.emit('admin_authenticated', {
+          success: true,
+          adminId,
+          channels: [`admin_${adminId}`, 'admins']
+        });
+
+      } catch (error) {
+        console.error('Admin authentication failed:', error);
+        socket.emit('admin_auth_failed', {
+          success: false,
+          error: 'Authentication failed'
+        });
+      }
+    });
+
+    // Handle admin disconnection
+    socket.on('disconnect', () => {
+      console.log('🔌 Admin WebSocket disconnected');
+      // Note: We can't reliably get adminId here, so channels are left
+    });
+
+    // Admin-specific events can be added here
+    socket.on('request_stats', () => {
+      // Emit current stats to requesting admin
+      // This would integrate with your stats service
+      socket.emit('stats_response', {
+        message: 'Stats request received',
+        timestamp: new Date()
+      });
+    });
   }
 }
 

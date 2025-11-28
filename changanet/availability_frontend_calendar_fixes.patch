@@ -1,0 +1,95 @@
+diff --git changanet/changanet-frontend/src/components/AvailabilityCalendar.jsx changanet/changanet-frontend/src/components/AvailabilityCalendar.jsx
+index 45cbd52..204f719 100644
+--- changanet/changanet-frontend/src/components/AvailabilityCalendar.jsx
++++ changanet/changanet-frontend/src/components/AvailabilityCalendar.jsx
+@@ -15,7 +15,7 @@ const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
+   const fetchAvailability = async () => {
+     try {
+       // INTEGRACIÓN CON BACKEND: Obtener disponibilidad
+-      const response = await fetch(`/api/advanced-availability/${professionalId}?from=${selectedDate}&to=${selectedDate}`, {
++      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/availability/${professionalId}?date=${selectedDate}`, {
+         headers: {
+           'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+         }
+@@ -298,37 +298,65 @@ const AvailabilityCalendar = ({ professionalId, onScheduleService }) => {
+                 <div className="flex justify-end space-x-2">
+                   {onScheduleService && slot.esta_disponible && !slot.reservado_por ? (
+                     <button
++                      disabled={toggleLoading === slot.id}
+                       onClick={async () => {
+                         try {
++                          setToggleLoading(slot.id); // Use loading state for booking
++
+                           // Validar disponibilidad en tiempo real antes de agendar
+-                          const checkResponse = await fetch(`/api/availability/${professionalId}?date=${selectedDate}`, {
++                          const checkResponse = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/availability/${professionalId}?date=${selectedDate}`, {
+                             headers: {
+                               'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
+                             }
+                           });
+-                          
+-                          if (checkResponse.ok) {
+-                            const currentAvailability = await checkResponse.json();
+-                            const currentSlot = currentAvailability.find(s => s.id === slot.id);
+-                            
+-                            if (!currentSlot || !currentSlot.esta_disponible || currentSlot.reservado_por) {
+-                              alert('⚠️ Este horario ya no está disponible. Por favor, selecciona otro.');
+-                              setAvailabilities(currentAvailability);
+-                              return;
+-                            }
++
++                          if (!checkResponse.ok) {
++                            throw new Error('Error al verificar disponibilidad. Inténtalo de nuevo.');
++                          }
++
++                          const currentAvailability = await checkResponse.json();
++                          const currentSlot = currentAvailability.find(s => s.id === slot.id);
++
++                          if (!currentSlot) {
++                            alert('⚠️ Este horario ya no existe. Refresca la página.');
++                            setAvailabilities(currentAvailability);
++                            return;
++                          }
++
++                          if (!currentSlot.esta_disponible || currentSlot.reservado_por) {
++                            alert('⚠️ Este horario ya no está disponible. Por favor, selecciona otro.');
++                            setAvailabilities(currentAvailability);
++                            return;
+                           }
+-                          
++
+                           await onScheduleService(slot);
++                          // Refresh availability after successful booking
++                          fetchAvailability();
+                         } catch (error) {
+                           console.error('Error agendando servicio:', error);
+-                          alert('❌ Error al agendar el servicio. Inténtalo de nuevo.');
++                          if (error.message.includes('ya no está disponible')) {
++                            alert(error.message);
++                          } else {
++                            alert('❌ Error al agendar el servicio. Verifica tu conexión e inténtalo de nuevo.');
++                          }
++                        } finally {
++                          setToggleLoading(null);
+                         }
+                       }}
+-                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-medium transition-all duration-200 flex items-center space-x-2 hover:shadow-lg"
++                      className="bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-xl font-medium transition-all duration-200 flex items-center space-x-2 hover:shadow-lg disabled:cursor-not-allowed"
+                       title="Agendar servicio en este horario"
+                     >
+-                      <span>📅</span>
+-                      <span>Agendar</span>
++                      {toggleLoading === slot.id ? (
++                        <>
++                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
++                          <span>Agendando...</span>
++                        </>
++                      ) : (
++                        <>
++                          <span>📅</span>
++                          <span>Agendar</span>
++                        </>
++                      )}
+                     </button>
+                   ) : (
+                     <>

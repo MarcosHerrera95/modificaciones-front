@@ -8,7 +8,8 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useNotificationContext } from '../context/NotificationContext';
+import { useUrgentContext } from '../context/UrgentContext';
+import { validateUrgentRequest, checkForDuplicates } from '../services/urgentApi';
 
 const UrgentServiceRequestForm = ({ onClose }) => {
   const [formData, setFormData] = useState({
@@ -22,48 +23,22 @@ const UrgentServiceRequestForm = ({ onClose }) => {
   const [loading, setLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const navigate = useNavigate();
-  const notificationContext = useNotificationContext();
+  const { createRequest, getUserLocation, userLocation } = useUrgentContext();
 
   // Obtener ubicación actual del usuario
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
     setLocationLoading(true);
     setLocationError('');
 
-    if (!navigator.geolocation) {
-      setLocationError('La geolocalización no está soportada por este navegador.');
+    try {
+      const location = await getUserLocation();
+      setFormData(prev => ({ ...prev, location }));
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationError('No se pudo obtener la ubicación. Verifica los permisos del navegador.');
+    } finally {
       setLocationLoading(false);
-      return;
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const location = { lat: latitude, lng: longitude };
-        setFormData(prev => ({ ...prev, location }));
-        setLocationLoading(false);
-      },
-      (error) => {
-        let errorMessage = 'Error al obtener la ubicación.';
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            errorMessage = 'Permiso de ubicación denegado. Por favor, permite el acceso a la ubicación.';
-            break;
-          case error.POSITION_UNAVAILABLE:
-            errorMessage = 'Ubicación no disponible.';
-            break;
-          case error.TIMEOUT:
-            errorMessage = 'Tiempo de espera agotado para obtener la ubicación.';
-            break;
-        }
-        setLocationError(errorMessage);
-        setLocationLoading(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000 // 5 minutos
-      }
-    );
   };
 
   const handleChange = (e) => {
@@ -79,26 +54,29 @@ const UrgentServiceRequestForm = ({ onClose }) => {
     setError('');
     setLoading(true);
 
-    // Validaciones
-    if (!formData.description.trim()) {
-      setError('La descripción del problema es requerida.');
-      setLoading(false);
-      return;
-    }
-
-    if (!formData.location) {
-      setError('Debes compartir tu ubicación para servicios urgentes.');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.radiusKm < 1 || formData.radiusKm > 50) {
-      setError('El radio debe estar entre 1 y 50 km.');
-      setLoading(false);
-      return;
-    }
-
     try {
+      // Validate form
+      const validation = validateUrgentRequest({
+        description: formData.description,
+        location: formData.location,
+        radiusKm: formData.radiusKm
+      });
+
+      if (!validation.isValid) {
+        setError(validation.errors.join(', '));
+        setLoading(false);
+        return;
+      }
+
+      // Check for duplicates
+      const isDuplicate = await checkForDuplicates(formData.location, formData.description);
+      if (isDuplicate) {
+        setError('Ya existe una solicitud similar en tu área. Revisa tus solicitudes activas.');
+        setLoading(false);
+        return;
+      }
+
+      // Create request using context
       const requestData = {
         description: formData.description,
         location: formData.location,
@@ -106,39 +84,15 @@ const UrgentServiceRequestForm = ({ onClose }) => {
         serviceCategory: formData.serviceCategory
       };
 
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/urgent-requests`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        },
-        body: JSON.stringify(requestData)
-      });
+      const newRequest = await createRequest(requestData);
 
-      const data = await response.json();
+      // Close modal and navigate
+      if (onClose) onClose();
+      navigate(`/urgent/${newRequest.id}/status`);
 
-      if (response.ok) {
-        // Notificar éxito
-        if (notificationContext?.addNotification) {
-          notificationContext.addNotification({
-            type: 'success',
-            title: 'Solicitud Urgente Enviada',
-            message: 'Tu solicitud de servicio urgente ha sido enviada. Recibirás notificaciones cuando un profesional acepte.',
-            duration: 5000
-          });
-        }
-
-        // Cerrar modal y redirigir
-        if (onClose) onClose();
-
-        // Redirigir al tracker de estado
-        navigate(`/urgent/${data.id}/status`);
-      } else {
-        setError(data.error || 'Error al enviar solicitud urgente.');
-      }
     } catch (err) {
       console.error('Error submitting urgent request:', err);
-      setError('Error de red. Intenta nuevamente.');
+      setError(err.message || 'Error al enviar solicitud urgente.');
     } finally {
       setLoading(false);
     }

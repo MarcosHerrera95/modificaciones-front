@@ -53,4 +53,8 @@ router.put('/:id/reject', authenticateToken, identityVerificationController.reje
 // Obtener URL firmada para acceder al documento (usuario propietario o admin)
 router.get('/:requestId/document', authenticateToken, identityVerificationController.getDocumentUrl);
 
+// POST /api/verification/:id/process-biometric
+// Procesar verificación biométrica (admin)
+router.post('/:id/process-biometric', authenticateToken, identityVerificationController.processBiometricVerification);
+
 module.exports = router;

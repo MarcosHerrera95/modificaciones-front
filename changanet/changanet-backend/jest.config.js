@@ -1,13 +1,20 @@
-// jest.config.js - Configuración de Jest para Changánet
-module.exports = {
+// jest.config.js - Configuración de Jest para Changánet (ES Modules)
+export default {
   testEnvironment: 'node',
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: [
-    '**/__tests__/**/*.+(ts|tsx|js)',
-    '**/?(*.)+(spec|test).+(ts|tsx|js)'
+    '**/__tests__/**/*.+(ts|tsx|js|mjs)',
+    '**/?(*.)+(spec|test).+(ts|tsx|js|mjs)'
   ],
+  extensionsToTreatAsEsm: ['.ts', '.tsx'],
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
+  },
   collectCoverageFrom: [
     'src/**/*.js',
+    'src/**/*.mjs',
     '!src/server.js',
     '!src/docs/**',
     '!src/config/serviceAccountKey.json',
@@ -25,5 +32,8 @@ module.exports = {
   },
   setupFilesAfterEnv: ['<rootDir>/src/tests/setupTestDB.js'],
   testTimeout: 10000,
-  verbose: true
+  verbose: true,
+  transform: {
+    '^.+\\.(js|jsx|mjs)$': 'babel-jest'
+  }
 };

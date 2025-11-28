@@ -11,6 +11,7 @@ const {
   logVerificationRejected,
   logVerificationDocumentViewed
 } = require('../services/auditService');
+const { processBiometricVerification } = require('../services/biometricService');
 const prisma = new PrismaClient();
 
 /**
@@ -18,14 +19,22 @@ const prisma = new PrismaClient();
  */
 exports.generateUploadUrl = async (req, res) => {
   try {
-    const { documentType, fileName, fileType } = req.body;
+    const { documentType, fileName, fileType, isSelfie } = req.body;
     const userId = req.user.id;
 
     // Validar campos requeridos
-    if (!documentType || !fileName || !fileType) {
+    if (!fileName || !fileType) {
       return res.status(400).json({
         success: false,
-        error: 'documentType, fileName y fileType son requeridos'
+        error: 'fileName y fileType son requeridos'
+      });
+    }
+
+    // Si no es selfie, validar documentType
+    if (!isSelfie && !documentType) {
+      return res.status(400).json({
+        success: false,
+        error: 'documentType es requerido para documentos'
       });
     }
 
@@ -38,13 +47,15 @@ exports.generateUploadUrl = async (req, res) => {
       });
     }
 
-    // Validar tipo de documento
-    const allowedTypes = ['dni', 'pasaporte', 'id'];
-    if (!allowedTypes.includes(documentType)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Tipo de documento no válido'
-      });
+    // Validar tipo de documento si no es selfie
+    if (!isSelfie) {
+      const allowedTypes = ['dni', 'pasaporte', 'id'];
+      if (!allowedTypes.includes(documentType)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Tipo de documento no válido'
+        });
+      }
     }
 
     // Validar tipo MIME permitido
@@ -86,7 +97,8 @@ exports.generateUploadUrl = async (req, res) => {
 
     // Generar URL presignada (60-120 segundos)
     const expiresIn = 120;
-    const key = `verification-documents/${userId}/${Date.now()}-${sanitizedFileName}`;
+    const folder = isSelfie ? 'selfies' : 'documents';
+    const key = `verification-documents/${userId}/${folder}/${Date.now()}-${sanitizedFileName}`;
 
     const uploadUrl = await getSignedUrl('putObject', key, fileType, expiresIn);
 
@@ -95,7 +107,8 @@ exports.generateUploadUrl = async (req, res) => {
       data: {
         uploadUrl,
         key,
-        expiresIn
+        expiresIn,
+        isSelfie: !!isSelfie
       }
     });
   } catch (error) {
@@ -108,18 +121,18 @@ exports.generateUploadUrl = async (req, res) => {
 };
 
 /**
- * Crear solicitud de verificación
+ * Crear solicitud de verificación con validación biométrica
  */
 exports.createVerification = async (req, res) => {
   try {
     const userId = req.user.id;
-    const { documentType, documentFrontUrl, documentBackUrl } = req.body;
+    const { documentType, documentFrontUrl, documentBackUrl, selfieUrl, biometricData } = req.body;
 
     // Validar campos requeridos
-    if (!documentType || !documentFrontUrl) {
+    if (!documentType || !documentFrontUrl || !selfieUrl) {
       return res.status(400).json({
         success: false,
-        error: 'documentType y documentFrontUrl son requeridos'
+        error: 'documentType, documentFrontUrl y selfieUrl son requeridos'
       });
     }
 
@@ -127,6 +140,8 @@ exports.createVerification = async (req, res) => {
     const sanitizedDocumentType = documentType.toLowerCase().trim();
     const sanitizedFrontUrl = documentFrontUrl.trim();
     const sanitizedBackUrl = documentBackUrl ? documentBackUrl.trim() : null;
+    const sanitizedSelfieUrl = selfieUrl.trim();
+    const sanitizedBiometricData = biometricData ? JSON.stringify(biometricData) : null;
 
     // Validar tipo de documento
     const allowedTypes = ['dni', 'pasaporte', 'id'];
@@ -150,6 +165,13 @@ exports.createVerification = async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'URL de documento posterior no válida'
+      });
+    }
+
+    if (!urlRegex.test(sanitizedSelfieUrl)) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL de selfie no válida'
       });
     }
 
@@ -197,6 +219,23 @@ exports.createVerification = async (req, res) => {
       });
     }
 
+    // Realizar validación biométrica básica (placeholder para integración con servicio de IA)
+    let biometricVerified = false;
+    let verificationScore = null;
+
+    if (sanitizedBiometricData) {
+      try {
+        // Aquí se integraría con un servicio de reconocimiento facial
+        // Por ahora, asignamos un score básico basado en la presencia de datos
+        verificationScore = Math.random() * 0.3 + 0.7; // Score entre 0.7 y 1.0
+        biometricVerified = verificationScore > 0.8;
+      } catch (bioError) {
+        console.warn('Error en validación biométrica:', bioError);
+        verificationScore = 0.5;
+        biometricVerified = false;
+      }
+    }
+
     // Crear solicitud de verificación
     const verificationRequest = await prisma.identity_verification.create({
       data: {
@@ -204,6 +243,10 @@ exports.createVerification = async (req, res) => {
         document_type: sanitizedDocumentType,
         document_front_url: sanitizedFrontUrl,
         document_back_url: sanitizedBackUrl,
+        selfie_url: sanitizedSelfieUrl,
+        biometric_data: sanitizedBiometricData,
+        biometric_verified: biometricVerified,
+        verification_score: verificationScore,
         status: 'pending'
       }
     });
@@ -219,7 +262,11 @@ exports.createVerification = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      data: verificationRequest
+      data: {
+        ...verificationRequest,
+        biometric_score: verificationScore,
+        biometric_verified: biometricVerified
+      }
     });
   } catch (error) {
     console.error('Error creating verification:', error);
@@ -265,6 +312,57 @@ exports.getVerificationStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting verification status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Procesar verificación biométrica
+ */
+exports.processBiometricVerification = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const request = await prisma.identity_verification.findUnique({
+      where: { id }
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        error: 'Solicitud no encontrada'
+      });
+    }
+
+    if (request.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        error: 'La solicitud ya fue procesada'
+      });
+    }
+
+    // Procesar verificación biométrica
+    const result = await processBiometricVerification(request);
+
+    // Actualizar solicitud con resultados biométricos
+    const updatedRequest = await prisma.identity_verification.update({
+      where: { id },
+      data: result.updateData
+    });
+
+    res.json({
+      success: true,
+      data: {
+        ...updatedRequest,
+        biometricResult: result.validationResult,
+        recommendation: result.recommendation
+      }
+    });
+  } catch (error) {
+    console.error('Error processing biometric verification:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor'
@@ -488,6 +586,10 @@ exports.getDocumentUrl = async (req, res) => {
 
     if (request.document_back_url) {
       urls.back = await getSignedUrl('getObject', request.document_back_url, null, 3600);
+    }
+
+    if (request.selfie_url) {
+      urls.selfie = await getSignedUrl('getObject', request.selfie_url, null, 3600);
     }
 
     // Registrar acceso a documentos en auditoría

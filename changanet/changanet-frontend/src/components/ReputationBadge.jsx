@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { reputationAPI } from '../services/apiService';
 
 const ReputationBadge = ({ userId, size = 'medium', className = '' }) => {
   const [reputation, setReputation] = useState(null);
@@ -12,16 +13,8 @@ const ReputationBadge = ({ userId, size = 'medium', className = '' }) => {
 
   const fetchReputation = async () => {
     try {
-      const response = await fetch(`/api/ranking/reputation/${userId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setReputation(data.data);
-      }
+      const data = await reputationAPI.getUserReputation(userId);
+      setReputation(data);
     } catch (error) {
       console.error('Error fetching reputation:', error);
     } finally {

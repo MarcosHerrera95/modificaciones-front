@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { verificationAPI } from '../services/apiService';
 
 const VerificationStatusBadge = ({ userId, showDetails = false, className = '' }) => {
   const { user } = useAuth();
@@ -18,18 +19,11 @@ const VerificationStatusBadge = ({ userId, showDetails = false, className = '' }
   const fetchVerificationStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/verification/status', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setVerificationStatus(data.data);
-      }
+      const data = await verificationAPI.getStatus();
+      setVerificationStatus(data.data);
     } catch (error) {
       console.error('Error fetching verification status:', error);
+      setVerificationStatus(null);
     } finally {
       setLoading(false);
     }

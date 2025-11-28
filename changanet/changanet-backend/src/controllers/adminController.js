@@ -57,7 +57,7 @@ exports.getPendingVerifications = async (req, res) => {
 exports.approveVerification = async (req, res) => {
   try {
     const { requestId } = req.params;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Obtener la solicitud
     const request = await prisma.verification_requests.findUnique({
@@ -158,7 +158,7 @@ exports.rejectVerification = async (req, res) => {
   try {
     const { requestId } = req.params;
     const { motivo_rechazo } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Obtener la solicitud
     const request = await prisma.verification_requests.findUnique({
@@ -318,7 +318,7 @@ exports.getSystemStats = async (req, res) => {
 exports.manualReleaseFunds = async (req, res) => {
   try {
     const { paymentId } = req.params;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     const { releaseFunds } = require('../services/mercadoPagoService');
     await releaseFunds(paymentId);
@@ -422,7 +422,7 @@ exports.toggleUserBlock = async (req, res) => {
   try {
     const { userId } = req.params;
     const { blocked, reason } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Verificar que no se está bloqueando a sí mismo
     if (userId === adminId) {
@@ -500,7 +500,7 @@ exports.changeUserRole = async (req, res) => {
   try {
     const { userId } = req.params;
     const { newRole } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Validar rol
     const validRoles = ['cliente', 'profesional', 'admin'];
@@ -558,6 +558,137 @@ exports.changeUserRole = async (req, res) => {
 
   } catch (error) {
     logger.error('Error cambiando rol del usuario', {
+      service: 'admin',
+      error,
+      userId: req.params.userId,
+      adminId: req.user?.id
+    });
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Actualizar estado de un usuario (PATCH /api/admin/users/:id/status)
+ */
+exports.updateUserStatus = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { status, reason } = req.body;
+    const adminId = req.adminUser.id;
+
+    // Validar estado
+    const validStatuses = ['active', 'inactive', 'suspended', 'banned'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Estado inválido. Estados válidos: active, inactive, suspended, banned'
+      });
+    }
+
+    // Obtener usuario actual
+    const user = await prisma.usuarios.findUnique({
+      where: { id: userId },
+      select: { nombre: true, email: true, bloqueado: true, rol: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        error: 'Usuario no encontrado'
+      });
+    }
+
+    // Determinar si debe estar bloqueado basado en el estado
+    const shouldBeBlocked = ['suspended', 'banned'].includes(status);
+
+    // Actualizar estado del usuario
+    await prisma.usuarios.update({
+      where: { id: userId },
+      data: {
+        bloqueado: shouldBeBlocked,
+        bloqueado_en: shouldBeBlocked ? new Date() : null,
+        bloqueado_por: shouldBeBlocked ? adminId : null,
+        motivo_bloqueo: shouldBeBlocked ? reason : null,
+        actualizado_en: new Date()
+      }
+    });
+
+    // Registrar en auditoría
+    await auditService.logAction({
+      adminId,
+      action: 'user_status_updated',
+      targetType: 'user',
+      targetId: userId,
+      details: {
+        newStatus: status,
+        reason,
+        wasBlocked: user.bloqueado,
+        nowBlocked: shouldBeBlocked
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('User-Agent')
+    });
+
+    // Notificar al usuario (solo si no está baneado)
+    if (status !== 'banned') {
+      const { createNotification } = require('../services/notificationService');
+      const statusMessages = {
+        active: 'Tu cuenta ha sido activada',
+        inactive: 'Tu cuenta ha sido desactivada temporalmente',
+        suspended: 'Tu cuenta ha sido suspendida',
+        banned: 'Tu cuenta ha sido bloqueada permanentemente'
+      };
+
+      await createNotification(
+        userId,
+        'cuenta_estado_cambiado',
+        `${statusMessages[status]}${reason ? `. Motivo: ${reason}` : ''}`,
+        { adminId, newStatus: status, reason }
+      );
+    }
+
+    logger.info('User status updated', {
+      service: 'admin',
+      adminId,
+      userId,
+      oldStatus: user.bloqueado ? 'blocked' : 'active',
+      newStatus: status,
+      reason
+    });
+
+    // Emitir notificación WebSocket a administradores
+    try {
+      const { unifiedWebSocketService } = require('../services/unifiedWebSocketService');
+      if (unifiedWebSocketService) {
+        unifiedWebSocketService.emitAdminNotification('user_status_changed', {
+          userId,
+          adminId,
+          oldStatus: user.bloqueado ? 'blocked' : 'active',
+          newStatus: status,
+          reason,
+          userEmail: user.email,
+          userName: user.nombre
+        });
+      }
+    } catch (wsError) {
+      console.warn('Could not emit WebSocket notification:', wsError.message);
+    }
+
+    res.json({
+      success: true,
+      message: `Estado del usuario actualizado a ${status}`,
+      data: {
+        userId,
+        newStatus: status,
+        blocked: shouldBeBlocked
+      }
+    });
+
+  } catch (error) {
+    logger.error('Error actualizando estado del usuario', {
       service: 'admin',
       error,
       userId: req.params.userId,
@@ -700,7 +831,7 @@ exports.updateServiceStatus = async (req, res) => {
   try {
     const { serviceId } = req.params;
     const { status, notes } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Validar estado
     const validStatuses = ['PENDIENTE', 'AGENDADO', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO'];
@@ -847,7 +978,7 @@ exports.assignModerationReport = async (req, res) => {
   try {
     const { reportId } = req.params;
     const { adminId } = req.body;
-    const currentAdminId = req.user.id;
+    const currentAdminId = req.adminUser.id;
 
     const report = await prisma.moderation_reports.findUnique({
       where: { id: reportId }
@@ -900,7 +1031,7 @@ exports.resolveModerationReport = async (req, res) => {
   try {
     const { reportId } = req.params;
     const { resolution, notes } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     const report = await prisma.moderation_reports.findUnique({
       where: { id: reportId }
@@ -953,7 +1084,7 @@ exports.resolveModerationReport = async (req, res) => {
 exports.deleteReview = async (req, res) => {
   try {
     const { reviewId } = req.params;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     const review = await prisma.resenas.findUnique({
       where: { id: reviewId },
@@ -1096,7 +1227,7 @@ exports.resolveDispute = async (req, res) => {
   try {
     const { disputeId } = req.params;
     const { resolution, notes } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     const dispute = await prisma.disputas_pagos.findUnique({
       where: { id: disputeId }
@@ -1150,7 +1281,7 @@ exports.processRefund = async (req, res) => {
   try {
     const { disputeId } = req.params;
     const { amount, reason } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     const dispute = await prisma.disputas_pagos.findUnique({
       where: { id: disputeId },
@@ -1241,7 +1372,7 @@ exports.getSettings = async (req, res) => {
 exports.updateSettings = async (req, res) => {
   try {
     const updates = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     for (const [key, value] of Object.entries(updates)) {
       await prisma.settings.upsert({
@@ -1501,7 +1632,7 @@ exports.getAdmins = async (req, res) => {
 exports.createAdmin = async (req, res) => {
   try {
     const { userId, role } = req.body;
-    const currentAdminId = req.user.id;
+    const currentAdminId = req.adminUser.id;
 
     // Verificar que el usuario existe
     const user = await prisma.usuarios.findUnique({
@@ -1573,7 +1704,7 @@ exports.updateAdminRole = async (req, res) => {
   try {
     const { adminId } = req.params;
     const { role } = req.body;
-    const currentAdminId = req.user.id;
+    const currentAdminId = req.adminUser.id;
 
     const adminProfile = await prisma.admin_profile.findUnique({
       where: { id: adminId }
@@ -1624,7 +1755,7 @@ exports.toggleAdminStatus = async (req, res) => {
   try {
     const { adminId } = req.params;
     const { isActive } = req.body;
-    const currentAdminId = req.user.id;
+    const currentAdminId = req.adminUser.id;
 
     const adminProfile = await prisma.admin_profile.findUnique({
       where: { id: adminId }
@@ -1695,7 +1826,7 @@ exports.getCommissionHistory = async (req, res) => {
 exports.updateCommissionSettings = async (req, res) => {
   try {
     const { commission_percentage, minimum_fee } = req.body;
-    const adminId = req.user.id;
+    const adminId = req.adminUser.id;
 
     // Obtener configuración actual
     const currentSettings = await prisma.commission_settings.findFirst({

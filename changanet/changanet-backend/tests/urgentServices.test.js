@@ -4,10 +4,24 @@
  * y validación de seguridad según especificaciones del PRD
  */
 
-const { calculateDistance, getUrgentPricing } = require('../src/controllers/urgentController');
-const { PrismaClient } = require('@prisma/client');
+// Mock Prisma for unit tests
+const mockPrisma = {
+  urgent_pricing_rules: {
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    deleteMany: jest.fn()
+  },
+  $disconnect: jest.fn()
+};
 
-const prisma = new PrismaClient();
+// Mock the PrismaClient constructor
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn(() => mockPrisma)
+}));
+
+const { MatchingService } = require('../src/services/matchingService');
+const matchingService = new MatchingService();
+// Using mocked Prisma client
 
 describe('Urgent Services - Unit Tests', () => {
   describe('calculateDistance', () => {
@@ -16,7 +30,7 @@ describe('Urgent Services - Unit Tests', () => {
       const point1 = { lat: -34.6118, lng: -58.3960 }; // Centro
       const point2 = { lat: -34.5881, lng: -58.4165 }; // Palermo
 
-      const distance = calculateDistance(point1, point2);
+      const distance = matchingService.calculateDistance(point1.lat, point1.lng, point2.lat, point2.lng);
 
       // La distancia real es aproximadamente 3.5-4km
       expect(distance).toBeGreaterThan(3);
@@ -26,7 +40,7 @@ describe('Urgent Services - Unit Tests', () => {
     test('debe devolver 0 para el mismo punto', () => {
       const point = { lat: -34.6118, lng: -58.3960 };
 
-      const distance = calculateDistance(point, point);
+      const distance = matchingService.calculateDistance(point.lat, point.lng, point.lat, point.lng);
 
       expect(distance).toBe(0);
     });
@@ -35,7 +49,7 @@ describe('Urgent Services - Unit Tests', () => {
       const buenosAires = { lat: -34.6118, lng: -58.3960 };
       const mendoza = { lat: -32.8908, lng: -68.8272 };
 
-      const distance = calculateDistance(buenosAires, mendoza);
+      const distance = matchingService.calculateDistance(buenosAires.lat, buenosAires.lng, mendoza.lat, mendoza.lng);
 
       // Distancia aproximada Buenos Aires - Mendoza: ~1000km
       expect(distance).toBeGreaterThan(950);
@@ -46,7 +60,7 @@ describe('Urgent Services - Unit Tests', () => {
       const northern = { lat: 40.7128, lng: -74.0060 }; // Nueva York
       const southern = { lat: -33.8688, lng: 151.2093 }; // Sydney
 
-      const distance = calculateDistance(northern, southern);
+      const distance = matchingService.calculateDistance(northern.lat, northern.lng, southern.lat, southern.lng);
 
       // Distancia aproximada Nueva York - Sydney: ~16000km
       expect(distance).toBeGreaterThan(15000);
@@ -57,79 +71,80 @@ describe('Urgent Services - Unit Tests', () => {
   describe('getUrgentPricing', () => {
     beforeEach(async () => {
       // Limpiar reglas de precios de prueba
-      await prisma.urgent_pricing_rules.deleteMany({
-        where: {
-          service_category: { startsWith: 'test_' }
-        }
-      });
+      mockPrisma.urgent_pricing_rules.deleteMany.mockClear();
+      mockPrisma.urgent_pricing_rules.findFirst.mockClear();
+      mockPrisma.urgent_pricing_rules.create.mockClear();
     });
 
     afterAll(async () => {
       // Limpiar después de todas las pruebas
-      await prisma.urgent_pricing_rules.deleteMany({
-        where: {
-          service_category: { startsWith: 'test_' }
-        }
-      });
-      await prisma.$disconnect();
+      mockPrisma.urgent_pricing_rules.deleteMany.mockClear();
+      mockPrisma.$disconnect.mockClear();
     });
 
     test('debe devolver valores por defecto cuando no hay regla específica', async () => {
-      const pricing = await getUrgentPricing('categoria_inexistente');
+      // Mock no rule found
+      mockPrisma.urgent_pricing_rules.findFirst.mockResolvedValue(null);
 
+      const pricing = await matchingService.getUrgentPricing('categoria_inexistente');
+
+      expect(mockPrisma.urgent_pricing_rules.findFirst).toHaveBeenCalledWith({
+        where: { service_category: 'categoria_inexistente' }
+      });
       expect(pricing).toEqual({
         multiplier: 1.5,
-        minPrice: 0
+        minPrice: 0,
+        category: 'general'
       });
     });
 
     test('debe devolver regla específica cuando existe', async () => {
-      // Crear regla de prueba
-      await prisma.urgent_pricing_rules.create({
-        data: {
-          service_category: 'test_plomero',
-          base_multiplier: 2.0,
-          min_price: 500
-        }
+      // Mock regla de prueba
+      mockPrisma.urgent_pricing_rules.findFirst.mockResolvedValue({
+        service_category: 'test_plomero',
+        base_multiplier: 2.0,
+        min_price: 500
       });
 
-      const pricing = await getUrgentPricing('test_plomero');
+      const pricing = await matchingService.getUrgentPricing('test_plomero');
 
+      expect(mockPrisma.urgent_pricing_rules.findFirst).toHaveBeenCalledWith({
+        where: { service_category: 'test_plomero' }
+      });
       expect(pricing).toEqual({
         multiplier: 2.0,
-        minPrice: 500
+        minPrice: 500,
+        category: 'test_plomero'
       });
     });
 
     test('debe manejar múltiples categorías correctamente', async () => {
-      // Crear múltiples reglas (SQLite no soporta createMany)
-      await prisma.urgent_pricing_rules.create({
-        data: {
+      // Mock múltiples reglas
+      mockPrisma.urgent_pricing_rules.findFirst
+        .mockImplementationOnce(() => Promise.resolve({
           service_category: 'test_electricista',
           base_multiplier: 1.8,
           min_price: 300
-        }
-      });
-
-      await prisma.urgent_pricing_rules.create({
-        data: {
+        }))
+        .mockImplementationOnce(() => Promise.resolve({
           service_category: 'test_pintor',
           base_multiplier: 1.6,
           min_price: 200
-        }
-      });
+        }));
 
-      const pricing1 = await getUrgentPricing('test_electricista');
-      const pricing2 = await getUrgentPricing('test_pintor');
+      const pricing1 = await matchingService.getUrgentPricing('test_electricista');
+      const pricing2 = await matchingService.getUrgentPricing('test_pintor');
 
       expect(pricing1).toEqual({
         multiplier: 1.8,
-        minPrice: 300
+        minPrice: 300,
+        category: 'test_electricista'
       });
 
       expect(pricing2).toEqual({
         multiplier: 1.6,
-        minPrice: 200
+        minPrice: 200,
+        category: 'test_pintor'
       });
     });
   });
@@ -147,10 +162,7 @@ describe('Urgent Services - Unit Tests', () => {
       ];
 
       const filtered = professionals.filter(prof => {
-        const distance = calculateDistance(centerPoint, {
-          lat: prof.latitud,
-          lng: prof.longitud
-        });
+        const distance = matchingService.calculateDistance(centerPoint.lat, centerPoint.lng, prof.latitud, prof.longitud);
         return distance <= radiusKm;
       });
 
@@ -168,10 +180,7 @@ describe('Urgent Services - Unit Tests', () => {
       ];
 
       const filtered = professionals.filter(prof => {
-        const distance = calculateDistance(centerPoint, {
-          lat: prof.latitud,
-          lng: prof.longitud
-        });
+        const distance = matchingService.calculateDistance(centerPoint.lat, centerPoint.lng, prof.latitud, prof.longitud);
         return distance <= radiusKm;
       });
 
@@ -191,10 +200,7 @@ describe('Urgent Services - Unit Tests', () => {
       ];
 
       const filtered = professionals.filter(prof => {
-        const distance = calculateDistance(centerPoint, {
-          lat: prof.latitud,
-          lng: prof.longitud
-        });
+        const distance = matchingService.calculateDistance(centerPoint.lat, centerPoint.lng, prof.latitud, prof.longitud);
         return distance <= radiusKm;
       });
 

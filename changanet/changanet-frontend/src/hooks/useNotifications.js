@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
-import notificationService from '../services/notificationService';
+import notificationApi from '../services/notificationApi';
 
 export const useNotifications = () => {
   const { user } = useAuth();
@@ -25,7 +25,7 @@ export const useNotifications = () => {
     setError(null);
 
     try {
-      const data = await notificationService.getUserNotifications();
+      const data = await notificationApi.getUserNotifications();
       setNotifications(data.notifications || []);
       // Calcular contador de no leídas
       const unread = data.notifications.filter(n => n.estado === 'unread').length;
@@ -41,7 +41,7 @@ export const useNotifications = () => {
   // Función para marcar notificación como leída
   const markAsRead = useCallback(async (notificationId) => {
     try {
-      await notificationService.markAsRead(notificationId);
+      await notificationApi.markAsRead(notificationId);
 
       // Actualizar estado local
       setNotifications(prev =>
@@ -63,7 +63,7 @@ export const useNotifications = () => {
   // Función para marcar todas como leídas
   const markAllAsRead = useCallback(async () => {
     try {
-      await notificationService.markAllAsRead();
+      await notificationApi.markAllAsRead();
 
       // Actualizar estado local
       setNotifications(prev =>

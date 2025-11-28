@@ -1,0 +1,166 @@
+diff --git changanet/changanet-backend/src/controllers/availabilityController.js changanet/changanet-backend/src/controllers/availabilityController.js
+index 97b20f7..cf5ca6f 100644
+--- changanet/changanet-backend/src/controllers/availabilityController.js
++++ changanet/changanet-backend/src/controllers/availabilityController.js
+@@ -122,6 +122,17 @@ exports.getAvailability = async (req, res) => {
+         },
+         esta_disponible: true // Solo mostrar horarios disponibles para clientes
+       },
++      select: {
++        id: true,
++        profesional_id: true,
++        fecha: true,
++        hora_inicio: true,
++        hora_fin: true,
++        esta_disponible: true,
++        reservado_por: true,
++        reservado_en: true,
++        servicio_id: true
++      },
+       orderBy: { hora_inicio: 'asc' }
+     });
+     res.status(200).json(availabilities);
+@@ -166,81 +177,98 @@ exports.bookAvailability = async (req, res) => {
+ 
+   try {
+     // Verificar que el usuario sea cliente
+-    const user = await prisma.usuarios.findUnique({ where: { id: userId } });
++    const user = await prisma.usuarios.findUnique({
++      where: { id: userId },
++      select: { rol: true, nombre: true }
++    });
+     if (user.rol !== 'cliente') {
+       return res.status(403).json({ error: 'Solo los clientes pueden agendar servicios.' });
+     }
+ 
+-    // Verificar que el slot existe y está disponible
+-    const slot = await prisma.disponibilidad.findUnique({
+-      where: { id: slotId },
+-      include: { profesional: true }
+-    });
+-
+-    if (!slot) {
+-      return res.status(404).json({ error: 'Slot de disponibilidad no encontrado.' });
+-    }
++    // Usar transacción para asegurar atomicidad
++    const result = await prisma.$transaction(async (tx) => {
++      // Verificar que el slot existe y está disponible
++      const slot = await tx.disponibilidad.findUnique({
++        where: { id: slotId },
++        include: { profesional: { select: { nombre: true } } }
++      });
+ 
+-    if (!slot.esta_disponible) {
+-      return res.status(400).json({ error: 'Este horario ya no está disponible.' });
+-    }
++      if (!slot) {
++        throw new Error('Slot de disponibilidad no encontrado.');
++      }
+ 
+-    if (slot.reservado_por) {
+-      return res.status(400).json({ error: 'Este horario ya ha sido reservado.' });
+-    }
++      // Validar que el slot no sea en el pasado
++      const now = new Date();
++      if (slot.hora_fin <= now) {
++        throw new Error('No se pueden agendar servicios en horarios pasados.');
++      }
+ 
+-    // Crear el servicio agendado
+-    const service = await prisma.servicios.create({
+-      data: {
+-        cliente_id: userId,
+-        profesional_id: slot.profesional_id,
+-        descripcion: descripcion || `Servicio agendado para ${slot.fecha.toISOString().split('T')[0]} ${slot.hora_inicio.toTimeString().slice(0, 5)}-${slot.hora_fin.toTimeString().slice(0, 5)}`,
+-        estado: 'AGENDADO',
+-        fecha_agendada: slot.fecha
++      if (!slot.esta_disponible) {
++        throw new Error('Este horario ya no está disponible.');
+       }
+-    });
+ 
+-    // Reservar el slot
+-    await prisma.disponibilidad.update({
+-      where: { id: slotId },
+-      data: {
+-        reservado_por: userId,
+-        reservado_en: new Date(),
+-        servicio_id: service.id
++      if (slot.reservado_por) {
++        throw new Error('Este horario ya ha sido reservado.');
+       }
++
++      // Crear el servicio agendado
++      const service = await tx.servicios.create({
++        data: {
++          cliente_id: userId,
++          profesional_id: slot.profesional_id,
++          descripcion: descripcion || `Servicio agendado para ${slot.fecha.toISOString().split('T')[0]} ${slot.hora_inicio.toTimeString().slice(0, 5)}-${slot.hora_fin.toTimeString().slice(0, 5)}`,
++          estado: 'AGENDADO',
++          fecha_agendada: slot.fecha
++        }
++      });
++
++      // Reservar el slot
++      const updatedSlot = await tx.disponibilidad.update({
++        where: { id: slotId },
++        data: {
++          reservado_por: userId,
++          reservado_en: new Date(),
++          servicio_id: service.id
++        }
++      });
++
++      return { service, slot: { ...slot, ...updatedSlot }, user };
+     });
+ 
+-    // Enviar notificaciones - REQ-30: Confirmación automática
++    // Enviar notificaciones fuera de la transacción - REQ-30: Confirmación automática
+     const { sendNotification } = require('../services/notificationService');
+ 
+     // Notificación al cliente
+     await sendNotification(
+       userId,
+       'servicio_agendado',
+-      `Servicio agendado exitosamente con ${slot.profesional.nombre} para el ${slot.fecha.toISOString().split('T')[0]} a las ${slot.hora_inicio.toTimeString().slice(0, 5)}`,
+-      { servicio_id: service.id, slot_id: slotId }
++      `Servicio agendado exitosamente con ${result.slot.profesional.nombre} para el ${result.slot.fecha.toISOString().split('T')[0]} a las ${result.slot.hora_inicio.toTimeString().slice(0, 5)}`,
++      { servicio_id: result.service.id, slot_id: slotId }
+     );
+ 
+     // Notificación al profesional
+     await sendNotification(
+-      slot.profesional_id,
++      result.slot.profesional_id,
+       'nueva_reserva',
+-      `Nueva reserva de ${user.nombre} para el ${slot.fecha.toISOString().split('T')[0]} a las ${slot.hora_inicio.toTimeString().slice(0, 5)}`,
+-      { servicio_id: service.id, slot_id: slotId }
++      `Nueva reserva de ${result.user.nombre} para el ${result.slot.fecha.toISOString().split('T')[0]} a las ${result.slot.hora_inicio.toTimeString().slice(0, 5)}`,
++      { servicio_id: result.service.id, slot_id: slotId }
+     );
+ 
+     res.status(201).json({
+       message: 'Servicio agendado exitosamente.',
+-      service,
+-      slot: {
+-        ...slot,
+-        reservado_por: userId,
+-        reservado_en: new Date(),
+-        servicio_id: service.id
+-      }
++      service: result.service,
++      slot: result.slot
+     });
+   } catch (error) {
+     console.error('Error booking availability:', error);
++
++    // Manejar errores específicos
++    if (error.message.includes('ya no está disponible') ||
++        error.message.includes('ya ha sido reservado') ||
++        error.message.includes('horarios pasados')) {
++      return res.status(400).json({ error: error.message });
++    }
++
+     res.status(500).json({ error: 'Error al agendar el servicio.' });
+   }
+ };

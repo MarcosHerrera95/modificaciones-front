@@ -357,6 +357,31 @@ export const notificationsAPI = {
   delete: (id) => api.delete(`/api/notifications/${id}`)
 };
 
+// Verificación de identidad
+export const verificationAPI = {
+  generateUploadUrl: (data) => api.post('/api/verification/upload', data),
+  createRequest: (data) => api.post('/api/verification/', data),
+  getStatus: () => api.get('/api/verification/status'),
+  getDocumentUrl: (requestId) => api.get(`/api/verification/${requestId}/document`),
+  processBiometric: (requestId) => api.post(`/api/verification/${requestId}/process-biometric`)
+};
+
+// Reputación y rankings
+export const reputationAPI = {
+  getUserReputation: (userId) => api.get(`/api/ranking/reputation/${userId}`),
+  getRanking: (params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/api/ranking/reputation/ranking?${queryString}`);
+  },
+  getHistory: (userId, params = {}) => {
+    const queryString = new URLSearchParams(params).toString();
+    return api.get(`/api/ranking/reputation/${userId}/history?${queryString}`);
+  },
+  updateReputation: (data) => api.post('/api/ranking/reputation/update', data),
+  assignMedal: (data) => api.post('/api/ranking/reputation/assign-medal', data),
+  toggleScoreLock: (userId, data) => api.put(`/api/ranking/reputation/${userId}/lock`, data)
+};
+
 // Health check
 export const healthAPI = {
   check: () => api.get('/health'),

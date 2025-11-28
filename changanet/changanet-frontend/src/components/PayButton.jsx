@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { secureFetch } from '../utils/csrf';
 
 /**
- * Componente de botón de pago con custodia segura
+ * Componente de botón de pago con custodia segura y protección CSRF
  * REQ-41: Integración con pasarelas de pago (Mercado Pago)
  * REQ-42: Custodia de fondos hasta aprobación del servicio
+ * Seguridad: Implementa protección CSRF mediante tokens dobles
  * @param {number} amount - Monto a pagar
  * @param {string} description - Descripción del servicio
  * @param {string} serviceId - ID del servicio a pagar
@@ -21,7 +23,7 @@ const PayButton = ({ amount, description, serviceId, onSuccess, onError }) => {
     try {
       // Obtener token de autenticación
       const token = sessionStorage.getItem('changanet_token') || localStorage.getItem('changanet_token');
-      
+
       if (!token) {
         setError('Debes iniciar sesión para realizar un pago');
         if (onError) onError('No autenticado');
@@ -35,8 +37,22 @@ const PayButton = ({ amount, description, serviceId, onSuccess, onError }) => {
         return;
       }
 
-      // REQ-41: Crear preferencia de pago con Mercado Pago
-      const response = await fetch('/api/payments/create-preference', {
+      // Validar monto (seguridad adicional)
+      if (!amount || amount <= 0 || amount > 500000) {
+        setError('Monto de pago inválido');
+        if (onError) onError('Monto inválido');
+        return;
+      }
+
+      // Validar descripción
+      if (!description || description.length > 500) {
+        setError('Descripción de pago inválida');
+        if (onError) onError('Descripción inválida');
+        return;
+      }
+
+      // REQ-41: Crear preferencia de pago con Mercado Pago (con protección CSRF)
+      const response = await secureFetch('/api/payments/create-preference', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

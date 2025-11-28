@@ -80,6 +80,41 @@ const calculateProfessionalRanking = async (professionalId) => {
     return 0;
   }
 };
+/**
+ * Función auxiliar para obtener datos de rankings
+ */
+const getAllRankingsData = async () => {
+  const professionals = await prisma.perfiles_profesionales.findMany({
+    include: {
+      usuarios: {
+        include: {
+          servicios_servicios_profesional_idTousuarios: {
+            where: { estado: 'COMPLETADO' }
+          },
+          resenas: true,
+          logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
+        }
+      }
+    }
+  });
+
+  const rankings = await Promise.all(
+    professionals.map(async (prof) => {
+      const score = await calculateProfessionalRanking(prof.usuario_id);
+      return {
+        id: prof.usuario_id,
+        score: score
+      };
+    })
+  );
+
+  rankings.sort((a, b) => b.score - a.score);
+  return rankings;
+};
+
+/**
+ * Obtener ranking de todos los profesionales
+ */
 
 /**
  * Obtener ranking de todos los profesionales
@@ -240,38 +275,6 @@ exports.getProfessionalRanking = async (req, res) => {
       error: 'Error interno del servidor'
     });
   }
-};
-
-/**
- * Función auxiliar para obtener datos de rankings
- */
-const getAllRankingsData = async () => {
-  const professionals = await prisma.perfiles_profesionales.findMany({
-    include: {
-      usuarios: {
-        include: {
-          servicios_servicios_profesional_idTousuarios: {
-            where: { estado: 'COMPLETADO' }
-          },
-          resenas: true,
-          logros_usuario: { include: { logros: true } } // REQ-38: Sistema de medallas
-        }
-      }
-    }
-  });
-
-  const rankings = await Promise.all(
-    professionals.map(async (prof) => {
-      const score = await calculateProfessionalRanking(prof.usuario_id);
-      return {
-        id: prof.usuario_id,
-        score: score
-      };
-    })
-  );
-
-  rankings.sort((a, b) => b.score - a.score);
-  return rankings;
 };
 
 /**

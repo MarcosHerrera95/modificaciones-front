@@ -1,0 +1,2183 @@
+openapi: 3.0.3
+info:
+  title: Changánet - Integrated Payments and Commissions API
+  description: |
+    Complete API documentation for the Integrated Payments and Commissions module of Changánet platform.
+
+    ## Overview
+    This API provides comprehensive payment processing, commission management, withdrawal handling, and financial audit capabilities for the Changánet professional services platform.
+
+    ## Key Features
+    - **Secure Payment Processing**: Integration with MercadoPago for payment processing with fund custody
+    - **Commission Management**: Configurable commission rates (5-10%) applied only after service completion
+    - **Professional Withdrawals**: Secure fund withdrawals to bank accounts with validation
+    - **Financial Audit Trail**: Complete logging of all financial transactions and administrative actions
+    - **Rate Limiting**: Configurable rate limits per endpoint type for security
+    - **Webhook Security**: HMAC signature verification for payment notifications
+
+    ## Authentication
+    All endpoints require JWT Bearer token authentication except webhooks and auto-release endpoints.
+
+    ## Rate Limiting
+    - **Public endpoints**: 100 requests/15min (production), 1000 requests/15min (development)
+    - **Authentication**: 5 requests/15min (production), 50 requests/15min (development)
+    - **API endpoints**: 60 requests/min (production), 300 requests/min (development)
+    - **Payments**: 10 requests/5min (production), 50 requests/5min (development)
+    - **Webhooks**: 20 requests/min (all environments)
+
+    ## Error Codes
+    - `400`: Bad Request - Invalid input data
+    - `401`: Unauthorized - Missing or invalid authentication
+    - `403`: Forbidden - Insufficient permissions
+    - `404`: Not Found - Resource not found
+    - `429`: Too Many Requests - Rate limit exceeded
+    - `500`: Internal Server Error - Server-side error
+  version: 1.0.0
+  contact:
+    name: Changánet Development Team
+    email: dev@changanet.com
+  license:
+    name: Proprietary
+    url: https://changanet.com/license
+
+servers:
+  - url: https://api.changanet.com
+    description: Production server
+  - url: http://localhost:3000
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from authentication endpoint
+
+  schemas:
+    # Common Response Schemas
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          description: Response data (varies by endpoint)
+        message:
+          type: string
+          description: Optional success message
+      required:
+        - success
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code for programmatic handling
+        details:
+          type: object
+          description: Additional error details
+      required:
+        - success
+        - error
+
+    RateLimitResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Demasiadas solicitudes. Inténtalo de nuevo en 5 minutos."
+        retryAfter:
+          type: string
+          example: "300"
+        limit:
+          type: integer
+          example: 10
+        resetTime:
+          type: string
+          format: date-time
+          example: "2025-11-28T01:44:26.147Z"
+        configType:
+          type: string
+          example: "payments"
+
+    # Payment Related Schemas
+    PaymentStatus:
+      type: string
+      enum: [PENDIENTE, APROBADO, LIBERADO, CANCELADO, REEMBOLSADO, EXPIRADO, FALLIDO]
+      description: |
+        - PENDIENTE: Payment created, waiting for approval
+        - APROBADO: Payment approved by gateway, funds in custody
+        - LIBERADO: Funds released to professional
+        - CANCELADO: Payment cancelled
+        - REEMBOLSADO: Payment refunded
+        - EXPIRADO: Payment preference expired
+        - FALLIDO: Payment failed
+
+    WithdrawalStatus:
+      type: string
+      enum: [PROCESANDO, PENDIENTE_VERIFICACION, EN_PROCESO, COMPLETADO, RECHAZADO, CANCELADO, FALLIDO]
+
+    CommissionType:
+      type: string
+      enum: [PLATAFORMA, PROCESAMIENTO, RETIRO, AJUSTE, REEMBOLSO]
+
+    CommissionEventType:
+      type: string
+      enum: [APLICADA, AJUSTADA, REEMBOLSADA, CANCELADA]
+
+    # Request/Response Schemas
+    CreatePaymentPreferenceRequest:
+      type: object
+      properties:
+        serviceId:
+          type: string
+          format: uuid
+          description: ID of the service to pay for
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        amount:
+          type: number
+          minimum: 500
+          maximum: 500000
+          description: Payment amount in ARS (minimum 500, maximum 500,000)
+          example: 5000
+        description:
+          type: string
+          maxLength: 255
+          description: Payment description
+          example: "Servicio de instalación eléctrica"
+      required:
+        - serviceId
+        - amount
+
+    CreatePaymentPreferenceResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                preferenceId:
+                  type: string
+                  description: MercadoPago preference ID
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                paymentId:
+                  type: string
+                  description: Internal payment ID
+                  example: "550e8400-e29b-41d4-a716-446655440001"
+                initPoint:
+                  type: string
+                  format: uri
+                  description: MercadoPago checkout URL
+                  example: "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=550e8400-e29b-41d4-a716-446655440000"
+                expirationDate:
+                  type: string
+                  format: date-time
+                  description: Preference expiration date
+                  example: "2025-11-29T01:37:26.147Z"
+
+    PaymentStatusResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                serviceId:
+                  type: string
+                  example: "550e8400-e29b-41d4-a716-446655440001"
+                status:
+                  $ref: '#/components/schemas/PaymentStatus'
+                amount:
+                  type: number
+                  example: 5000
+                commission:
+                  type: number
+                  example: 250
+                professionalAmount:
+                  type: number
+                  example: 4750
+                createdAt:
+                  type: string
+                  format: date-time
+                  example: "2025-11-28T01:37:26.147Z"
+                updatedAt:
+                  type: string
+                  format: date-time
+                  example: "2025-11-28T01:37:26.147Z"
+
+    ReleaseFundsRequest:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          description: MercadoPago payment ID
+          example: "123456789"
+        serviceId:
+          type: string
+          format: uuid
+          description: Service ID for validation
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      required:
+        - paymentId
+        - serviceId
+
+    ReleaseFundsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                commission:
+                  type: number
+                  description: Commission amount applied
+                  example: 250
+                professionalAmount:
+                  type: number
+                  description: Amount released to professional
+                  example: 4750
+                commissionRate:
+                  type: number
+                  description: Commission rate applied
+                  example: 0.05
+                paymentId:
+                  type: string
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+
+    WebhookPayload:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: MercadoPago payment ID
+          example: 123456789
+        status:
+          type: string
+          enum: [approved, rejected, cancelled, expired]
+          description: Payment status from MercadoPago
+          example: "approved"
+        status_detail:
+          type: string
+          description: Detailed status information
+          example: "accredited"
+        external_reference:
+          type: string
+          description: Service ID used as external reference
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        transaction_amount:
+          type: number
+          description: Transaction amount
+          example: 5000
+        payment_type_id:
+          type: string
+          description: Payment method type
+          example: "credit_card"
+        date_approved:
+          type: string
+          format: date-time
+          description: Approval date
+          example: "2025-11-28T01:37:26.147Z"
+        date_created:
+          type: string
+          format: date-time
+          description: Payment creation date
+          example: "2025-11-28T01:35:26.147Z"
+      required:
+        - id
+        - status
+        - external_reference
+
+    WithdrawFundsRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 100
+          maximum: 50000
+          description: Withdrawal amount in ARS
+          example: 5000
+        bankDetails:
+          type: object
+          properties:
+            cvu:
+              type: string
+              pattern: '^[0-9]{22}$'
+              description: Bank CVU (22 digits exactly)
+              example: "1234567890123456789012"
+            alias:
+              type: string
+              minLength: 6
+              maxLength: 20
+              description: Bank account alias
+              example: "mi.cuenta.bancaria"
+          required:
+            - cvu
+            - alias
+      required:
+        - amount
+        - bankDetails
+
+    WithdrawFundsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                withdrawalId:
+                  type: string
+                  example: "550e8400-e29b-41d4-a716-446655440000"
+                amount:
+                  type: number
+                  example: 5000
+                processedAt:
+                  type: string
+                  format: date-time
+                  example: "2025-11-28T01:37:26.147Z"
+                estimatedArrival:
+                  type: string
+                  format: date-time
+                  description: Estimated arrival date (2-3 business days)
+                  example: "2025-12-02T01:37:26.147Z"
+                bankDetails:
+                  type: object
+                  properties:
+                    alias:
+                      type: string
+                      example: "mi.cuenta.bancaria"
+                    cvuMasked:
+                      type: string
+                      description: Masked CVU (only last 8 digits visible)
+                      example: "***56789012"
+                status:
+                  $ref: '#/components/schemas/WithdrawalStatus'
+
+    CreateDisputeRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          description: Reason for the dispute
+          example: "El servicio no fue completado según lo acordado"
+        description:
+          type: string
+          maxLength: 1000
+          description: Detailed description of the dispute
+          example: "El profesional no se presentó en la fecha acordada y no realizó el trabajo solicitado"
+        evidence:
+          type: array
+          items:
+            type: string
+            format: uri
+            description: URLs of evidence files
+          maxItems: 5
+          description: Array of evidence file URLs (max 5)
+      required:
+        - reason
+
+    ProcessRefundRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          description: Refund amount (optional, defaults to full amount)
+          example: 2500
+        reason:
+          type: string
+          maxLength: 255
+          description: Reason for refund
+          example: "Servicio no completado"
+      required:
+        - reason
+
+    CommissionSettings:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        name:
+          type: string
+          example: "Comisión Plataforma Estándar"
+        type:
+          $ref: '#/components/schemas/CommissionType'
+        percentage:
+          type: number
+          minimum: 0.05
+          maximum: 0.10
+          example: 0.05
+        minAmount:
+          type: number
+          example: 0
+        maxAmount:
+          type: number
+          example: 10000
+        active:
+          type: boolean
+          example: true
+        startDate:
+          type: string
+          format: date-time
+          example: "2025-01-01T00:00:00.000Z"
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        description:
+          type: string
+          example: "Comisión estándar del 5% para servicios de plataforma"
+
+    UpdateCommissionSettingsRequest:
+      type: object
+      properties:
+        percentage:
+          type: number
+          minimum: 0.05
+          maximum: 0.10
+          description: Commission percentage (5-10%)
+          example: 0.06
+        minAmount:
+          type: number
+          minimum: 0
+          description: Minimum commission amount
+          example: 50
+        maxAmount:
+          type: number
+          minimum: 0
+          description: Maximum commission amount
+          example: 5000
+        description:
+          type: string
+          maxLength: 255
+          description: Settings description
+          example: "Nueva configuración de comisión"
+      required:
+        - percentage
+
+    CommissionHistoryResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+                  paymentId:
+                    type: string
+                    nullable: true
+                    example: "550e8400-e29b-41d4-a716-446655440001"
+                  type:
+                    $ref: '#/components/schemas/CommissionType'
+                  event:
+                    $ref: '#/components/schemas/CommissionEventType'
+                  amount:
+                    type: number
+                    example: 250
+                  percentage:
+                    type: number
+                    example: 0.05
+                  description:
+                    type: string
+                    example: "Comisión aplicada por liberación manual de fondos"
+                  appliedBy:
+                    type: string
+                    example: "550e8400-e29b-41d4-a716-446655440002"
+                  appliedAt:
+                    type: string
+                    format: date-time
+                    example: "2025-11-28T01:37:26.147Z"
+
+    CalculateCommissionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          minimum: 500
+          description: Base amount to calculate commission on
+          example: 10000
+        type:
+          $ref: '#/components/schemas/CommissionType'
+          default: PLATAFORMA
+      required:
+        - amount
+
+    CalculateCommissionResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                baseAmount:
+                  type: number
+                  example: 10000
+                commissionAmount:
+                  type: number
+                  example: 500
+                commissionRate:
+                  type: number
+                  example: 0.05
+                professionalAmount:
+                  type: number
+                  example: 9500
+                type:
+                  $ref: '#/components/schemas/CommissionType'
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        userId:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440001"
+        action:
+          type: string
+          example: "payment_created"
+        resource:
+          type: string
+          example: "payment"
+        resourceId:
+          type: string
+          example: "550e8400-e29b-41d4-a716-446655440002"
+        details:
+          type: object
+          description: Action-specific details
+          example:
+            service_id: "550e8400-e29b-41d4-a716-446655440003"
+            amount: 5000
+            payment_type: "service_payment"
+        ipAddress:
+          type: string
+          example: "192.168.1.100"
+        userAgent:
+          type: string
+          example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-11-28T01:37:26.147Z"
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              example: "550e8400-e29b-41d4-a716-446655440001"
+            name:
+              type: string
+              example: "Juan Pérez"
+            email:
+              type: string
+              example: "juan@example.com"
+            role:
+              type: string
+              example: "cliente"
+
+    AuditLogsResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                logs:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/AuditLogEntry'
+                pagination:
+                  type: object
+                  properties:
+                    page:
+                      type: integer
+                      example: 1
+                    limit:
+                      type: integer
+                      example: 50
+                    total:
+                      type: integer
+                      example: 150
+                    pages:
+                      type: integer
+                      example: 3
+
+  parameters:
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Payment ID (MercadoPago ID or internal ID)
+      example: "123456789"
+
+    FileName:
+      name: fileName
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Receipt file name
+      example: "receipt_550e8400-e29b-41d4-a716-446655440000.pdf"
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum number of requests allowed in the current window
+      schema:
+        type: integer
+      example: 10
+
+    X-RateLimit-Remaining:
+      description: Number of requests remaining in the current window
+      schema:
+        type: integer
+      example: 7
+
+    X-RateLimit-Reset:
+      description: Time when the rate limit window resets (Unix timestamp)
+      schema:
+        type: integer
+      example: 1732757646
+
+    X-RateLimit-Retry-After:
+      description: Seconds to wait before making another request
+      schema:
+        type: integer
+      example: 300
+
+paths:
+  # Payment Endpoints
+  /api/payments/create-preference:
+    post:
+      tags:
+        - Payments
+      summary: Create payment preference
+      description: |
+        Creates a MercadoPago payment preference for a service.
+
+        **Requirements:**
+        - User must be authenticated
+        - User must be the client of the service
+        - Service must not already have a payment
+        - Amount must be between 500 and 500,000 ARS
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentPreferenceRequest'
+            examples:
+              basic-payment:
+                summary: Basic service payment
+                value:
+                  serviceId: "550e8400-e29b-41d4-a716-446655440000"
+                  amount: 5000
+                  description: "Servicio de instalación eléctrica"
+      responses:
+        '201':
+          description: Payment preference created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePaymentPreferenceResponse'
+              examples:
+                success:
+                  summary: Successful preference creation
+                  value:
+                    success: true
+                    data:
+                      preferenceId: "550e8400-e29b-41d4-a716-446655440000"
+                      paymentId: "550e8400-e29b-41d4-a716-446655440001"
+                      initPoint: "https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=550e8400-e29b-41d4-a716-446655440000"
+                      expirationDate: "2025-11-29T01:37:26.147Z"
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid-service:
+                  summary: Invalid service ID
+                  value:
+                    success: false
+                    error: "Servicio no encontrado o no pertenece al usuario"
+                    code: "INVALID_SERVICE"
+                invalid-amount:
+                  summary: Amount out of range
+                  value:
+                    success: false
+                    error: "El monto debe estar entre 500 y 500,000 ARS"
+                    code: "INVALID_AMOUNT"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no-auth:
+                  summary: Missing authentication
+                  value:
+                    success: false
+                    error: "Token de autenticación requerido"
+                    code: "AUTH_REQUIRED"
+        '403':
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-client:
+                  summary: User is not the service client
+                  value:
+                    success: false
+                    error: "No tienes permiso para pagar este servicio"
+                    code: "INSUFFICIENT_PERMISSIONS"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                server-error:
+                  summary: Unexpected server error
+                  value:
+                    success: false
+                    error: "Error interno del servidor"
+                    code: "INTERNAL_ERROR"
+
+  /api/payments/status/{paymentId}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment status
+      description: |
+        Retrieves the current status and details of a payment.
+
+        **Requirements:**
+        - User must be authenticated
+        - User must be involved in the payment (client or professional)
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Payment status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentStatusResponse'
+              examples:
+                pending-payment:
+                  summary: Payment in pending status
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      serviceId: "550e8400-e29b-41d4-a716-446655440001"
+                      status: "PENDIENTE"
+                      amount: 5000
+                      commission: 0
+                      professionalAmount: 5000
+                      createdAt: "2025-11-28T01:37:26.147Z"
+                      updatedAt: "2025-11-28T01:37:26.147Z"
+                approved-payment:
+                  summary: Payment approved and ready for release
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      serviceId: "550e8400-e29b-41d4-a716-446655440001"
+                      status: "APROBADO"
+                      amount: 5000
+                      commission: 0
+                      professionalAmount: 5000
+                      createdAt: "2025-11-28T01:35:26.147Z"
+                      updatedAt: "2025-11-28T01:37:26.147Z"
+                released-payment:
+                  summary: Payment released to professional
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      serviceId: "550e8400-e29b-41d4-a716-446655440001"
+                      status: "LIBERADO"
+                      amount: 5000
+                      commission: 250
+                      professionalAmount: 4750
+                      createdAt: "2025-11-28T01:35:26.147Z"
+                      updatedAt: "2025-11-28T01:40:26.147Z"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not involved in payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/disputes:
+    get:
+      tags:
+        - Payments
+      summary: Get user disputes
+      description: |
+        Retrieves all payment disputes for the authenticated user.
+
+        **Requirements:**
+        - User must be authenticated
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Disputes retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                user-disputes:
+                  summary: User's payment disputes
+                  value:
+                    success: true
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        paymentId: "550e8400-e29b-41d4-a716-446655440001"
+                        reason: "Servicio no completado"
+                        status: "abierta"
+                        createdAt: "2025-11-28T01:37:26.147Z"
+                      - id: "550e8400-e29b-41d4-a716-446655440002"
+                        paymentId: "550e8400-e29b-41d4-a716-446655440003"
+                        reason: "Calidad del trabajo insuficiente"
+                        status: "resuelta"
+                        resolution: "reembolso_parcial"
+                        createdAt: "2025-11-25T01:37:26.147Z"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/auto-release:
+    post:
+      tags:
+        - Payments
+      summary: Auto-release funds (system)
+      description: |
+        Automatically releases funds for services completed more than 24 hours ago.
+
+        **Security:**
+        - No authentication required (internal system operation)
+        - Should be called by cron jobs only
+
+        **Process:**
+        - Finds all approved payments for completed services older than 24 hours
+        - Applies commission and releases funds
+        - Updates payment status to LIBERADO
+
+        **Rate Limit:** Not applicable (system operation)
+      responses:
+        '200':
+          description: Auto-release completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                auto-release-success:
+                  summary: Funds auto-released successfully
+                  value:
+                    success: true
+                    data:
+                      processedPayments: 5
+                      totalCommission: 1250
+                      totalReleased: 23750
+                      processedAt: "2025-11-28T01:37:26.147Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Commission Management Endpoints
+  /api/admin/commissions/active:
+    get:
+      tags:
+        - Commissions
+      summary: Get active commission settings
+      description: |
+        Retrieves the currently active commission configuration.
+
+        **Requirements:**
+        - User must be authenticated as admin
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active commission settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                active-settings:
+                  summary: Current commission configuration
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      name: "Comisión Plataforma Estándar"
+                      type: "PLATAFORMA"
+                      percentage: 0.05
+                      minAmount: 0
+                      maxAmount: 10000
+                      active: true
+                      startDate: "2025-01-01T00:00:00.000Z"
+                      description: "Comisión estándar del 5% para servicios de plataforma"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-admin:
+                  summary: User is not an admin
+                  value:
+                    success: false
+                    error: "Acceso denegado. Se requieren permisos de administrador"
+                    code: "ADMIN_REQUIRED"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/commissions/update:
+    put:
+      tags:
+        - Commissions
+      summary: Update commission settings
+      description: |
+        Updates the commission configuration.
+
+        **Requirements:**
+        - User must be authenticated as admin
+        - Percentage must be between 5% and 10%
+        - Changes are audited
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCommissionSettingsRequest'
+            examples:
+              update-commission:
+                summary: Update commission percentage
+                value:
+                  percentage: 0.06
+                  minAmount: 50
+                  maxAmount: 5000
+                  description: "Aumento temporal de comisión al 6%"
+      responses:
+        '200':
+          description: Commission settings updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                settings-updated:
+                  summary: Commission settings updated
+                  value:
+                    success: true
+                    data:
+                      id: "550e8400-e29b-41d4-a716-446655440000"
+                      percentage: 0.06
+                      updatedAt: "2025-11-28T01:37:26.147Z"
+                      updatedBy: "550e8400-e29b-41d4-a716-446655440001"
+        '400':
+          description: Invalid commission settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid-percentage:
+                  summary: Commission percentage out of range
+                  value:
+                    success: false
+                    error: "El porcentaje de comisión debe estar entre 5% y 10%"
+                    code: "INVALID_COMMISSION_RATE"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/commissions/history:
+    get:
+      tags:
+        - Commissions
+      summary: Get commission settings history
+      description: |
+        Retrieves the history of commission configuration changes.
+
+        **Requirements:**
+        - User must be authenticated as admin
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of records per page
+      responses:
+        '200':
+          description: Commission history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                commission-history:
+                  summary: Commission settings history
+                  value:
+                    success: true
+                    data:
+                      settings:
+                        - id: "550e8400-e29b-41d4-a716-446655440000"
+                          name: "Comisión Plataforma Estándar"
+                          percentage: 0.05
+                          active: false
+                          startDate: "2025-01-01T00:00:00.000Z"
+                          endDate: "2025-11-28T00:00:00.000Z"
+                          updatedBy: "550e8400-e29b-41d4-a716-446655440001"
+                          updatedAt: "2025-11-28T01:37:26.147Z"
+                        - id: "550e8400-e29b-41d4-a716-446655440002"
+                          name: "Comisión Temporal 6%"
+                          percentage: 0.06
+                          active: true
+                          startDate: "2025-11-28T01:37:26.147Z"
+                          updatedBy: "550e8400-e29b-41d4-a716-446655440001"
+                          updatedAt: "2025-11-28T01:37:26.147Z"
+                      pagination:
+                        page: 1
+                        limit: 50
+                        total: 2
+                        pages: 1
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/commissions/calculate:
+    post:
+      tags:
+        - Commissions
+      summary: Calculate commission (testing)
+      description: |
+        Calculates commission for a given amount (for testing purposes).
+
+        **Requirements:**
+        - User must be authenticated as admin
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateCommissionRequest'
+            examples:
+              calculate-commission:
+                summary: Calculate commission for amount
+                value:
+                  amount: 10000
+                  type: "PLATAFORMA"
+      responses:
+        '200':
+          description: Commission calculated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculateCommissionResponse'
+              examples:
+                calculation-result:
+                  summary: Commission calculation result
+                  value:
+                    success: true
+                    data:
+                      baseAmount: 10000
+                      commissionAmount: 500
+                      commissionRate: 0.05
+                      professionalAmount: 9500
+                      type: "PLATAFORMA"
+        '400':
+          description: Invalid calculation parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # Audit Endpoints
+  /api/admin/audit/logs:
+    get:
+      tags:
+        - Audit
+      summary: Get audit logs
+      description: |
+        Retrieves financial audit logs with filtering options.
+
+        **Requirements:**
+        - User must be authenticated as admin
+
+        **Filters:**
+        - userId: Filter by specific user
+        - action: Filter by action type
+        - resource: Filter by resource type
+        - startDate/endDate: Date range filtering
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by user ID
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [payment_created, payment_status_changed, funds_released, commission_applied, commission_settings_changed, withdrawal_requested, withdrawal_processed, dispute_created, dispute_resolved]
+          description: Filter by action type
+        - name: resource
+          in: query
+          schema:
+            type: string
+            enum: [payment, commission, withdrawal, dispute]
+          description: Filter by resource type
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for filtering (YYYY-MM-DD)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for filtering (YYYY-MM-DD)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of records per page
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogsResponse'
+              examples:
+                audit-logs:
+                  summary: Financial audit logs
+                  value:
+                    success: true
+                    data:
+                      logs:
+                        - id: "550e8400-e29b-41d4-a716-446655440000"
+                          userId: "550e8400-e29b-41d4-a716-446655440001"
+                          action: "payment_created"
+                          resource: "payment"
+                          resourceId: "550e8400-e29b-41d4-a716-446655440002"
+                          details:
+                            service_id: "550e8400-e29b-41d4-a716-446655440003"
+                            amount: 5000
+                            payment_type: "service_payment"
+                          ipAddress: "192.168.1.100"
+                          userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                          createdAt: "2025-11-28T01:37:26.147Z"
+                          user:
+                            id: "550e8400-e29b-41d4-a716-446655440001"
+                            name: "Juan Pérez"
+                            email: "juan@example.com"
+                            role: "cliente"
+                        - id: "550e8400-e29b-41d4-a716-446655440004"
+                          userId: "550e8400-e29b-41d4-a716-446655440005"
+                          action: "funds_released"
+                          resource: "payment"
+                          resourceId: "550e8400-e29b-41d4-a716-446655440002"
+                          details:
+                            professional_id: "550e8400-e29b-41d4-a716-446655440006"
+                            amount_released: 4750
+                            commission_deducted: 250
+                            release_type: "manual"
+                          ipAddress: "192.168.1.100"
+                          userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                          createdAt: "2025-11-28T01:40:26.147Z"
+                          user:
+                            id: "550e8400-e29b-41d4-a716-446655440005"
+                            name: "María García"
+                            email: "maria@example.com"
+                            role: "cliente"
+                      pagination:
+                        page: 1
+                        limit: 50
+                        total: 150
+                        pages: 3
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/audit/stats:
+    get:
+      tags:
+        - Audit
+      summary: Get audit statistics
+      description: |
+        Retrieves statistics about audit events.
+
+        **Requirements:**
+        - User must be authenticated as admin
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dateRange
+          in: query
+          schema:
+            type: string
+            enum: [today, yesterday, last_7_days, last_30_days, this_month, last_month]
+          description: Predefined date range for statistics
+      responses:
+        '200':
+          description: Audit statistics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                audit-stats:
+                  summary: Audit event statistics
+                  value:
+                    success: true
+                    data:
+                      - action: "payment_created"
+                        resource: "payment"
+                        _count:
+                          id: 45
+                      - action: "funds_released"
+                        resource: "payment"
+                        _count:
+                          id: 32
+                      - action: "commission_applied"
+                        resource: "commission"
+                        _count:
+                          id: 32
+                      - action: "withdrawal_requested"
+                        resource: "withdrawal"
+                        _count:
+                          id: 12
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-found:
+                  summary: Payment does not exist
+                  value:
+                    success: false
+                    error: "Pago no encontrado"
+                    code: "PAYMENT_NOT_FOUND"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/release-funds:
+    post:
+      tags:
+        - Payments
+      summary: Release funds to professional
+      description: |
+        Releases payment funds to the professional after service completion.
+
+        **Requirements:**
+        - User must be authenticated as the service client
+        - Service must be marked as completed
+        - Payment must be in approved status
+        - Funds are held in custody until this point
+
+        **Commission Application:**
+        - Platform commission (5-10%) is applied only when funds are released
+        - Commission is calculated on the total payment amount
+        - Professional receives: total_amount - commission
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseFundsRequest'
+            examples:
+              release-funds:
+                summary: Release funds for completed service
+                value:
+                  paymentId: "123456789"
+                  serviceId: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Funds released successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReleaseFundsResponse'
+              examples:
+                success:
+                  summary: Funds released with commission applied
+                  value:
+                    success: true
+                    data:
+                      commission: 250
+                      professionalAmount: 4750
+                      commissionRate: 0.05
+                      paymentId: "550e8400-e29b-41d4-a716-446655440000"
+        '400':
+          description: Invalid request or business rule violation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                service-not-completed:
+                  summary: Service not marked as completed
+                  value:
+                    success: false
+                    error: "El servicio debe estar completado para liberar fondos"
+                    code: "SERVICE_NOT_COMPLETED"
+                invalid-payment:
+                  summary: Payment not in valid state
+                  value:
+                    success: false
+                    error: "El pago no está en estado válido para liberación"
+                    code: "INVALID_PAYMENT_STATUS"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not the service client
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-client:
+                  summary: User is not the service client
+                  value:
+                    success: false
+                    error: "Solo el cliente puede liberar los fondos"
+                    code: "INSUFFICIENT_PERMISSIONS"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/webhook:
+    post:
+      tags:
+        - Payments
+      summary: MercadoPago webhook handler
+      description: |
+        Handles payment status updates from MercadoPago.
+
+        **Security:**
+        - HMAC signature verification required
+        - Timestamp validation (max 5 minutes old)
+        - Rate limiting applied
+
+        **Supported Events:**
+        - `approved`: Payment approved, funds in custody
+        - `rejected`: Payment rejected by gateway
+        - `cancelled`: Payment cancelled by user
+        - `expired`: Payment preference expired
+
+        **Rate Limit:** 20 requests per minute (all environments)
+      parameters:
+        - name: x-signature
+          in: header
+          required: true
+          schema:
+            type: string
+          description: MercadoPago HMAC signature (format ts=123456789,v1=signature)
+          example: "ts=1732757046,v1=abc123def456"
+        - name: x-request-id
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Unique request identifier
+          example: "req_550e8400-e29b-41d4-a716-446655440000"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookPayload'
+            examples:
+              payment-approved:
+                summary: Payment approved notification
+                value:
+                  id: 123456789
+                  status: "approved"
+                  status_detail: "accredited"
+                  external_reference: "550e8400-e29b-41d4-a716-446655440000"
+                  transaction_amount: 5000
+                  payment_type_id: "credit_card"
+                  date_approved: "2025-11-28T01:37:26.147Z"
+                  date_created: "2025-11-28T01:35:26.147Z"
+              payment-rejected:
+                summary: Payment rejected notification
+                value:
+                  id: 123456789
+                  status: "rejected"
+                  status_detail: "cc_rejected_bad_filled_other"
+                  external_reference: "550e8400-e29b-41d4-a716-446655440000"
+                  transaction_amount: 5000
+                  date_created: "2025-11-28T01:35:26.147Z"
+      responses:
+        '200':
+          description: Webhook processed successfully
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "OK"
+        '400':
+          description: Invalid webhook data or signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid-signature:
+                  summary: Invalid HMAC signature
+                  value:
+                    success: false
+                    error: "Invalid webhook signature"
+                    code: "INVALID_SIGNATURE"
+                timestamp-too-old:
+                  summary: Webhook timestamp too old
+                  value:
+                    success: false
+                    error: "Webhook timestamp too old"
+                    code: "TIMESTAMP_TOO_OLD"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/withdraw:
+    post:
+      tags:
+        - Payments
+      summary: Request fund withdrawal
+      description: |
+        Allows professionals to withdraw available funds to their bank account.
+
+        **Requirements:**
+        - User must be authenticated as a professional
+        - Must have available funds from completed services
+        - Bank details must be valid (CVU format, alias)
+        - Amount must be between 100 and 50,000 ARS
+
+        **Process:**
+        - Withdrawal request is created and queued for processing
+        - Bank transfer is processed within 2-3 business days
+        - Professional receives notification via email/app
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawFundsRequest'
+            examples:
+              withdrawal-request:
+                summary: Professional withdrawal request
+                value:
+                  amount: 5000
+                  bankDetails:
+                    cvu: "1234567890123456789012"
+                    alias: "mi.cuenta.bancaria"
+      responses:
+        '200':
+          description: Withdrawal request created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WithdrawFundsResponse'
+              examples:
+                success:
+                  summary: Withdrawal request accepted
+                  value:
+                    success: true
+                    data:
+                      withdrawalId: "550e8400-e29b-41d4-a716-446655440000"
+                      amount: 5000
+                      processedAt: "2025-11-28T01:37:26.147Z"
+                      estimatedArrival: "2025-12-02T01:37:26.147Z"
+                      bankDetails:
+                        alias: "mi.cuenta.bancaria"
+                        cvuMasked: "***56789012"
+                      status: "PROCESANDO"
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid-cvu:
+                  summary: Invalid CVU format
+                  value:
+                    success: false
+                    error: "El CVU debe tener exactamente 22 dígitos"
+                    code: "INVALID_CVU"
+                invalid-amount:
+                  summary: Amount out of range
+                  value:
+                    success: false
+                    error: "El monto debe estar entre 100 y 50,000 ARS"
+                    code: "INVALID_AMOUNT"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not a professional
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not-professional:
+                  summary: User is not a professional
+                  value:
+                    success: false
+                    error: "Solo los profesionales pueden retirar fondos"
+                    code: "INSUFFICIENT_PERMISSIONS"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                insufficient-funds:
+                  summary: Not enough available funds
+                  value:
+                    success: false
+                    error: "Fondos insuficientes para el retiro solicitado"
+                    code: "INSUFFICIENT_FUNDS"
+
+  /api/payments/receipt/{paymentId}:
+    get:
+      tags:
+        - Payments
+      summary: Generate payment receipt
+      description: |
+        Generates and returns a payment receipt for completed transactions.
+
+        **Requirements:**
+        - User must be authenticated
+        - User must be involved in the payment
+        - Payment must be completed (approved or released)
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Receipt generated successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+              examples:
+                receipt-pdf:
+                  summary: PDF receipt file
+                  value: "%PDF-1.4..."
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not involved in payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Payment not found or no receipt available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/receipts/{fileName}:
+    get:
+      tags:
+        - Payments
+      summary: Download payment receipt
+      description: |
+        Downloads a previously generated payment receipt file.
+
+        **Security:**
+        - Filename validation to prevent path traversal
+        - User must be authenticated
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FileName'
+      responses:
+        '200':
+          description: Receipt file downloaded successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Receipt file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/{paymentId}/dispute:
+    post:
+      tags:
+        - Payments
+      summary: Create payment dispute
+      description: |
+        Creates a dispute for a payment that requires resolution.
+
+        **Requirements:**
+        - User must be authenticated
+        - User must be involved in the payment
+        - Payment must be in a disputable state
+        - Maximum 5 evidence files allowed
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDisputeRequest'
+            examples:
+              service-dispute:
+                summary: Dispute for incomplete service
+                value:
+                  reason: "Servicio no completado"
+                  description: "El profesional no realizó el trabajo acordado"
+                  evidence:
+                    - "https://storage.googleapis.com/evidence/photo1.jpg"
+                    - "https://storage.googleapis.com/evidence/contract.pdf"
+      responses:
+        '201':
+          description: Dispute created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                dispute-created:
+                  summary: Dispute successfully created
+                  value:
+                    success: true
+                    data:
+                      disputeId: "550e8400-e29b-41d4-a716-446655440000"
+                      status: "abierta"
+                      createdAt: "2025-11-28T01:37:26.147Z"
+        '400':
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not involved in payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/{paymentId}/refund:
+    post:
+      tags:
+        - Payments
+      summary: Process payment refund
+      description: |
+        Processes a refund for a payment (admin only).
+
+        **Requirements:**
+        - User must be authenticated as admin
+        - Payment must be in refundable state
+        - Amount must be valid for the payment
+
+        **Rate Limit:** 10 requests per 5 minutes (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessRefundRequest'
+            examples:
+              full-refund:
+                summary: Full payment refund
+                value:
+                  reason: "Servicio cancelado por cliente"
+      responses:
+        '200':
+          description: Refund processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                refund-processed:
+                  summary: Refund successfully processed
+                  value:
+                    success: true
+                    data:
+                      refundId: "550e8400-e29b-41d4-a716-446655440000"
+                      amount: 5000
+                      processedAt: "2025-11-28T01:37:26.147Z"
+        '400':
+          description: Invalid request or refund not possible
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - admin access required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/payments/{paymentId}/events:
+    get:
+      tags:
+        - Payments
+      summary: Get payment events history
+      description: |
+        Retrieves the complete event history for a payment.
+
+        **Requirements:**
+        - User must be authenticated
+        - User must be involved in the payment
+
+        **Rate Limit:** 60 requests per minute (production)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PaymentId'
+      responses:
+        '200':
+          description: Payment events retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                payment-events:
+                  summary: Payment event history
+                  value:
+                    success: true
+                    data:
+                      - id: "550e8400-e29b-41d4-a716-446655440000"
+                        type: "webhook_received"
+                        data:
+                          status: "approved"
+                          amount: 5000
+                        processed: true
+                        createdAt: "2025-11-28T01:37:26.147Z"
+                      - id: "550e8400-e29b-41d4-a716-446655440001"
+                        type: "funds_released"
+                        data:
+                          commission: 250
+                          professional_amount: 4750
+                        processed: true
+                        createdAt: "2025-11-28T01:40:26.147Z"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden - not involved in payment
+          content:
+            application

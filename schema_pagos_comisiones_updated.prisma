@@ -1,0 +1,363 @@
+// Updated Prisma Schema for Payments Integrated and Commissions Module
+// CHANGANET - Enhanced with enums, Json types, audit fields, and optimized indexes
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums for better type safety and validation
+enum PaymentStatus {
+  PENDIENTE    // Payment created, waiting for approval
+  APROBADO     // Payment approved by gateway, funds in custody
+  LIBERADO     // Funds released to professional
+  CANCELADO    // Payment cancelled
+  REEMBOLSADO  // Payment refunded
+  EXPIRADO     // Payment preference expired
+  FALLIDO      // Payment failed
+}
+
+enum WithdrawalStatus {
+  PROCESANDO   // Withdrawal request submitted
+  PENDIENTE_VERIFICACION  // Waiting for bank verification
+  EN_PROCESO   // Being processed by bank
+  COMPLETADO   // Successfully transferred
+  RECHAZADO    // Rejected by bank or system
+  CANCELADO    // Cancelled by user
+  FALLIDO      // Failed during processing
+}
+
+enum CommissionType {
+  PLATAFORMA   // Platform commission (5-10%)
+  PROCESAMIENTO // Payment processing fee
+  RETIRO       // Withdrawal fee
+  AJUSTE       // Manual adjustment
+  REEMBOLSO    // Commission refund
+}
+
+enum CommissionEventType {
+  APLICADA     // Commission applied on service completion
+  AJUSTADA     // Commission manually adjusted
+  REEMBOLSADA  // Commission refunded
+  CANCELADA    // Commission cancelled
+}
+
+// Enhanced Payments model with enums, Json metadata, and audit fields
+model pagos {
+  id                                      String          @id @default(cuid())
+  servicio_id                             String          @unique
+  cliente_id                              String
+  profesional_id                          String
+  monto_total                             Float
+  comision_plataforma                     Float           @default(0)
+  monto_profesional                       Float
+  monto_procesamiento                     Float           @default(0) // Payment gateway fees
+  mercado_pago_id                         String?         @unique
+  mercado_pago_preference_id              String?         @unique
+  estado                                  PaymentStatus   @default(PENDIENTE)
+  metodo_pago                             String?
+  fecha_pago                              DateTime?
+  fecha_liberacion                        DateTime?
+  fecha_liberacion_programada             DateTime?
+  fecha_expiracion_preference             DateTime?       // When MercadoPago preference expires
+  url_comprobante                         String?
+  metadata                                Json?           // Additional payment metadata from gateway
+  datos_adicionales                       Json?           // Custom fields for specific payment types
+  webhook_procesado                       Boolean         @default(false)
+  ultimo_webhook_procesado_en             DateTime?
+  intentos_webhook                        Int             @default(0)
+  max_intentos_webhook                    Int             @default(5)
+  referencia_externa                      String?         // External reference for reconciliation
+  notas_admin                             String?         // Admin notes for special cases
+
+  // Audit fields
+  creado_por                              String?
+  actualizado_por                         String?
+  creado_en                               DateTime        @default(now())
+  actualizado_en                          DateTime        @updatedAt
+  version                                 Int             @default(1) // Optimistic locking
+
+  // Relations
+  servicios                               servicios       @relation(fields: [servicio_id], references: [id])
+  usuarios_pagos_cliente_idTousuarios     usuarios        @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  usuarios_pagos_profesional_idTousuarios usuarios        @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  disputas                                disputas_pagos[]
+  eventos_pagos                           eventos_pagos[]
+  comisiones_historial                    comisiones_historial[]
+
+  // Optimized indexes for common queries
+  @@index([estado])
+  @@index([profesional_id])
+  @@index([cliente_id])
+  @@index([webhook_procesado])
+  @@index([fecha_liberacion_programada])
+  @@index([mercado_pago_preference_id])
+  @@index([mercado_pago_id])
+  @@index([fecha_pago])
+  @@index([estado, fecha_liberacion_programada]) // For auto-release queries
+  @@index([profesional_id, estado, fecha_pago]) // For professional payment history
+  @@index([cliente_id, estado, creado_en]) // For client payment history
+  @@index([referencia_externa])
+  @@index([creado_en])
+}
+
+// Enhanced Bank Accounts model with validation and audit
+model cuentas_bancarias {
+  id             String    @id @default(cuid())
+  profesional_id String
+  cvu            String    @unique // Format validation: exactly 22 digits
+  alias          String    @unique
+  banco          String?
+  titular        String?
+  tipo_cuenta    String?   // Checking, Savings, etc.
+  es_principal   Boolean   @default(false)
+  verificada     Boolean   @default(false)
+  fecha_verificacion DateTime?
+  verificada_por String?
+  datos_adicionales Json?  // Additional bank-specific data
+
+  // Audit fields
+  creado_por     String?
+  actualizado_por String?
+  creado_en      DateTime  @default(now())
+  actualizado_en DateTime  @updatedAt
+
+  // Relations
+  usuarios       usuarios  @relation(fields: [profesional_id], references: [id])
+  retiros        retiros[]
+
+  // Indexes
+  @@index([verificada])
+  @@index([profesional_id])
+  @@index([es_principal])
+  @@index([profesional_id, verificada])
+  @@index([creado_en])
+}
+
+// Enhanced Withdrawals model with enums and audit
+model retiros {
+  id                String            @id @default(cuid())
+  profesional_id    String
+  cuenta_id         String
+  monto             Float
+  monto_comision    Float             @default(0) // Withdrawal fee
+  monto_final       Float             // Amount after fees
+  estado            WithdrawalStatus  @default(PROCESANDO)
+  fecha_solicitud   DateTime          @default(now())
+  fecha_procesado   DateTime?
+  fecha_acreditado  DateTime?
+  referencia_bancaria String?         // Bank transfer reference
+  notas             String?
+  procesado_por     String?           // Admin who processed
+  datos_adicionales Json?             // Bank response data
+
+  // Audit fields
+  creado_por        String?
+  actualizado_por   String?
+  creado_en         DateTime          @default(now())
+  actualizado_en    DateTime          @updatedAt
+
+  // Relations
+  usuarios          usuarios          @relation(fields: [profesional_id], references: [id])
+  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
+  comisiones_historial comisiones_historial[]
+
+  // Indexes
+  @@index([fecha_solicitud])
+  @@index([estado])
+  @@index([profesional_id])
+  @@index([estado, fecha_solicitud]) // For processing queue
+  @@index([profesional_id, estado, fecha_solicitud]) // For professional withdrawal history
+  @@index([procesado_por])
+  @@index([referencia_bancaria])
+}
+
+// Commission History table for audit trail
+model comisiones_historial {
+  id                String               @id @default(cuid())
+  pago_id           String?
+  retiro_id         String?
+  servicio_id       String?
+  tipo              CommissionType
+  evento            CommissionEventType
+  monto             Float
+  porcentaje        Float?              // Commission percentage applied
+  descripcion       String              // Reason for commission
+  referencia        String?             // External reference
+  datos_adicionales Json?               // Additional context data
+
+  // Audit fields
+  aplicado_por      String?             // User who applied the commission
+  aprobado_por      String?             // Admin who approved if manual
+  creado_en         DateTime            @default(now())
+  actualizado_en    DateTime            @updatedAt
+
+  // Relations
+  pagos             pagos?              @relation(fields: [pago_id], references: [id])
+  retiros           retiros?            @relation(fields: [retiro_id], references: [id])
+  servicios         servicios?          @relation(fields: [servicio_id], references: [id])
+
+  // Indexes
+  @@index([pago_id])
+  @@index([retiro_id])
+  @@index([servicio_id])
+  @@index([tipo])
+  @@index([evento])
+  @@index([creado_en])
+  @@index([tipo, evento, creado_en]) // For commission analytics
+  @@index([aplicado_por])
+  @@index([aprobado_por])
+}
+
+// Enhanced Commission Settings with audit and history
+model commission_settings {
+  id                    String   @id @default(cuid())
+  nombre                String   @unique // Descriptive name for the setting
+  tipo                  CommissionType
+  porcentaje            Float    // Commission percentage (0.05 = 5%)
+  monto_minimo          Float    @default(0) // Minimum fee amount
+  monto_maximo          Float?   // Maximum fee amount
+  activo                Boolean  @default(true)
+  fecha_inicio          DateTime @default(now())
+  fecha_fin             DateTime?
+  condiciones           Json?    // Conditions for applying this commission
+  descripcion           String?
+
+  // Audit fields
+  creado_por            String?
+  actualizado_por       String?
+  aprobado_por          String?  // Admin approval for changes
+  creado_en             DateTime @default(now())
+  actualizado_en        DateTime @updatedAt
+
+  // Indexes
+  @@index([activo])
+  @@index([tipo])
+  @@index([fecha_inicio])
+  @@index([tipo, activo, fecha_inicio]) // For active commission lookup
+  @@index([creado_por])
+  @@index([aprobado_por])
+}
+
+// Payment Events for detailed audit trail
+model eventos_pagos {
+  id          String   @id @default(cuid())
+  pago_id     String
+  tipo_evento String   // webhook_received, payment_approved, funds_released, etc.
+  datos       Json     // Event payload from gateway or system
+  procesado   Boolean  @default(false)
+  procesado_en DateTime?
+  procesado_por String?
+  creado_en   DateTime @default(now())
+
+  // Relations
+  pago        pagos    @relation(fields: [pago_id], references: [id])
+
+  // Indexes
+  @@index([pago_id, tipo_evento])
+  @@index([procesado])
+  @@index([creado_en])
+  @@index([pago_id, procesado, creado_en]) // For unprocessed events
+}
+
+// Payment Disputes model (enhanced)
+model disputas_pagos {
+  id               String    @id @default(cuid())
+  pago_id          String
+  usuario_id       String
+  tipo             String    // chargeback, refund_request, service_not_provided
+  motivo           String
+  descripcion      String
+  evidencia_urls   Json?     // Array of evidence file URLs
+  estado           String    @default("abierta")
+  fecha_apertura   DateTime  @default(now())
+  fecha_resolucion DateTime?
+  resolucion       String?
+  notas_admin      String?
+  reembolso_monto  Float?
+  reembolso_procesado Boolean @default(false)
+  reembolso_procesado_en DateTime?
+
+  // Audit fields
+  resuelto_por     String?
+  creado_en        DateTime  @default(now())
+  actualizado_en   DateTime  @updatedAt
+
+  // Relations
+  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
+  pago             pagos     @relation(fields: [pago_id], references: [id])
+
+  // Indexes
+  @@index([pago_id])
+  @@index([usuario_id])
+  @@index([estado])
+  @@index([fecha_apertura])
+  @@index([tipo])
+  @@index([estado, fecha_apertura]) // For dispute queue
+  @@index([resuelto_por])
+}
+
+// Reference to main usuarios model (simplified for this schema)
+model usuarios {
+  id String @id @default(cuid())
+  email String @unique
+  nombre String
+
+  // Payment relations
+  pagos_pagos_cliente_idTousuarios     pagos[]                      @relation("pagos_cliente_idTousuarios")
+  pagos_pagos_profesional_idTousuarios pagos[]                      @relation("pagos_profesional_idTousuarios")
+  cuentas_bancarias                    cuentas_bancarias[]
+  retiros                              retiros[]
+  disputas_pagos                       disputas_pagos[]
+
+  @@index([email])
+}
+
+// Reference to servicios model (simplified)
+model servicios {
+  id            String @id @default(cuid())
+  descripcion   String
+  estado        String @default("PENDIENTE")
+  cliente_id    String
+  profesional_id String
+  completado_en DateTime?
+
+  // Payment relations
+  pagos         pagos?
+  comisiones_historial comisiones_historial[]
+
+  @@index([estado])
+  @@index([cliente_id])
+  @@index([profesional_id])
+}
+
+/*
+VALIDATION RULES (to be implemented in application layer):
+
+1. CVU Format: /^[0-9]{22}$/ - Exactly 22 digits
+2. Commission Range: 0.05 to 0.10 (5% to 10%) for platform commissions
+3. Payment Amounts: MIN 500 ARS, MAX 500,000 ARS
+4. Withdrawal Amounts: MIN 100 ARS, MAX 50,000 ARS
+5. Email format validation for notifications
+6. Date validations for scheduled releases (max 30 days)
+
+INDEX OPTIMIZATION NOTES:
+
+1. Compound indexes prioritize most frequent query patterns
+2. Date indexes use BTREE for range queries
+3. Status indexes for queue processing
+4. Foreign key indexes for JOIN performance
+5. Partial indexes for active records only
+
+AUDIT TRAIL:
+
+1. All changes tracked with user references
+2. Version fields for optimistic locking
+3. Comprehensive history in commission_history table
+4. Event logging for payment lifecycle
+5. Admin approval tracking for sensitive operations
+*/

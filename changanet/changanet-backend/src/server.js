@@ -415,9 +415,41 @@ setWebSocketService(webSocketService);
 console.log('🔔 Servicio WebSocket inyectado en notificaciones');
 
 // Inyectar servicio WebSocket en controlador de urgencias
-const { setWebSocketService: setUrgentWebSocketService } = require('./controllers/urgentController');
+const { setUrgentService, setWebSocketService: setUrgentWebSocketService } = require('./controllers/urgentController');
+const { setMatchingService, setGeolocationService } = require('./controllers/matchingController');
+
+// Inicializar servicios de urgencias
+const UrgentServiceService = require('./services/urgentServiceService');
+const MatchingService = require('./services/matchingService');
+const SLAService = require('./services/slaService');
+const GeolocationService = require('./services/geolocationService');
+const NotificationService = require('./services/notificationService');
+
+const urgentService = new UrgentServiceService();
+const matchingService = new MatchingService();
+const slaService = new SLAService();
+const geolocationService = new GeolocationService();
+const notificationService = new NotificationService();
+
+// Inyectar dependencias entre servicios
+UrgentServiceService.setNotificationService(notificationService);
+UrgentServiceService.setWebSocketService(webSocketService);
+UrgentServiceService.setMatchingService(matchingService);
+UrgentServiceService.setSlaService(slaService);
+UrgentServiceService.setGeolocationService(geolocationService);
+
+MatchingService.setGeolocationService(geolocationService);
+
+SLAService.setNotificationService(notificationService);
+SLAService.setWebSocketService(webSocketService);
+
+// Inyectar servicios en controladores
+setUrgentService(urgentService);
 setUrgentWebSocketService(webSocketService);
-console.log('🚨 Servicio WebSocket inyectado en controlador de urgencias');
+setMatchingService(matchingService);
+setGeolocationService(geolocationService);
+
+console.log('🚨 Servicios de urgencias inicializados y inyectados');
 
 // Middleware de manejo de errores de Sentry (DEBE ser el ÚLTIMO middleware de error) - Monitoreo de errores (REQ-40)
 app.use(sentryErrorHandler());

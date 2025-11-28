@@ -20,6 +20,15 @@ const {
   getUrgentPricingRules,
   updateUrgentPricingRules
 } = require('../controllers/urgentController');
+const {
+  getMatchingStats,
+  testMatchingAlgorithm,
+  optimizeMatchingAlgorithm,
+  getGeospatialStats,
+  getMatchingPerformance,
+  clearGeolocationCache,
+  debugProfessionalLocations
+} = require('../controllers/matchingController');
 const { authenticateToken } = require('../middleware/authenticate');
 
 const router = express.Router();
@@ -123,5 +132,63 @@ router.get('/urgent/pricing', getUrgentPricingRules);
  * @body {rules: Array<{service_category: string, base_multiplier: number, min_price: number}>}
  */
 router.post('/urgent/pricing/update', updateUrgentPricingRules);
+
+// ==================================================
+// ENDPOINTS PARA GESTIÓN DE MATCHING (Admin)
+// ==================================================
+
+/**
+ * @ruta GET /api/matching/stats - Obtener estadísticas de matching
+ * @descripción Permite a administradores ver métricas de rendimiento del sistema de matching
+ * @acceso Administradores
+ * @query {startDate?: string, endDate?: string, serviceCategory?: string}
+ */
+router.get('/matching/stats', getMatchingStats);
+
+/**
+ * @ruta GET /api/matching/test - Probar algoritmo de matching
+ * @descripción Endpoint para testing y debugging del algoritmo de matching
+ * @acceso Administradores
+ * @query {lat?: number, lng?: number, radiusKm?: number, serviceCategory?: string, isRetry?: boolean, maxCandidates?: number}
+ */
+router.get('/matching/test', testMatchingAlgorithm);
+
+/**
+ * @ruta POST /api/matching/optimize - Optimizar algoritmo de matching
+ * @descripción Ejecuta análisis de datos históricos para optimizar el algoritmo
+ * @acceso Administradores
+ */
+router.post('/matching/optimize', optimizeMatchingAlgorithm);
+
+/**
+ * @ruta GET /api/matching/geostats - Obtener estadísticas geoespaciales
+ * @descripción Estadísticas sobre distribución geográfica de servicios urgentes
+ * @acceso Administradores
+ * @query {startDate?: string, endDate?: string, serviceCategory?: string}
+ */
+router.get('/matching/geostats', getGeospatialStats);
+
+/**
+ * @ruta GET /api/matching/performance - Obtener métricas de rendimiento
+ * @descripción Métricas detalladas de rendimiento del sistema de matching
+ * @acceso Administradores
+ * @query {period?: string}
+ */
+router.get('/matching/performance', getMatchingPerformance);
+
+/**
+ * @ruta POST /api/matching/cache/clear - Limpiar cache de geolocalización
+ * @descripción Endpoint para mantenimiento del sistema
+ * @acceso Administradores
+ */
+router.post('/matching/cache/clear', clearGeolocationCache);
+
+/**
+ * @ruta GET /api/matching/debug/locations - Debug de ubicación de profesionales
+ * @descripción Endpoint para debugging de ubicaciones
+ * @acceso Administradores
+ * @query {professionalId?: string}
+ */
+router.get('/matching/debug/locations', debugProfessionalLocations);
 
 module.exports = router;

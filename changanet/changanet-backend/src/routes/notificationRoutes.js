@@ -19,14 +19,23 @@ router.use(authenticateToken);
 // GET /api/notifications - Obtener notificaciones del usuario con paginación
 router.get('/', notificationController.getUserNotifications.bind(notificationController));
 
+// GET /api/notifications/filtered - Obtener notificaciones con filtros avanzados
+router.get('/filtered', notificationController.getFilteredNotifications.bind(notificationController));
+
 // POST /api/notifications/mark-read - Marcar notificación como leída
 router.post('/mark-read', notificationController.markAsRead.bind(notificationController));
 
 // POST /api/notifications/mark-all-read - Marcar todas como leídas
 router.post('/mark-all-read', notificationController.markAllAsRead.bind(notificationController));
 
+// POST /api/notifications/mark-type-read - Marcar notificaciones por tipo como leídas
+router.post('/mark-type-read', notificationController.markTypeAsRead.bind(notificationController));
+
 // GET /api/notifications/unread-count - Contador de notificaciones no leídas
 router.get('/unread-count', notificationController.getUnreadCount.bind(notificationController));
+
+// GET /api/notifications/stats - Estadísticas de notificaciones
+router.get('/stats', notificationController.getNotificationStats.bind(notificationController));
 
 // Preferencias de usuario
 // GET /api/notifications/preferences/:userId - Obtener preferencias
@@ -54,8 +63,11 @@ router.delete('/unregister-token', notificationController.unregisterFCMToken.bin
 
 // Rutas de desarrollo para testing
 if (process.env.NODE_ENV !== 'production') {
-  // POST /api/notifications/test - Enviar notificación de prueba
+  // POST /api/notifications/test - Enviar notificación de prueba básica
   router.post('/test', notificationController.sendTestNotification.bind(notificationController));
+
+  // POST /api/notifications/test-advanced - Enviar notificación de prueba avanzada
+  router.post('/test-advanced', notificationController.sendAdvancedTestNotification.bind(notificationController));
 
   // POST /api/notifications/test-fcm - Enviar notificación FCM de prueba
   router.post('/test-fcm', async (req, res) => {

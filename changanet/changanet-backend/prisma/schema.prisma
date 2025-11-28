@@ -8,8 +8,51 @@ generator client {
 // }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// Enums for better type safety and validation
+enum PaymentStatus {
+  PENDIENTE // Payment created, waiting for approval
+  APROBADO // Payment approved by gateway, funds in custody
+  LIBERADO // Funds released to professional
+  CANCELADO // Payment cancelled
+  REEMBOLSADO // Payment refunded
+  EXPIRADO // Payment preference expired
+  FALLIDO // Payment failed
+}
+
+enum WithdrawalStatus {
+  PROCESANDO // Withdrawal request submitted
+  PENDIENTE_VERIFICACION // Waiting for bank verification
+  EN_PROCESO // Being processed by bank
+  COMPLETADO // Successfully transferred
+  RECHAZADO // Rejected by bank or system
+  CANCELADO // Cancelled by user
+  FALLIDO // Failed during processing
+}
+
+enum CommissionType {
+  PLATAFORMA // Platform commission (5-10%)
+  PROCESAMIENTO // Payment processing fee
+  RETIRO // Withdrawal fee
+  AJUSTE // Manual adjustment
+  REEMBOLSO // Commission refund
+}
+
+enum CommissionEventType {
+  APLICADA // Commission applied on service completion
+  AJUSTADA // Commission manually adjusted
+  REEMBOLSADA // Commission refunded
+  CANCELADA // Commission cancelled
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 model cotizacion_respuestas {
@@ -63,22 +106,37 @@ model coverage_zones {
   @@index([city, state], map: "idx_coverage_zones_city")
 }
 
+// Enhanced Bank Accounts model with validation and audit
 model cuentas_bancarias {
-  id             String    @id
-  profesional_id String
-  cvu            String
-  alias          String
-  banco          String?
-  titular        String?
-  es_principal   Boolean   @default(false)
-  verificada     Boolean   @default(false)
-  creado_en      DateTime  @default(now())
-  actualizado_en DateTime?
-  usuarios       usuarios  @relation(fields: [profesional_id], references: [id])
-  retiros        retiros[]
+  id                 String    @id @default(cuid())
+  profesional_id     String
+  cvu                String    @unique // Format validation: exactly 22 digits
+  alias              String    @unique
+  banco              String?
+  titular            String?
+  tipo_cuenta        String? // Checking, Savings, etc.
+  es_principal       Boolean   @default(false)
+  verificada         Boolean   @default(false)
+  fecha_verificacion DateTime?
+  verificada_por     String?
+  datos_adicionales  Json? // Additional bank-specific data
 
+  // Audit fields
+  creado_por      String?
+  actualizado_por String?
+  creado_en       DateTime @default(now())
+  actualizado_en  DateTime @updatedAt
+
+  // Relations
+  usuarios usuarios  @relation(fields: [profesional_id], references: [id])
+  retiros  retiros[]
+
+  // Indexes
   @@index([verificada])
   @@index([profesional_id])
+  @@index([es_principal])
+  @@index([profesional_id, verificada])
+  @@index([creado_en])
 }
 
 model disponibilidad {
@@ -144,16 +202,16 @@ model logros_usuario {
 }
 
 model conversations {
-  id             String   @id @default(uuid())
-  client_id      String
+  id              String     @id @default(uuid())
+  client_id       String
   professional_id String
-  is_active      Boolean  @default(true)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  is_active       Boolean    @default(true)
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
   last_message_at DateTime?
-  client         usuarios @relation("conversations_client_idTousuarios", fields: [client_id], references: [id])
-  professional   usuarios @relation("conversations_professional_idTousuarios", fields: [professional_id], references: [id])
-  messages       mensajes[]
+  client          usuarios   @relation("conversations_client_idTousuarios", fields: [client_id], references: [id])
+  professional    usuarios   @relation("conversations_professional_idTousuarios", fields: [professional_id], references: [id])
+  messages        mensajes[]
 
   @@unique([client_id, professional_id])
   @@index([client_id])
@@ -166,18 +224,18 @@ model conversations {
 }
 
 model mensajes {
-  id                                          String        @id @default(uuid())
-  conversation_id                             String
-  sender_id                                   String
-  recipient_id                                String
-  message                                     String?
-  image_url                                   String?
-  status                                      String        @default("sent")
-  read_at                                     DateTime?
-  created_at                                  DateTime      @default(now())
-  conversation                                conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
-  sender                                      usuarios      @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id], onDelete: Cascade)
-  recipient                                   usuarios      @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id], onDelete: Cascade)
+  id              String         @id @default(uuid())
+  conversation_id String
+  sender_id       String
+  recipient_id    String
+  message         String?
+  image_url       String?
+  status          String         @default("sent")
+  read_at         DateTime?
+  created_at      DateTime       @default(now())
+  conversation    conversations? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender          usuarios       @relation("mensajes_sender_idTousuarios", fields: [sender_id], references: [id], onDelete: Cascade)
+  recipient       usuarios       @relation("mensajes_recipient_idTousuarios", fields: [recipient_id], references: [id], onDelete: Cascade)
 
   @@index([created_at])
   @@index([conversation_id])
@@ -187,61 +245,94 @@ model mensajes {
   @@index([status])
 }
 
-model notificaciones {
-  id         String               @id @default(cuid())
-  usuario_id String
-  tipo       String
-  titulo     String
-  mensaje    String
-  data       String               @default("{}")
-  canal      String               @default("inapp")
-  estado     String               @default("unread")
-  creado_en  DateTime             @default(now())
-  leido_en   DateTime?
-  usuarios   usuarios             @relation(fields: [usuario_id], references: [id])
-  queue      notification_queue[]
+model notifications {
+  id             String               @id @default(cuid())
+  user_id        String
+  type           String
+  title          String
+  message        String
+  data           String               @default("{}")
+  channel        String               @default("inapp")
+  status         String               @default("unread")
+  priority       NotificationPriority @default(NORMAL)
+  group_id       String?
+  created_at     DateTime             @default(now())
+  read_at        DateTime?
+  opened_at      DateTime?
+  clicked_at     DateTime?
+  delivered_at   DateTime?
+  analytics_data Json?
+  users          usuarios             @relation(fields: [user_id], references: [id])
+  queue          notification_queue[]
+  analytics      notification_analytics[]
 
-  @@index([usuario_id], map: "idx_notif_user")
-  @@index([estado], map: "idx_notif_status")
-  @@index([tipo], map: "idx_notif_type")
-  @@index([creado_en])
+  @@index([user_id], map: "idx_notif_user")
+  @@index([status], map: "idx_notif_status")
+  @@index([type], map: "idx_notif_type")
+  @@index([priority], map: "idx_notif_priority")
+  @@index([group_id], map: "idx_notif_group")
+  @@index([created_at])
+  @@index([user_id, status])
+  @@index([user_id, type])
 }
 
+// Enhanced Payments model with enums, Json metadata, and audit fields
 model pagos {
-  id                                      String           @id
-  servicio_id                             String           @unique
-  cliente_id                              String
-  profesional_id                          String
-  monto_total                             Float
-  comision_plataforma                     Float
-  monto_profesional                       Float
-  mercado_pago_id                         String?          @unique
-  mercado_pago_preference_id              String?          @unique
-  estado                                  String           @default("pendiente")
-  metodo_pago                             String?
-  fecha_pago                              DateTime?
-  fecha_liberacion                        DateTime?
-  fecha_liberacion_programada             DateTime?
-  url_comprobante                         String?
-  metadata                                String?
-  webhook_procesado                       Boolean          @default(false)
-  ultimo_webhook_procesado_en             DateTime?
-  intentos_webhook                        Int              @default(0)
-  created_at                              DateTime         @default(now())
-  updated_at                              DateTime         @updatedAt
+  id                          String        @id @default(cuid())
+  servicio_id                 String        @unique
+  cliente_id                  String
+  profesional_id              String
+  monto_total                 Float
+  comision_plataforma         Float         @default(0)
+  monto_profesional           Float
+  monto_procesamiento         Float         @default(0) // Payment gateway fees
+  mercado_pago_id             String?       @unique
+  mercado_pago_preference_id  String?       @unique
+  estado                      PaymentStatus @default(PENDIENTE)
+  metodo_pago                 String?
+  fecha_pago                  DateTime?
+  fecha_liberacion            DateTime?
+  fecha_liberacion_programada DateTime?
+  fecha_expiracion_preference DateTime? // When MercadoPago preference expires
+  url_comprobante             String?
+  metadata                    Json? // Additional payment metadata from gateway
+  datos_adicionales           Json? // Custom fields for specific payment types
+  webhook_procesado           Boolean       @default(false)
+  ultimo_webhook_procesado_en DateTime?
+  intentos_webhook            Int           @default(0)
+  max_intentos_webhook        Int           @default(5)
+  referencia_externa          String? // External reference for reconciliation
+  notas_admin                 String? // Admin notes for special cases
+
+  // Audit fields
+  creado_por      String?
+  actualizado_por String?
+  creado_en       DateTime @default(now())
+  actualizado_en  DateTime @updatedAt
+  version         Int      @default(1) // Optimistic locking
+
+  // Relations
+  servicios                               servicios              @relation(fields: [servicio_id], references: [id])
+  usuarios_pagos_cliente_idTousuarios     usuarios               @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
+  usuarios_pagos_profesional_idTousuarios usuarios               @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
   disputas                                disputas_pagos[]
   eventos_pagos                           eventos_pagos[]
-  servicios                               servicios        @relation(fields: [servicio_id], references: [id])
-  usuarios_pagos_cliente_idTousuarios     usuarios         @relation("pagos_cliente_idTousuarios", fields: [cliente_id], references: [id])
-  usuarios_pagos_profesional_idTousuarios usuarios         @relation("pagos_profesional_idTousuarios", fields: [profesional_id], references: [id])
+  comisiones_historial                    comisiones_historial[]
 
-  @@index([mercado_pago_preference_id])
-  @@index([mercado_pago_id])
+  // Optimized indexes for common queries
   @@index([estado])
   @@index([profesional_id])
   @@index([cliente_id])
   @@index([webhook_procesado])
   @@index([fecha_liberacion_programada])
+  @@index([mercado_pago_preference_id])
+  @@index([mercado_pago_id])
+  @@index([fecha_pago])
+  @@index([estado, fecha_liberacion_programada]) // For auto-release queries
+  @@index([profesional_id, estado, fecha_pago]) // For professional payment history
+  @@index([cliente_id, estado, creado_en]) // For client payment history
+  @@index([referencia_externa])
+  @@index([creado_en])
 }
 
 model perfiles_profesionales {
@@ -315,15 +406,19 @@ model refresh_tokens {
   issued_at  DateTime @default(now())
   expires_at DateTime
   revoked    Boolean  @default(false)
+  device_id  String? // Track device for security
+  ip_address String? // Track IP for security monitoring
+  user_agent String? // Track user agent
   usuarios   usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([expires_at])
   @@index([token_hash])
   @@index([user_id])
+  @@index([device_id])
 }
 
 model resenas {
-  id String @id @default(cuid())
+  id           String    @id @default(cuid())
   servicio_id  String    @unique
   cliente_id   String
   calificacion Int
@@ -336,24 +431,42 @@ model resenas {
   @@index([servicio_id])
 }
 
+// Enhanced Withdrawals model with enums and audit
 model retiros {
-  id                String            @id
-  profesional_id    String
-  monto             Float
-  cuenta_id         String
-  estado            String            @default("procesando")
-  fecha_solicitud   DateTime          @default(now())
-  fecha_procesado   DateTime?
-  fecha_acreditado  DateTime?
-  referencia        String?
-  notas             String?
-  creado_en         DateTime          @default(now())
-  usuarios          usuarios          @relation(fields: [profesional_id], references: [id])
-  cuentas_bancarias cuentas_bancarias @relation(fields: [cuenta_id], references: [id])
+  id                  String           @id @default(cuid())
+  profesional_id      String
+  cuenta_id           String
+  monto               Float
+  monto_comision      Float            @default(0) // Withdrawal fee
+  monto_final         Float // Amount after fees
+  estado              WithdrawalStatus @default(PROCESANDO)
+  fecha_solicitud     DateTime         @default(now())
+  fecha_procesado     DateTime?
+  fecha_acreditado    DateTime?
+  referencia_bancaria String? // Bank transfer reference
+  notas               String?
+  procesado_por       String? // Admin who processed
+  datos_adicionales   Json? // Bank response data
 
+  // Audit fields
+  creado_por      String?
+  actualizado_por String?
+  creado_en       DateTime @default(now())
+  actualizado_en  DateTime @updatedAt
+
+  // Relations
+  usuarios             usuarios               @relation(fields: [profesional_id], references: [id])
+  cuentas_bancarias    cuentas_bancarias      @relation(fields: [cuenta_id], references: [id])
+  comisiones_historial comisiones_historial[]
+
+  // Indexes
   @@index([fecha_solicitud])
   @@index([estado])
   @@index([profesional_id])
+  @@index([estado, fecha_solicitud]) // For processing queue
+  @@index([profesional_id, estado, fecha_solicitud]) // For professional withdrawal history
+  @@index([procesado_por])
+  @@index([referencia_bancaria])
 }
 
 model servicios {
@@ -375,6 +488,7 @@ model servicios {
   usuarios_servicios_profesional_idTousuarios usuarios                @relation("servicios_profesional_idTousuarios", fields: [profesional_id], references: [id])
   servicios_recurrrentes                      servicios_recurrrentes? @relation(fields: [servicio_recurrente_id], references: [id])
   urgent_requests                             urgent_requests[]
+  comisiones_historial                        comisiones_historial[]
 
   @@index([profesional_id, fecha_agendada])
   @@index([cliente_id, fecha_agendada])
@@ -433,35 +547,35 @@ model specialties {
 }
 
 model usuarios {
-   id String @id @default(cuid())
-   email                                                                  String                       @unique
-   hash_contrasena                                                        String?
-   nombre                                                                 String
-   telefono                                                               String?
-   dni                                                                    String?                      @unique
-   rol                                                                    String                       @default("cliente")
-   esta_verificado                                                        Boolean                      @default(false)
-   bloqueado                                                              Boolean                      @default(false)
-   bloqueado_hasta                                                        DateTime?
-   failed_login_attempts                                                  Int                          @default(0)
-   token_verificacion                                                     String?                      @unique
-   token_expiracion                                                       DateTime?
-   creado_en                                                              DateTime                     @default(now())
-   actualizado_en                                                         DateTime?
-   google_id                                                              String?                      @unique
-   facebook_id                                                            String?                      @unique
-   url_foto_perfil                                                        String?
-   fcm_token                                                              String?
-   sms_enabled                                                            Boolean                      @default(false)
-   direccion                                                              String?
-   preferencias_servicio                                                  String?
-   notificaciones_push                                                    Boolean                      @default(true)
-   notificaciones_email                                                   Boolean                      @default(true)
-   notificaciones_sms                                                     Boolean                      @default(false)
-   notificaciones_servicios                                               Boolean                      @default(true)
-   notificaciones_mensajes                                                Boolean                      @default(true)
-   notificaciones_pagos                                                   Boolean                      @default(true)
-   notificaciones_marketing                                               Boolean                      @default(false)
+  id                                                                     String                       @id @default(cuid())
+  email                                                                  String                       @unique
+  hash_contrasena                                                        String?
+  nombre                                                                 String
+  telefono                                                               String?
+  dni                                                                    String?                      @unique
+  rol                                                                    String                       @default("cliente")
+  esta_verificado                                                        Boolean                      @default(false)
+  bloqueado                                                              Boolean                      @default(false)
+  bloqueado_hasta                                                        DateTime?
+  failed_login_attempts                                                  Int                          @default(0)
+  token_verificacion                                                     String?                      @unique
+  token_expiracion                                                       DateTime?
+  creado_en                                                              DateTime                     @default(now())
+  actualizado_en                                                         DateTime?
+  google_id                                                              String?                      @unique
+  facebook_id                                                            String?                      @unique
+  url_foto_perfil                                                        String?
+  fcm_token                                                              String?
+  sms_enabled                                                            Boolean                      @default(false)
+  direccion                                                              String?
+  preferencias_servicio                                                  String?
+  notificaciones_push                                                    Boolean                      @default(true)
+  notificaciones_email                                                   Boolean                      @default(true)
+  notificaciones_sms                                                     Boolean                      @default(false)
+  notificaciones_servicios                                               Boolean                      @default(true)
+  notificaciones_mensajes                                                Boolean                      @default(true)
+  notificaciones_pagos                                                   Boolean                      @default(true)
+  notificaciones_marketing                                               Boolean                      @default(false)
   budgetRequests                                                         BudgetRequest[]
   admin_audit_logs                                                       admin_audit_log[]            @relation("AdminAuditLogs")
   admin_profile                                                          admin_profile?
@@ -482,13 +596,13 @@ model usuarios {
   reviewed_verifications                                                 identity_verification[]      @relation("VerificationReviewedBy")
   identity_verifications                                                 identity_verification[]
   logros_usuario                                                         logros_usuario[]
-  conversations_conversations_client_idTousuarios                       conversations[]             @relation("conversations_client_idTousuarios")
-  conversations_conversations_professional_idTousuarios                 conversations[]             @relation("conversations_professional_idTousuarios")
-  mensajes_mensajes_sender_idTousuarios                                 mensajes[]                   @relation("mensajes_sender_idTousuarios")
-  mensajes_mensajes_recipient_idTousuarios                              mensajes[]                   @relation("mensajes_recipient_idTousuarios")
+  conversations_conversations_client_idTousuarios                        conversations[]              @relation("conversations_client_idTousuarios")
+  conversations_conversations_professional_idTousuarios                  conversations[]              @relation("conversations_professional_idTousuarios")
+  mensajes_mensajes_sender_idTousuarios                                  mensajes[]                   @relation("mensajes_sender_idTousuarios")
+  mensajes_mensajes_recipient_idTousuarios                               mensajes[]                   @relation("mensajes_recipient_idTousuarios")
   assigned_moderation_reports                                            moderation_reports[]         @relation("AssignedModerationReports")
   created_moderation_reports                                             moderation_reports[]         @relation("CreatedModerationReports")
-  notificaciones                                                         notificaciones[]
+  notifications                                                          notifications[]
   notification_preferences                                               notification_preferences[]
   pagos_pagos_cliente_idTousuarios                                       pagos[]                      @relation("pagos_cliente_idTousuarios")
   pagos_pagos_profesional_idTousuarios                                   pagos[]                      @relation("pagos_profesional_idTousuarios")
@@ -505,6 +619,7 @@ model usuarios {
   servicios_recurrrentes_servicios_recurrrentes_profesional_idTousuarios servicios_recurrrentes[]     @relation("servicios_recurrrentes_profesional_idTousuarios")
   urgent_assignments_professional                                        urgent_assignments[]         @relation("urgent_assignments_professional_idTousuarios")
   urgent_request_candidates_professional                                 urgent_request_candidates[]  @relation("urgent_request_candidates_professional_idTousuarios")
+  urgent_rejections_professional                                         urgent_rejections[]          @relation("urgent_rejections_professional_idTousuarios")
   urgent_requests_client                                                 urgent_requests[]            @relation("urgent_requests_client_idTousuarios")
   verification_requests                                                  verification_requests?
 
@@ -535,9 +650,13 @@ model identity_verification {
   document_type      String
   document_front_url String
   document_back_url  String?
+  selfie_url         String?
+  biometric_data     String? // JSON with facial recognition data
+  biometric_verified Boolean   @default(false)
   status             String    @default("pending")
   admin_review_notes String?
   reviewed_by        String?
+  verification_score Float? // Confidence score for biometric match
   created_at         DateTime  @default(now())
   updated_at         DateTime  @updatedAt
   admin              usuarios? @relation("VerificationReviewedBy", fields: [reviewed_by], references: [id])
@@ -546,21 +665,26 @@ model identity_verification {
   @@index([user_id])
   @@index([status])
   @@index([created_at])
+  @@index([biometric_verified])
   @@map("identity_verification")
 }
 
 model professional_reputation {
-  user_id            String   @id
-  average_rating     Float    @default(0)
-  completed_jobs     Int      @default(0)
-  on_time_percentage Float    @default(0)
-  medals             String   @default("[]")
-  ranking_score      Float    @default(0)
-  updated_at         DateTime @updatedAt
-  user               usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id             String   @id
+  average_rating      Float    @default(0)
+  completed_jobs      Int      @default(0)
+  on_time_percentage  Float    @default(0)
+  medals              String   @default("[]")
+  ranking_score       Float    @default(0)
+  reputation_previous Float? // Previous reputation score for tracking changes
+  score_locked        Boolean  @default(false) // Prevent manipulation
+  last_calculation    DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  user                usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([ranking_score])
   @@index([updated_at])
+  @@index([score_locked])
   @@map("professional_reputation")
 }
 
@@ -688,38 +812,62 @@ model calendar_sync {
   @@map("calendar_sync")
 }
 
+// Payment Events for detailed audit trail
 model eventos_pagos {
-  id          String   @id
-  pago_id     String
-  tipo_evento String
-  datos       String
-  procesado   Boolean  @default(false)
-  creado_en   DateTime @default(now())
-  pago        pagos    @relation(fields: [pago_id], references: [id], onDelete: Cascade)
+  id            String    @id @default(cuid())
+  pago_id       String
+  tipo_evento   String // webhook_received, payment_approved, funds_released, etc.
+  datos         Json // Event payload from gateway or system
+  procesado     Boolean   @default(false)
+  procesado_en  DateTime?
+  procesado_por String?
+  creado_en     DateTime  @default(now())
 
+  // Relations
+  pago pagos @relation(fields: [pago_id], references: [id])
+
+  // Indexes
   @@index([pago_id, tipo_evento])
   @@index([procesado])
+  @@index([creado_en])
+  @@index([pago_id, procesado, creado_en]) // For unprocessed events
 }
 
+// Payment Disputes model (enhanced)
 model disputas_pagos {
-  id               String    @id
-  pago_id          String
-  usuario_id       String
-  motivo           String
-  descripcion      String
-  estado           String    @default("abierta")
-  fecha_apertura   DateTime  @default(now())
-  fecha_resolucion DateTime?
-  resolucion       String?
-  notas_admin      String?
-  reembolso_monto  Float?
-  usuarios         usuarios  @relation(fields: [usuario_id], references: [id])
-  pago             pagos     @relation(fields: [pago_id], references: [id])
+  id                     String    @id @default(cuid())
+  pago_id                String
+  usuario_id             String
+  tipo                   String // chargeback, refund_request, service_not_provided
+  motivo                 String
+  descripcion            String
+  evidencia_urls         Json? // Array of evidence file URLs
+  estado                 String    @default("abierta")
+  fecha_apertura         DateTime  @default(now())
+  fecha_resolucion       DateTime?
+  resolucion             String?
+  notas_admin            String?
+  reembolso_monto        Float?
+  reembolso_procesado    Boolean   @default(false)
+  reembolso_procesado_en DateTime?
 
+  // Audit fields
+  resuelto_por   String?
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime @updatedAt
+
+  // Relations
+  usuarios usuarios @relation(fields: [usuario_id], references: [id])
+  pago     pagos    @relation(fields: [pago_id], references: [id])
+
+  // Indexes
   @@index([pago_id])
   @@index([usuario_id])
   @@index([estado])
   @@index([fecha_apertura])
+  @@index([tipo])
+  @@index([estado, fecha_apertura]) // For dispute queue
+  @@index([resuelto_por])
 }
 
 model BudgetRequest {
@@ -798,38 +946,102 @@ model BudgetOffer {
   @@index([isSelected])
 }
 
-model commission_settings {
-  id                    String   @id @default(cuid())
-  commission_percentage Float
-  minimum_fee           Float
-  active                Boolean  @default(true)
-  updated_at            DateTime @updatedAt
-  updated_by            String?
+// Commission History table for audit trail
+model comisiones_historial {
+  id                String              @id @default(cuid())
+  pago_id           String?
+  retiro_id         String?
+  servicio_id       String?
+  tipo              CommissionType
+  evento            CommissionEventType
+  monto             Float
+  porcentaje        Float? // Commission percentage applied
+  descripcion       String // Reason for commission
+  referencia        String? // External reference
+  datos_adicionales Json? // Additional context data
 
-  @@index([active])
-  @@index([updated_at])
+  // Audit fields
+  aplicado_por   String? // User who applied the commission
+  aprobado_por   String? // Admin who approved if manual
+  creado_en      DateTime @default(now())
+  actualizado_en DateTime @updatedAt
+
+  // Relations
+  pagos     pagos?     @relation(fields: [pago_id], references: [id])
+  retiros   retiros?   @relation(fields: [retiro_id], references: [id])
+  servicios servicios? @relation(fields: [servicio_id], references: [id])
+
+  // Indexes
+  @@index([pago_id])
+  @@index([retiro_id])
+  @@index([servicio_id])
+  @@index([tipo])
+  @@index([evento])
+  @@index([creado_en])
+  @@index([tipo, evento, creado_en]) // For commission analytics
+  @@index([aplicado_por])
+  @@index([aprobado_por])
+}
+
+// Enhanced Commission Settings with audit and history
+model commission_settings {
+  id           String         @id @default(cuid())
+  nombre       String         @unique // Descriptive name for the setting
+  tipo         CommissionType
+  porcentaje   Float // Commission percentage (0.05 = 5%)
+  monto_minimo Float          @default(0) // Minimum fee amount
+  monto_maximo Float? // Maximum fee amount
+  activo       Boolean        @default(true)
+  fecha_inicio DateTime       @default(now())
+  fecha_fin    DateTime?
+  condiciones  Json? // Conditions for applying this commission
+  descripcion  String?
+
+  // Audit fields
+  creado_por      String?
+  actualizado_por String?
+  aprobado_por    String? // Admin approval for changes
+  creado_en       DateTime @default(now())
+  actualizado_en  DateTime @updatedAt
+
+  // Indexes
+  @@index([activo])
+  @@index([tipo])
+  @@index([fecha_inicio])
+  @@index([tipo, activo, fecha_inicio]) // For active commission lookup
+  @@index([creado_por])
+  @@index([aprobado_por])
 }
 
 model urgent_requests {
-  id             String                      @id @default(cuid())
-  client_id      String
-  service_id     String?
-  description    String
-  location       String
-  radius_km      Float                       @default(5.0)
-  status         String                      @default("pending")
-  price_estimate Float?
-  created_at     DateTime                    @default(now())
-  updated_at     DateTime                    @updatedAt
-  assignments    urgent_assignments[]
-  candidates     urgent_request_candidates[]
-  service        servicios?                  @relation(fields: [service_id], references: [id])
-  client         usuarios                    @relation("urgent_requests_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
+  id                       String                      @id @default(cuid())
+  client_id                String
+  service_id               String?
+  description              String
+  latitude                 Float? // Coordenada latitud para búsquedas geoespaciales
+  longitude                Float? // Coordenada longitud para búsquedas geoespaciales
+  radius_km                Float                       @default(5.0)
+  status                   String                      @default("pending")
+  price_estimate           Float?
+  assigned_professional_id String? // Profesional asignado actualmente
+  created_at               DateTime                    @default(now())
+  updated_at               DateTime                    @updatedAt
+  assignments              urgent_assignments[]
+  candidates               urgent_request_candidates[]
+  rejections               urgent_rejections[] // Relación con rechazos
+  tracking                 urgent_tracking[] // Relación con historial de cambios
+  service                  servicios?                  @relation(fields: [service_id], references: [id])
+  client                   usuarios                    @relation("urgent_requests_client_idTousuarios", fields: [client_id], references: [id], onDelete: Cascade)
 
+  // Índices optimizados para búsquedas geoespaciales y consultas comunes
   @@index([status], map: "idx_urgent_status")
   @@index([created_at])
   @@index([client_id])
+  @@index([latitude, longitude]) // Búsqueda geoespacial por distancia
+  @@index([assigned_professional_id]) // Búsqueda por profesional asignado
   @@index([status, created_at])
+  @@index([status, assigned_professional_id]) // Índice compuesto para asignaciones
+  @@index([client_id, status]) // Índice compuesto para consultas de cliente
   @@map("urgent_requests")
 }
 
@@ -881,34 +1093,121 @@ model urgent_pricing_rules {
   @@map("urgent_pricing_rules")
 }
 
-model notification_preferences {
-  id             String   @id @default(cuid())
-  usuario_id     String
-  tipo           String
-  inapp          Boolean  @default(true)
-  push           Boolean  @default(true)
-  email          Boolean  @default(true)
-  actualizado_en DateTime @updatedAt
-  usuarios       usuarios @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+model urgent_rejections {
+  id                String          @id @default(cuid())
+  urgent_request_id String
+  professional_id   String
+  reason            String? // Razón del rechazo
+  rejected_at       DateTime        @default(now())
+  professional      usuarios        @relation("urgent_rejections_professional_idTousuarios", fields: [professional_id], references: [id], onDelete: Cascade)
+  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
 
-  @@unique([usuario_id, tipo])
-  @@index([usuario_id], map: "idx_preference_user")
-  @@index([tipo])
+  @@index([urgent_request_id])
+  @@index([professional_id])
+  @@index([rejected_at])
+  @@map("urgent_rejections")
+}
+
+model urgent_tracking {
+  id                String          @id @default(cuid())
+  urgent_request_id String
+  previous_status   String?
+  new_status        String
+  changed_by        String? // Usuario que realizó el cambio
+  changed_at        DateTime        @default(now())
+  notes             String? // Notas adicionales del cambio
+  urgent_request    urgent_requests @relation(fields: [urgent_request_id], references: [id], onDelete: Cascade)
+
+  @@index([urgent_request_id])
+  @@index([changed_at])
+  @@index([new_status])
+  @@index([urgent_request_id, changed_at]) // Para historial ordenado
+  @@map("urgent_tracking")
+}
+
+model notification_preferences {
+  id                String   @id @default(cuid())
+  user_id           String
+  notification_type String
+  in_app            Boolean  @default(true)
+  push              Boolean  @default(true)
+  email             Boolean  @default(true)
+  sms               Boolean  @default(false)
+  frequency         String   @default("immediate") // immediate, daily, weekly
+  quiet_hours_start String?  // HH:MM format
+  quiet_hours_end   String?  // HH:MM format
+  marketing_enabled Boolean  @default(false)
+  device_settings   Json?    // device-specific preferences
+  updated_at        DateTime @updatedAt
+  users             usuarios @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, notification_type])
+  @@index([user_id], map: "idx_preference_user")
+  @@index([notification_type])
+  @@index([marketing_enabled])
   @@map("notification_preferences")
 }
 
 model notification_queue {
-  id                 String         @id @default(cuid())
-  notificacion_id    String
-  intentos_reintento Int            @default(0)
-  programado_en      DateTime
-  creado_en          DateTime       @default(now())
-  notificacion       notificaciones @relation(fields: [notificacion_id], references: [id], onDelete: Cascade)
+  id              String       @id @default(cuid())
+  notification_id String
+  retry_attempts  Int          @default(0)
+  scheduled_at    DateTime
+  created_at      DateTime     @default(now())
+  notification    notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade)
 
-  @@index([notificacion_id])
-  @@index([programado_en])
-  @@index([creado_en])
+  @@index([notification_id])
+  @@index([scheduled_at])
+  @@index([created_at])
   @@map("notification_queue")
+}
+
+model notification_groups {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  created_at  DateTime @default(now())
+
+  @@index([name])
+  @@map("notification_groups")
+}
+
+model notification_analytics {
+  id              String   @id @default(cuid())
+  notification_id String
+  event_type      String   // opened, clicked, delivered, etc.
+  event_data      Json?
+  created_at      DateTime @default(now())
+  notification    notifications @relation(fields: [notification_id], references: [id], onDelete: Cascade)
+
+  @@index([notification_id])
+  @@index([event_type])
+  @@index([created_at])
+  @@map("notification_analytics")
+}
+
+model admin_users {
+  id                String           @id @default(cuid())
+  email             String           @unique
+  hash_contrasena   String?
+  nombre            String
+  telefono          String?
+  rol               String           @default("admin")
+  esta_activo       Boolean          @default(true)
+  ultimo_acceso     DateTime?
+  token_jwt         String?          @unique
+  token_expiracion  DateTime?
+  permisos          String           @default("{}")
+  creado_en         DateTime         @default(now())
+  actualizado_en    DateTime         @updatedAt
+
+  // Audit logs
+  audit_logs        admin_audit_log[] @relation("AdminAuditLogsAdminUser")
+
+  @@index([email])
+  @@index([esta_activo])
+  @@index([rol])
+  @@map("admin_users")
 }
 
 model admin_profile {
@@ -928,16 +1227,17 @@ model admin_profile {
 }
 
 model admin_audit_log {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   admin_id    String
   action      String
   target_type String
   target_id   String?
-  details     String   @default("{}")
+  details     String      @default("{}")
   ip_address  String?
   user_agent  String?
-  created_at  DateTime @default(now())
-  admin       usuarios @relation("AdminAuditLogs", fields: [admin_id], references: [id], onDelete: Cascade)
+  created_at  DateTime    @default(now())
+  admin       usuarios    @relation("AdminAuditLogs", fields: [admin_id], references: [id], onDelete: Cascade, map: "admin_audit_log_admin_id_fkey")
+  admin_user  admin_users? @relation("AdminAuditLogsAdminUser", fields: [admin_id], references: [id], onDelete: Cascade, map: "admin_audit_log_admin_user_id_fkey")
 
   @@index([admin_id])
   @@index([action])
@@ -990,7 +1290,7 @@ model certifications {
 }
 
 model experiences {
-  id             String                 @id @default(cuid())
+  id              String                 @id @default(cuid())
   professional_id String
   company_name    String
   position        String
@@ -1008,16 +1308,16 @@ model experiences {
 }
 
 model portfolio_photos {
-  id             String                 @id @default(cuid())
+  id              String                 @id @default(cuid())
   professional_id String
-  photo_url      String
-  title          String?
-  description    String?
-  category       String?
-  is_featured    Boolean                @default(false)
-  uploaded_at    DateTime               @default(now())
-  updated_at     DateTime               @updatedAt
-  professional   perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
+  photo_url       String
+  title           String?
+  description     String?
+  category        String?
+  is_featured     Boolean                @default(false)
+  uploaded_at     DateTime               @default(now())
+  updated_at      DateTime               @updatedAt
+  professional    perfiles_profesionales @relation(fields: [professional_id], references: [usuario_id], onDelete: Cascade)
 
   @@index([professional_id])
   @@index([is_featured])
@@ -1040,12 +1340,12 @@ model settings {
 }
 
 model typing_indicators {
-  id             String   @id @default(cuid())
+  id              String   @id @default(cuid())
   conversation_id String
-  user_id        String
-  is_typing      Boolean  @default(true)
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  user_id         String
+  is_typing       Boolean  @default(true)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
   @@unique([conversation_id, user_id])
   @@index([conversation_id])
@@ -1053,4 +1353,13 @@ model typing_indicators {
   @@index([is_typing])
   @@index([updated_at])
   @@map("typing_indicators")
+}
+
+model csrf_tokens {
+  session_id String   @id
+  token      String   @unique
+  expires_at DateTime
+
+  @@index([expires_at])
+  @@map("csrf_tokens")
 }

@@ -22,5 +22,6 @@ router.get('/reputation/:userId/history', reputationController.getReputationHist
 // Rutas protegidas (admin/interno)
 router.post('/reputation/update', authenticateToken, reputationController.updateReputation);
 router.post('/reputation/assign-medal', authenticateToken, reputationController.assignMedal);
+router.put('/reputation/:userId/lock', authenticateToken, reputationController.toggleScoreLock);
 
 module.exports = router;

@@ -347,278 +347,119 @@ const MisCotizacionesProfesional = ({ onClose }) => {
             <h4>Solicitudes Recibidas</h4>
             <p className="section-description">Solicitudes de clientes que necesitan tus servicios</p>
             <div className="quotes-list">
-              {/* Solicitudes Pendientes */}
-              <div className="quote-item pending">
-                <div className="quote-info">
-                  <h5>Instalación de Aire Acondicionado</h5>
-                  <p className="client-info">
-                    <strong>Cliente:</strong> Diego Eduardo Euler<br/>
-                    <strong>Zona:</strong> QUILMES<br/>
-                    <strong>Ubicación:</strong> Buenos Aires<br/>
-                    <strong>Fecha:</strong> 2025-01-19
-                  </p>
-                  <p className="quote-description">
-                    <strong>Descripción:</strong> Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.
-                  </p>
+              {loading ? (
+                <div className="loading-state">
+                  <p>Cargando solicitudes...</p>
                 </div>
-                <div className="quote-actions">
-                  <span className="status-badge pending">PENDIENTE</span>
-                  <div className="action-buttons-group">
-                    <button 
-                      onClick={() => handleOpenDetails({
-                        id: 1,
-                        titulo: 'Instalación de Aire Acondicionado',
-                        cliente: { nombre: 'Diego Eduardo Euler', zona: 'QUILMES' },
-                        descripcion: 'Necesito instalar un aire acondicionado split de 3000 frigorias en mi living. El equipo ya está adquirido, solo necesito la instalación.',
-                        ubicacion: 'Buenos Aires',
-                        fecha: '2025-01-19',
-                        estado: 'PENDIENTE'
-                      }, 'recibidas')}
-                      className="btn-details"
-                    >
-                      Ver Detalles y Responder
-                    </button>
-                    <button 
-                      onClick={() => handleOpenChat({
-                        id: '7f0d57a9-cf83-4d06-8d41-a244752c46ff',
-                        nombre: 'Diego Eduardo Euler',
-                        rol: 'cliente'
-                      }, 'Diego Eduardo Euler')}
-                      disabled={loading}
-                      className="btn-chat"
-                      style={{ 
-                        backgroundColor: '#009688', 
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '4px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginLeft: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <span>💬</span>
-                      Chat con el Cliente
-                    </button>
+              ) : cotizacionesRecibidas.length === 0 ? (
+                <div className="empty-state">
+                  <p>No tienes solicitudes pendientes en este momento.</p>
+                </div>
+              ) : (
+                cotizacionesRecibidas.map((cotizacion) => (
+                  <div key={cotizacion.id} className="quote-item pending">
+                    <div className="quote-info">
+                      <h5>{cotizacion.title || 'Solicitud de presupuesto'}</h5>
+                      <p className="client-info">
+                        <strong>Cliente:</strong> {cotizacion.cliente?.nombre || 'Cliente'}<br/>
+                        <strong>Zona:</strong> {cotizacion.zona_cobertura || 'No especificada'}<br/>
+                        <strong>Ubicación:</strong> {cotizacion.location || 'Buenos Aires'}<br/>
+                        <strong>Fecha:</strong> {new Date(cotizacion.creado_en).toLocaleDateString('es-AR')}
+                      </p>
+                      <p className="quote-description">
+                        <strong>Descripción:</strong> {cotizacion.descripcion || cotizacion.description}
+                      </p>
+                      {cotizacion.fotos_urls && JSON.parse(cotizacion.fotos_urls || '[]').length > 0 && (
+                        <p className="photos-info">
+                          📷 {JSON.parse(cotizacion.fotos_urls).length} foto(s) adjunta(s)
+                        </p>
+                      )}
+                    </div>
+                    <div className="quote-actions">
+                      <span className="status-badge pending">PENDIENTE</span>
+                      <div className="action-buttons-group">
+                        <button
+                          onClick={() => handleOpenDetails({
+                            id: cotizacion.id,
+                            titulo: cotizacion.title || 'Solicitud de presupuesto',
+                            cliente: {
+                              nombre: cotizacion.cliente?.nombre || 'Cliente',
+                              zona: cotizacion.zona_cobertura || 'No especificada'
+                            },
+                            descripcion: cotizacion.descripcion || cotizacion.description,
+                            ubicacion: cotizacion.location || 'Buenos Aires',
+                            fecha: new Date(cotizacion.creado_en).toLocaleDateString('es-AR'),
+                            estado: 'PENDIENTE',
+                            fotos: cotizacion.fotos_urls ? JSON.parse(cotizacion.fotos_urls) : []
+                          }, 'recibidas')}
+                          className="btn-details"
+                        >
+                          Ver Detalles y Responder
+                        </button>
+                        <button
+                          onClick={() => handleOpenChat({
+                            id: cotizacion.cliente?.id || cotizacion.cliente_id,
+                            nombre: cotizacion.cliente?.nombre || 'Cliente',
+                            rol: 'cliente'
+                          }, cotizacion.cliente?.nombre || 'Cliente')}
+                          disabled={loading}
+                          className="btn-chat"
+                          style={{
+                            backgroundColor: '#009688',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            marginLeft: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <span>💬</span>
+                          Chat con el Cliente
+                        </button>
+                        <button
+                          onClick={() => handleRechazarCotizacion(cotizacion.id)}
+                          disabled={loading}
+                          className="btn-reject"
+                          style={{
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 16px',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            marginLeft: '8px'
+                          }}
+                        >
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
+                ))
+              )}
 
-              {/* Solicitudes Enviadas */}
-              <div className="quote-item sent">
-                <div className="quote-info">
-                  <h5>Reparación de Calefón</h5>
-                  <p className="client-info">
-                    <strong>Cliente:</strong> María González<br/>
-                    <strong>Zona:</strong> PALERMO<br/>
-                    <strong>Fecha:</strong> 2025-01-18
-                  </p>
-                  <div className="response-info">
-                    <p><strong>Mi Respuesta:</strong></p>
-                    <p>💰 <strong>Precio:</strong> $15.000</p>
-                    <p>⏰ <strong>Tiempo:</strong> 2 horas</p>
-                    <p>💬 <strong>Comentarios:</strong> Disponible este fin de semana. Tengo experiencia con marcas Rheem.</p>
-                  </div>
-                </div>
-                <div className="quote-actions">
-                  <span className="status-badge sent">ENVIADA</span>
-                  <div className="action-buttons-group">
-                    <button 
-                      onClick={() => handleOpenDetails({
-                        id: 2,
-                        titulo: 'Reparación de Calefón',
-                        cliente: { nombre: 'María González', zona: 'PALERMO' },
-                        descripcion: 'El calefón no enciende. Probablemente sea el piloto.',
-                        ubicacion: 'Buenos Aires',
-                        fecha: '2025-01-18',
-                        estado: 'ENVIADA',
-                        mi_respuesta: {
-                          precio: 15000,
-                          tiempo: 2,
-                          comentarios: 'Disponible este fin de semana. Tengo experiencia con marcas Rheem.',
-                          fecha_respuesta: '2025-01-18'
-                        }
-                      }, 'enviadas')}
-                      className="btn-details"
-                    >
-                      Ver Mi Respuesta
-                    </button>
-                    <button 
-                      onClick={() => handleOpenChat({
-                        id: '550e8400-e29b-41d4-a716-446655440000',
-                        nombre: 'María González',
-                        rol: 'cliente'
-                      }, 'María González')}
-                      disabled={loading}
-                      className="btn-chat"
-                      style={{ 
-                        backgroundColor: '#009688', 
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '4px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginLeft: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <span>💬</span>
-                      Chat con el Cliente
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Trabajos Aceptados */}
-              <div className="quote-item accepted">
-                <div className="quote-info">
-                  <h5>Instalación Eléctrica</h5>
-                  <p className="client-info">
-                    <strong>Cliente:</strong> Carlos Mendoza<br/>
-                    <strong>Zona:</strong> RECOLETA<br/>
-                    <strong>Fecha:</strong> 2025-01-17
-                  </p>
-                  <div className="response-info">
-                    <p><strong>Mi Respuesta:</strong></p>
-                    <p>💰 <strong>Precio:</strong> $25.000</p>
-                    <p>⏰ <strong>Tiempo:</strong> 6 horas</p>
-                    <p>💬 <strong>Comentarios:</strong> Aceptado. Comenzamos mañana a las 8:00 AM.</p>
-                  </div>
-                </div>
-                <div className="quote-actions">
-                  <span className="status-badge accepted">ACEPTADA</span>
-                  <div className="action-buttons-group">
-                    <button 
-                      onClick={() => handleOpenDetails({
-                        id: 3,
-                        titulo: 'Instalación Eléctrica',
-                        cliente: { nombre: 'Carlos Mendoza', zona: 'RECOLETA' },
-                        descripcion: 'Necesito instalar el sistema eléctrico completo para una ampliación.',
-                        ubicacion: 'Buenos Aires',
-                        fecha: '2025-01-17',
-                        estado: 'ACEPTADA',
-                        mi_respuesta: {
-                          precio: 25000,
-                          tiempo: 6,
-                          comentarios: 'Aceptado. Comenzamos mañana a las 8:00 AM.',
-                          fecha_respuesta: '2025-01-17'
-                        }
-                      }, 'enviadas')}
-                      className="btn-details"
-                    >
-                      Ver Detalles
-                    </button>
-                    <button 
-                      onClick={() => handleOpenChat({
-                        id: 'b2c3d4e5-f6g7-8901-bcde-f23456789012',
-                        nombre: 'Carlos Mendoza',
-                        rol: 'cliente'
-                      }, 'Carlos Mendoza')}
-                      disabled={loading}
-                      className="btn-chat"
-                      style={{ 
-                        backgroundColor: '#009688', 
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '4px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginLeft: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <span>💬</span>
-                      Chat con el Cliente
-                    </button>
-                  </div>
-                </div>
+              {/* Placeholder para futuras implementaciones - por ahora vacío */}
+              <div className="empty-state">
+                <p>Las respuestas enviadas se mostrarán aquí próximamente.</p>
               </div>
             </div>
           </div>
 
-          {/* Sección de Cotizaciones Recientes */}
+          {/* Sección de Respuestas Recientes - Futura implementación */}
           <div className="quote-section">
             <h4>Mis Respuestas Recientes</h4>
             <p className="section-description">Las últimas respuestas que has enviado a solicitudes de clientes</p>
             <div className="quotes-list">
-              <div className="quote-item recent">
-                <div className="quote-info">
-                  <h5>Mantenimiento de Pileta</h5>
-                  <p className="client-info">
-                    <strong>Cliente:</strong> Ana Torres<br/>
-                    <strong>Zona:</strong> BELGRANO<br/>
-                    <strong>Fecha solicitud:</strong> 2025-01-19
-                  </p>
-                  <div className="response-info">
-                    <p><strong>Mi Respuesta (Hoy):</strong></p>
-                    <p>💰 <strong>Precio:</strong> $8.000</p>
-                    <p>⏰ <strong>Tiempo:</strong> 3 horas</p>
-                    <p>💬 <strong>Comentarios:</strong> Incluyo productos químicos. Trabajo los sábados.</p>
-                  </div>
-                </div>
-                <div className="quote-actions">
-                  <span className="status-badge recent">RECIENTE</span>
-                  <div className="action-buttons-group">
-                    <button 
-                      onClick={() => handleOpenDetails({
-                        id: 4,
-                        titulo: 'Mantenimiento de Pileta',
-                        cliente: { nombre: 'Ana Torres', zona: 'BELGRANO' },
-                        descripcion: 'Necesito limpieza y mantenimiento de pileta para temporada de verano.',
-                        ubicacion: 'Buenos Aires',
-                        fecha: '2025-01-19',
-                        estado: 'RECIENTE',
-                        mi_respuesta: {
-                          precio: 8000,
-                          tiempo: 3,
-                          comentarios: 'Incluyo productos químicos. Trabajo los sábados.',
-                          fecha_respuesta: '2025-01-19'
-                        }
-                      }, 'enviadas')}
-                      className="btn-details"
-                    >
-                      Ver Mi Respuesta
-                    </button>
-                    <button 
-                      onClick={() => handleOpenChat({
-                        id: 'c3d4e5f6-g7h8-9012-cdef-345678901234',
-                        nombre: 'Ana Torres',
-                        rol: 'cliente'
-                      }, 'Ana Torres')}
-                      disabled={loading}
-                      className="btn-chat"
-                      style={{ 
-                        backgroundColor: '#009688', 
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: '4px',
-                        cursor: loading ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        marginLeft: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      <span>💬</span>
-                      Chat con el Cliente
-                    </button>
-                  </div>
-                </div>
+              <div className="empty-state">
+                <p>Esta sección se implementará próximamente con el historial de respuestas.</p>
               </div>
             </div>
           </div>

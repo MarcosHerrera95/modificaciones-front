@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { initializeMobileNotifications, onFCMMessage, checkNotificationPermission, requestNotificationPermission } from '../services/fcmService';
 import { useNotifications } from '../hooks/useNotifications';
 import socketService from '../services/socketService';
+import notificationApi from '../services/notificationApi';
 
 // Disable hot reload for this file to prevent React hooks issues during hot reload
 if (import.meta.hot) {

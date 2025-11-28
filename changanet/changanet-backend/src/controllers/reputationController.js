@@ -131,6 +131,29 @@ const updateProfessionalReputation = async (userId) => {
     // Combinar medallas automáticas con manuales existentes
     const allMedals = [...new Set([...automaticMedals, ...existingMedals])];
 
+    // Obtener reputación anterior para tracking
+    const previousReputation = await prisma.professional_reputation.findUnique({
+      where: { user_id: userId }
+    });
+
+    // Verificar si el score está bloqueado (seguridad contra manipulación)
+    if (previousReputation?.score_locked) {
+      console.warn(`Attempted to update locked reputation score for user ${userId}`);
+      // Solo actualizar campos no críticos
+      const reputation = await prisma.professional_reputation.update({
+        where: { user_id: userId },
+        data: {
+          average_rating: averageRating,
+          completed_jobs: completedJobs,
+          on_time_percentage: onTimePercentage,
+          medals: JSON.stringify(allMedals),
+          last_calculation: new Date(),
+          updated_at: new Date()
+        }
+      });
+      return reputation;
+    }
+
     // Actualizar o crear registro de reputación
     const reputation = await prisma.professional_reputation.upsert({
       where: { user_id: userId },
@@ -139,7 +162,9 @@ const updateProfessionalReputation = async (userId) => {
         completed_jobs: completedJobs,
         on_time_percentage: onTimePercentage,
         ranking_score: rankingScore,
+        reputation_previous: previousReputation?.ranking_score || null,
         medals: JSON.stringify(allMedals),
+        last_calculation: new Date(),
         updated_at: new Date()
       },
       create: {
@@ -148,7 +173,9 @@ const updateProfessionalReputation = async (userId) => {
         completed_jobs: completedJobs,
         on_time_percentage: onTimePercentage,
         ranking_score: rankingScore,
-        medals: JSON.stringify(automaticMedals)
+        reputation_previous: null,
+        medals: JSON.stringify(automaticMedals),
+        last_calculation: new Date()
       }
     });
 
@@ -380,6 +407,69 @@ exports.assignMedal = async (req, res) => {
     });
   } catch (error) {
     console.error('Error assigning medal:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+};
+
+/**
+ * Bloquear/desbloquear score de reputación (seguridad)
+ */
+exports.toggleScoreLock = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { lock, reason } = req.body;
+
+    // Verificar permisos de admin
+    if (req.user.rol !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Se requieren permisos de administrador'
+      });
+    }
+
+    const reputation = await prisma.professional_reputation.findUnique({
+      where: { user_id: userId }
+    });
+
+    if (!reputation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Reputación no encontrada'
+      });
+    }
+
+    const updatedReputation = await prisma.professional_reputation.update({
+      where: { user_id: userId },
+      data: {
+        score_locked: lock,
+        updated_at: new Date()
+      }
+    });
+
+    // Registrar en historial
+    await prisma.reputation_history.create({
+      data: {
+        user_id: userId,
+        event_type: lock ? 'score_locked' : 'score_unlocked',
+        value: JSON.stringify({
+          reason: reason || 'Acción administrativa',
+          locked: lock
+        })
+      }
+    });
+
+    // Registrar en auditoría
+    await logReputationUpdated(userId, { score_locked: lock }, 'administrative', req.user.id);
+
+    res.json({
+      success: true,
+      data: updatedReputation
+    });
+  } catch (error) {
+    console.error('Error toggling score lock:', error);
     res.status(500).json({
       success: false,
       error: 'Error interno del servidor'

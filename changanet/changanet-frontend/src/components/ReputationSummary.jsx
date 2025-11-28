@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import MedalsList from './MedalsList';
 import ReputationBadge from './ReputationBadge';
+import { reputationAPI } from '../services/apiService';
 
 const ReputationSummary = ({ userId, showDetails = true, className = '' }) => {
   const { user } = useAuth();
@@ -21,21 +22,11 @@ const ReputationSummary = ({ userId, showDetails = true, className = '' }) => {
   const fetchReputation = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/ranking/reputation/${targetUserId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('changanet_token')}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setReputation(data.data);
-      } else {
-        setError('Error al cargar reputación');
-      }
+      const data = await reputationAPI.getUserReputation(targetUserId);
+      setReputation(data);
     } catch (err) {
       console.error('Error fetching reputation:', err);
-      setError('Error de conexión');
+      setError('Error al cargar reputación');
     } finally {
       setLoading(false);
     }

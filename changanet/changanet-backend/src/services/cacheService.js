@@ -552,6 +552,33 @@ const invalidateCacheByPattern = async (pattern, type = 'search_basic') => {
 };
 
 /**
+ * Funciones de caché para notificaciones
+ */
+const getCachedNotificationCount = async (userId) => {
+  const cacheKey = `notification_count_${userId}`;
+  return memoryCache.get(cacheKey);
+};
+
+const cacheNotificationCount = (userId, count) => {
+  const cacheKey = `notification_count_${userId}`;
+  memoryCache.set(cacheKey, count, 300); // 5 minutos
+};
+
+const invalidateNotificationCache = (userId) => {
+  const cacheKey = `notification_count_${userId}`;
+  memoryCache.del(cacheKey);
+
+  // También invalidar Redis si está disponible
+  if (redisClient) {
+    try {
+      redisClient.del(`notifications:${cacheKey}`);
+    } catch (error) {
+      console.warn('Redis notification cache invalidation error:', error);
+    }
+  }
+};
+
+/**
  * Limpiar todo el caché
  */
 const clearCache = () => {
@@ -578,6 +605,11 @@ module.exports = {
   setInCache,
   invalidateCacheByPattern,
   resetCacheStats,
+
+  // Funciones de notificaciones
+  getCachedNotificationCount,
+  cacheNotificationCount,
+  invalidateNotificationCache,
 
   // Funciones de reseñas (legacy)
   getCachedReviewStats,

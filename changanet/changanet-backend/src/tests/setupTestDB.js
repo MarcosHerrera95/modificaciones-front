@@ -7,7 +7,7 @@ const path = require('path');
 // Configurar variables de entorno para pruebas
 require('dotenv').config({ path: '.env.test' });
 
-// Forzar DATABASE_URL para pruebas si estamos en modo test
+// Para pruebas, usar SQLite para evitar dependencia de PostgreSQL
 if (process.env.NODE_ENV === 'test') {
   process.env.DATABASE_URL = "file:./changanet_test.db";
 }
@@ -22,6 +22,12 @@ beforeAll(async () => {
     console.log('🗄️ Configurando base de datos de prueba...');
     console.log('📋 NODE_ENV:', process.env.NODE_ENV);
     console.log('📋 DATABASE_URL:', process.env.DATABASE_URL);
+
+    // Skip database setup if Prisma is mocked (for unit tests)
+    if (process.env.JEST_WORKER_ID && global.jest && jest.isMockFunction && jest.isMockFunction(require('@prisma/client').PrismaClient)) {
+      console.log('🔄 Saltando configuración de base de datos - Prisma está mockeado');
+      return;
+    }
 
     // Para PostgreSQL, verificar conexión y recrear esquema si es necesario
     if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql://')) {
@@ -73,6 +79,10 @@ beforeAll(async () => {
  */
 afterEach(async () => {
   try {
+    // Skip cleanup if Prisma is mocked
+    if (process.env.JEST_WORKER_ID && global.jest && jest.isMockFunction && jest.isMockFunction(require('@prisma/client').PrismaClient)) {
+      return;
+    }
     if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgresql://')) {
       // Para PostgreSQL, truncar tablas respetando foreign keys
       const tables = [
@@ -84,7 +94,14 @@ afterEach(async () => {
         'cotizaciones',
         'servicios',
         'perfiles_profesionales',
-        'usuarios'
+        'usuarios',
+        // Tablas de servicios urgentes
+        'urgent_requests',
+        'urgent_assignments',
+        'urgent_request_candidates',
+        'urgent_rejections',
+        'urgent_tracking',
+        'urgent_pricing_rules'
       ];
 
       // Deshabilitar temporalmente las restricciones de foreign keys
@@ -113,7 +130,14 @@ afterEach(async () => {
         'cotizaciones',
         'servicios',
         'perfiles_profesionales',
-        'usuarios'
+        'usuarios',
+        // Tablas de servicios urgentes
+        'urgent_requests',
+        'urgent_assignments',
+        'urgent_request_candidates',
+        'urgent_rejections',
+        'urgent_tracking',
+        'urgent_pricing_rules'
       ];
 
       for (const table of tables) {
@@ -137,6 +161,10 @@ afterEach(async () => {
  * Cerrar conexión después de todas las pruebas
  */
 afterAll(async () => {
+  // Skip disconnect if Prisma is mocked
+  if (process.env.JEST_WORKER_ID && global.jest && jest.isMockFunction && jest.isMockFunction(require('@prisma/client').PrismaClient)) {
+    return;
+  }
   await prisma.$disconnect();
   console.log('🔌 Conexión a base de datos cerrada');
 });

@@ -1,5 +1,6 @@
-const { NotificationService } = require('../services/notificationService');
+const { NotificationService, NOTIFICATION_TYPES, NOTIFICATION_PRIORITY } = require('../services/notificationService');
 const { PrismaClient } = require('@prisma/client');
+const rateLimiterService = require('../services/rateLimiterService');
 const prisma = new PrismaClient();
 
 let notificationServiceInstance = null;
@@ -444,6 +445,135 @@ class NotificationController {
 
   async updateNotificationPreferences(req, res) {
     return this.updateUserPreferences(req, res);
+  }
+
+  // GET /api/notifications/filtered - Obtener notificaciones con filtros avanzados
+  async getFilteredNotifications(req, res) {
+    try {
+      const userId = req.user.id;
+      const filters = req.query;
+
+      // Rate limiting para consultas
+      const rateLimitResult = await rateLimiterService.checkLimit('api_requests', userId);
+      if (!rateLimitResult.allowed) {
+        return res.status(429).json({
+          success: false,
+          message: 'Demasiadas solicitudes. Inténtalo de nuevo en unos minutos.'
+        });
+      }
+
+      const result = await this.notificationService.getFilteredNotifications(userId, filters);
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('Error getting filtered notifications:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener notificaciones filtradas'
+      });
+    }
+  }
+
+  // POST /api/notifications/mark-type-read - Marcar notificaciones por tipo como leídas
+  async markTypeAsRead(req, res) {
+    try {
+      const userId = req.user.id;
+      const { type } = req.body;
+
+      if (!type || !Object.values(NOTIFICATION_TYPES).includes(type)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tipo de notificación inválido'
+        });
+      }
+
+      const result = await this.notificationService.markTypeAsRead(userId, type);
+
+      res.json({
+        success: true,
+        data: {
+          modifiedCount: result.count,
+          type
+        }
+      });
+    } catch (error) {
+      console.error('Error marking type as read:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al marcar notificaciones como leídas'
+      });
+    }
+  }
+
+  // GET /api/notifications/stats - Obtener estadísticas de notificaciones
+  async getNotificationStats(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const stats = await this.notificationService.getNotificationStats(userId);
+
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      console.error('Error getting notification stats:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al obtener estadísticas de notificaciones'
+      });
+    }
+  }
+
+  // POST /api/notifications/send-test - Enviar notificación de prueba con opciones avanzadas
+  async sendAdvancedTestNotification(req, res) {
+    try {
+      const userId = req.user.id;
+      const { type, priority, channels, customTitle, customMessage } = req.body;
+
+      // Validar tipo
+      if (!Object.values(NOTIFICATION_TYPES).includes(type)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tipo de notificación inválido'
+        });
+      }
+
+      // Validar prioridad
+      if (priority && !Object.values(NOTIFICATION_PRIORITY).includes(priority)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Prioridad inválida'
+        });
+      }
+
+      const notification = await this.notificationService.createNotification(
+        userId,
+        type,
+        customTitle,
+        customMessage,
+        { test: true, timestamp: new Date().toISOString() },
+        {
+          priority: priority || NOTIFICATION_PRIORITY.MEDIUM,
+          channel: channels || 'inapp'
+        }
+      );
+
+      res.json({
+        success: true,
+        data: notification,
+        message: 'Notificación de prueba enviada exitosamente'
+      });
+    } catch (error) {
+      console.error('Error sending advanced test notification:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error al enviar notificación de prueba'
+      });
+    }
   }
 }
 
