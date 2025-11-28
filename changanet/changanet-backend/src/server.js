@@ -419,11 +419,11 @@ const { setUrgentService, setWebSocketService: setUrgentWebSocketService } = req
 const { setMatchingService, setGeolocationService } = require('./controllers/matchingController');
 
 // Inicializar servicios de urgencias
-const UrgentServiceService = require('./services/urgentServiceService');
-const MatchingService = require('./services/matchingService');
-const SLAService = require('./services/slaService');
-const GeolocationService = require('./services/geolocationService');
-const NotificationService = require('./services/notificationService');
+const { UrgentServiceService, setNotificationService, setWebSocketService: setUrgentServiceWebSocket, setMatchingService: setUrgentMatchingService, setSlaService, setGeolocationService: setUrgentGeolocationService } = require('./services/urgentServiceService');
+const { MatchingService, setGeolocationService: setMatchingGeolocationService } = require('./services/matchingService');
+const { SLAService, setNotificationService: setSlaNotificationService, setWebSocketService: setSlaWebSocketService } = require('./services/slaService');
+const { GeolocationService } = require('./services/geolocationService');
+const { NotificationService } = require('./services/notificationService');
 
 const urgentService = new UrgentServiceService();
 const matchingService = new MatchingService();
@@ -432,16 +432,16 @@ const geolocationService = new GeolocationService();
 const notificationService = new NotificationService();
 
 // Inyectar dependencias entre servicios
-UrgentServiceService.setNotificationService(notificationService);
-UrgentServiceService.setWebSocketService(webSocketService);
-UrgentServiceService.setMatchingService(matchingService);
-UrgentServiceService.setSlaService(slaService);
-UrgentServiceService.setGeolocationService(geolocationService);
+setNotificationService(notificationService);
+setUrgentServiceWebSocket(webSocketService);
+setUrgentMatchingService(matchingService);
+setSlaService(slaService);
+setUrgentGeolocationService(geolocationService);
 
-MatchingService.setGeolocationService(geolocationService);
+setMatchingGeolocationService(geolocationService);
 
-SLAService.setNotificationService(notificationService);
-SLAService.setWebSocketService(webSocketService);
+setSlaNotificationService(notificationService);
+setSlaWebSocketService(webSocketService);
 
 // Inyectar servicios en controladores
 setUrgentService(urgentService);

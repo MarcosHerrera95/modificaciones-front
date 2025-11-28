@@ -88,9 +88,8 @@ model cotizaciones {
   @@index([cliente_id])
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model coverage_zones {
-  id                     String                   @id @default("lower(hex(randomblob(16)))")
+  id                     String                   @id @default(cuid())
   name                   String
   state                  String
   city                   String
@@ -173,32 +172,24 @@ model favoritos {
 }
 
 model logros {
-  id             String           @id
-  nombre         String
-  descripcion    String
-  icono          String
-  categoria      String
-  criterio       String
-  puntos         Int              @default(0)
-  activo         Boolean          @default(true)
-  creado_en      DateTime         @default(now())
-  logros_usuario logros_usuario[]
+  id              String   @id @default(uuid())
+  nombre          String
+  descripcion     String
+  puntos          Int
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
 
-  @@index([activo])
-  @@index([categoria])
+  logros_usuario  logros_usuario[]
 }
 
 model logros_usuario {
-  id          String   @id
-  usuario_id  String
-  logro_id    String
-  obtenido_en DateTime @default(now())
-  usuarios    usuarios @relation(fields: [usuario_id], references: [id])
-  logros      logros   @relation(fields: [logro_id], references: [id])
+  id         String   @id @default(uuid())
+  user_id    String
+  logro_id   String
+  created_at DateTime @default(now())
 
-  @@unique([usuario_id, logro_id])
-  @@index([logro_id])
-  @@index([usuario_id])
+  usuario usuarios @relation(fields: [user_id], references: [id])
+  logro   logros   @relation(fields: [logro_id], references: [id])
 }
 
 model conversations {
@@ -533,8 +524,8 @@ model servicios_recurrrentes {
 }
 
 model specialties {
-  id                       String                     @id @default("lower(hex(randomblob(16)))")
-  name                     String                     @unique(map: "sqlite_autoindex_specialties_2")
+  id                       String                     @id @default(cuid())
+  name                     String                     @unique
   category                 String
   description              String?
   is_active                Boolean?                   @default(true)

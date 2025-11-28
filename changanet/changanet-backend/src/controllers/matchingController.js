@@ -441,5 +441,14 @@ exports.debugProfessionalLocations = async (req, res) => {
 
 module.exports = {
   setMatchingService,
-  setGeolocationService
+  setGeolocationService,
+  getMatchingStats: exports.getMatchingStats,
+  testMatchingAlgorithm: exports.testMatchingAlgorithm,
+  optimizeMatchingAlgorithm: exports.optimizeMatchingAlgorithm,
+  getUrgentPricingRules: exports.getUrgentPricingRules,
+  updateUrgentPricingRules: exports.updateUrgentPricingRules,
+  getGeospatialStats: exports.getGeospatialStats,
+  getMatchingPerformance: exports.getMatchingPerformance,
+  clearGeolocationCache: exports.clearGeolocationCache,
+  debugProfessionalLocations: exports.debugProfessionalLocations
 };
